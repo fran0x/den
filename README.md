@@ -1,7 +1,7 @@
 # Den
 
 A read-only Rust TUI for Homebrew inventory, dependency diagnostics and local Codex
-skills, configuration and instructions. Nothing inspected is installed, removed or executed.
+skills, configuration, instructions and MCP server definitions. Nothing inspected is installed, removed or executed.
 
 ## Run
 
@@ -16,13 +16,14 @@ just snapshot                             # Den JSON
 just brew-snapshot fixtures/brew.json
 just skills-fixture
 just codex-fixture                        # isolated synthetic configuration
+just codex-fixture fixtures/mcp           # synthetic MCP definitions
 ```
 
 Snapshots/demo never collect live Codex data or run Homebrew. Fixtures use explicit roots.
 
 ## Navigation
 
-`F2`: Homebrew/Codex. `F3`: Skills/Configuration/Instructions. Arrows or `j/k` navigate;
+`F2`: Homebrew/Codex. `F3`: Skills/Configuration/Instructions/MCP. Arrows or `j/k` navigate;
 `Tab` changes pane; `/` searches; `r` refreshes; `?` helps; `q` quits.
 
 - **Homebrew:** `f/i` filter; `1–4` dependency views; `5–8` diagnostics. `s/v/t/Space`
@@ -33,34 +34,42 @@ Snapshots/demo never collect live Codex data or run Homebrew. Fixtures use expli
 - **Instructions:** `Enter` toggles redacted previews; `t` shows the conditional trusted
   scenario. Page keys and Home/End scroll. Views preserve selection and search.
 
+**MCP:** `1–6` select overview, transport, authentication, policies, sources and findings.
+`f` selects a filter dimension; `i` cycles its value. `v` selects a source;
+`Enter/Backspace` inspect/return. Configuration is never executed or contacted.
+
 ## Evidence and privacy
 
 Homebrew intent uses installation records; unknown stays unknown. Runtime relationships
-remain separate from current declarations. `missing`, `leaves` and `autoremove --dry-run`
-are supplementary evidence, never removal advice. Homebrew may fetch metadata.
+and current declarations stay separate. Diagnostics never establish safe removal.
+Homebrew may fetch metadata.
 
-Codex inspection models [local precedence](https://developers.openai.com/codex/config-advanced):
-trusted project layers, selected separate profile, user and system files. Untrusted
-project layers are inactive; unknown trust is conditional. CLI, cloud and managed policy
-remain unobserved. Legacy profiles, unknown merge semantics and unsupported values are
-flagged. Cross-layer skill arrays and non-project relative skill paths remain undetermined.
+Codex models [local precedence](https://developers.openai.com/codex/config-advanced):
+trusted project, selected profile, user and system files. Untrusted project layers are
+inactive; unknown trust is conditional. Runtime overrides remain unobserved;
+unsupported values and unestablished merge/path semantics remain unresolved.
 
-[Instruction chains](https://developers.openai.com/codex/guides/agents-md) select one nonempty
-file per directory and combine global-to-project guidance. Byte accounting includes
-blank-line separators. Den does not interpret prose conflicts.
+[Instruction chains](https://developers.openai.com/codex/guides/agents-md) combine one selected
+file per directory, global-to-project, with byte accounting and best-effort redacted previews.
 
-TOML values use a display allowlist; raw files and parser snippets are never shown.
-Instruction previews have best-effort redaction. Reads reject special files and file
-symlinks; explicit discovery-root aliases are resolved safely. Limits: 256 KiB/file,
-64 ancestors, 16 fallback names, 16 MiB instruction reads and 2 MiB previews per scenario.
-Fallbacks currently require simple `.md` names. Blocking OS reads cannot be forcibly interrupted.
-No credentials, sessions or agents are accessed. System/plugin skill coverage remains partial;
-eligible does not mean loaded or invoked.
+MCP inspection follows the [current schema](https://learn.chatgpt.com/docs/config-file/config-reference).
+Stdio/HTTP definitions retain source and trust evidence. Multi-layer merges remain unresolved;
+plugin overrides do not establish an installed server. Policies restrict configured tool names,
+not a discovered tool inventory. Authentication availability is never checked.
+
+TOML uses a display allowlist. Arguments, inline environment/header values, OAuth secrets,
+helper commands and raw URLs are withheld. Debug output is aggregate only; endpoints show
+scheme, network category and port. No credential stores or sessions are read.
+
+Reads and traversal are bounded; configuration file symlinks are rejected. MCP limits:
+1,024 definitions, 256 entries per collection field. `url` parses endpoints without DNS.
+System/plugin coverage remains partial; eligible never means connected or invoked.
+See the roadmap for filesystem limits and deliberate modeling gaps.
 
 ## Development
 
 `just check` runs formatting, Clippy, tests and release build; `just smoke` checks terminals.
 Opt-in local checks: `just reconcile`, `just dependency-check`, `just diagnostic-check`,
-`just skills-check`, `just codex-config-check` (aggregate counts, no raw configuration).
+`just skills-check`, `just codex-config-check`, `just mcp-check` (aggregate local evidence).
 
-See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). Stage 3B only; MCP exploration is deferred.
+See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). Stage 3C1 only; deeper MCP security auditing is deferred.

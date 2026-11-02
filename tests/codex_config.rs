@@ -722,6 +722,8 @@ fn defaults_have_documented_provenance_and_view_searches_are_preserved() {
     key(&mut a, KeyCode::F(3));
     assert!(a.codex.query.is_empty());
     key(&mut a, KeyCode::F(3));
+    assert_eq!(a.codex.view, View::Mcp);
+    key(&mut a, KeyCode::F(3));
     key(&mut a, KeyCode::F(3));
     assert_eq!(a.codex.query, "max_bytes");
 }

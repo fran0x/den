@@ -78,3 +78,7 @@ codex-config-check:
 # Inspect isolated synthetic configuration, instructions and skills.
 codex-fixture path="fixtures/codex":
     cargo run -- --codex-fixture "$1"
+
+# Aggregate configured MCP evidence only; never launch, connect or authenticate.
+mcp-check:
+    cargo test --test mcp live_mcp_configuration -- --ignored --nocapture

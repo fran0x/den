@@ -19,8 +19,12 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
     .split(area);
     frame.render_widget(
         Paragraph::new(format!(
-            " DEN / Codex / {:?} | F2: Homebrew · F3: view",
-            state.view
+            " DEN / Codex / {} | F2: Homebrew · F3: view",
+            if state.view == View::Mcp {
+                "MCP".into()
+            } else {
+                format!("{:?}", state.view)
+            }
         ))
         .style(Style::default().fg(Color::Cyan)),
         rows[0],
@@ -39,7 +43,7 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
     );
     frame.render_widget(
         Paragraph::new(
-            "F3:view /:search Tab:focus s:sources Enter:inspect r:refresh ?:help q:quit",
+            if state.view == View::Mcp { "F3:view 1-6:section f:filter i:value v:source Enter:source /:search r:refresh ?:help q:quit" } else { "F3:view /:search Tab:focus s:sources Enter:inspect r:refresh ?:help q:quit" },
         )
         .style(Style::default().fg(Color::Black).bg(Color::Cyan)),
         rows[4],
@@ -53,7 +57,9 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(rows[3]);
     let block = pane(
-        if state.view == View::Instructions {
+        if state.view == View::Mcp {
+            " MCP inventory "
+        } else if state.view == View::Instructions {
             " Instruction chain "
         } else if state.sources {
             " Sources "
@@ -94,7 +100,25 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
     );
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let text = state.text();
+    let text = if state.view == View::Mcp {
+        format!(
+            "{}\nSection {}: {} · source selector {}\n\n{}",
+            state.mcp.label(),
+            state.mcp.section + 1,
+            [
+                "Overview",
+                "Transport",
+                "Authentication",
+                "Tools and approvals",
+                "Sources",
+                "Findings and limitations"
+            ][state.mcp.section],
+            state.mcp.source + 1,
+            state.text()
+        )
+    } else {
+        state.text()
+    };
     let lines: Vec<_> = text.lines().map(|s| Line::from(safe_text(s))).collect();
     let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
     state.scroll_max = scroll_max(&paragraph, inner);

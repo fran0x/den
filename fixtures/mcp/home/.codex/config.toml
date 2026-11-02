@@ -1,0 +1,40 @@
+# Synthetic configuration. All credential-shaped strings below are test canaries.
+[mcp_servers.docs]
+command = "npx"
+args = ["-y", "@example/server", "MCP-SECRET-CANARY"]
+env = { EXAMPLE_INLINE = "MCP-SECRET-CANARY" }
+env_vars = ["EXAMPLE_FORWARDED"]
+required = true
+enabled_tools = ["read", "write"]
+disabled_tools = ["write"]
+default_tools_approval_mode = "prompt"
+[mcp_servers.docs.tools.read]
+approval_mode = "approve"
+output_token_limit = 4000
+
+[mcp_servers.http]
+url = "https://user:MCP-SECRET-CANARY@example.com/MCP-SECRET-CANARY?key=MCP-SECRET-CANARY"
+auth = "oauth"
+bearer_token_env_var = "EXAMPLE_BEARER"
+http_headers = { Authorization = "MCP-SECRET-CANARY" }
+env_http_headers = { Authorization = "EXAMPLE_HEADER" }
+http_headers_helper = "MCP-SECRET-CANARY"
+[mcp_servers.http.oauth]
+client_id = "MCP-SECRET-CANARY"
+client_secret = "MCP-SECRET-CANARY"
+callback_url = "http://127.0.0.1/MCP-SECRET-CANARY"
+
+[mcp_servers.disabled]
+command = "uvx"
+args = ["example-server"]
+enabled = false
+
+[mcp_servers.remote]
+command = "/remote/example-server"
+experimental_environment = "remote"
+env_vars = [{ name = "EXAMPLE_REMOTE", source = "remote" }]
+
+[plugins."example@source".mcp_servers.sample]
+enabled = true
+enabled_tools = ["search"]
+default_tools_approval_mode = "writes"

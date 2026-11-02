@@ -1,6 +1,7 @@
 //! Local evidence only: never a claim about an active Codex session.
 pub mod config;
 pub mod instructions;
+pub mod mcp;
 pub mod privacy;
 pub mod state;
 

@@ -223,6 +223,30 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     ])
     assert not calls.exists(), "snapshot configuration must remain isolated"
     print("PASS: Codex configuration sources, redacted instruction previews, refresh and snapshot isolation")
+    output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, steps=[
+        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
+        (b"7 MCP servers", b"/docs\r2"),
+        (b"Launcher: npx", b"3"),
+        (b"Section 3: Authentication", b"4"),
+        (b"Allowlist first", b"5\r"),
+        (b"Codex / Configuration", b"\x7f6"),
+        (b"Section 6: Findings", b"\x1b/absent\r"),
+        (b"No matching entries", b"\x1br"),
+        (b"7 MCP servers", b"q"),
+    ])
+    assert b"MCP-SECRET-CANARY" not in output
+    assert not calls.exists(), "MCP inspection must not invoke Homebrew"
+    run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
+        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
+        (b"0 MCP servers", b"?"),
+        (b"Codex local evidence", b"?q"),
+    ])
+    run_pty([binary, "--demo", "--skills"], env=isolated_env, steps=[
+        (b"no filesystem discovery", b"\x1bOR\x1bOR\x1bORr"),
+        (b"Unavailable in snapshot", b"q"),
+    ])
+    assert not calls.exists(), "snapshot MCP must not request live data"
+    print("PASS: MCP sections, source jump/back, search, empty/partial isolation, resize and redaction")
     output = run_pty([binary], env=isolated_env, steps=[
         (b"Loading Homebrew", b"?"),
         (b"Help", b"?"),
@@ -302,6 +326,7 @@ if "--live" in sys.argv[2:]:
     run_pty([binary, "--skills"], steps=[
         (b"discovered skills", b"\x1bOR"),
         (b"Locally resolved", b"\x1bOR"),
-        (b"Codex / Instructions", b"q"),
+        (b"Codex / Instructions", b"\x1bOR"),
+        (b"MCP servers", b"123456q"),
     ])
-    print("PASS: live Codex configuration and instructions render and restore terminal")
+    print("PASS: live Codex configuration, instructions and MCP render without server execution")

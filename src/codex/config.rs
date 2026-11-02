@@ -74,6 +74,7 @@ pub struct Enablement {
 }
 #[derive(Debug, Clone)]
 pub struct Configuration {
+    pub mcp: super::mcp::Inventory,
     pub layers: Vec<Layer>,
     pub settings: Vec<Setting>,
     pub trust: Trust,
@@ -506,6 +507,7 @@ pub fn collect(context: &Context, cancel: &AtomicBool) -> io::Result<Configurati
                 || l.status == "Invalid TOML"
                 || (l.scope == Scope::Profile && !l.present))
     });
+    let mcp = super::mcp::collect(context, &raw, incomplete, cancel)?;
     let layers: Vec<_> = raw.into_iter().map(|(l, _)| l).collect();
     let settings = resolve_settings(&layers);
     let mut findings = vec![LIMITATIONS.into(), "Trust modeled from exact canonical user project-root/selected-directory entries; contradictory, other ancestor or worktree mappings remain unknown.".into(), "Root discovery uses nearest configured marker within 64 ancestors; without a marker only the selected directory is inspected.".into()];
@@ -535,6 +537,7 @@ pub fn collect(context: &Context, cancel: &AtomicBool) -> io::Result<Configurati
         findings.push("Warning: skills.config defined in multiple applicable layers; array merge semantics not established, eligibility remains undetermined".into());
     }
     Ok(Configuration {
+        mcp,
         layers,
         settings,
         trust,
@@ -621,6 +624,22 @@ impl Configuration {
                 rule.enabled.map_or("undetermined".into(), |b| b.to_string()),
                 rule.path.as_ref().map_or("unresolved (original value withheld)".into(), |p| privacy::path(p)),
                 rule.issue.as_deref().unwrap_or("Canonical reference; inspect Skills for discovery/eligibility. Array merging across layers is not inferred.")));
+        }
+        for server in &self.mcp.servers {
+            for d in server.definitions.iter().filter(|d| d.source == i) {
+                text.push_str(&format!(
+                    "\nMCP: {} · {} · {:?}\n{}\nEnabled: {:?}; required: {:?}\n",
+                    server.name,
+                    d.transport.label(),
+                    d.activity,
+                    d.authentication(),
+                    d.enabled,
+                    d.required
+                ));
+                for finding in &d.findings {
+                    text.push_str(&format!("{:?}: {}\n", finding.severity, finding.message));
+                }
+            }
         }
         text.push_str("\nRaw TOML is never displayed. Unknown fields and values withheld.\n\n");
         text.push_str(&l.findings.join("\n\n"));

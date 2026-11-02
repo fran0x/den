@@ -102,13 +102,46 @@ Later stages are proposals, not authorization to implement them now.
 - File symlinks are not followed. Explicit Codex/system root aliases are allowed; fixture paths remain confined.
   Preview secret detection is best effort and can over-redact. No natural-language conflict interpretation.
 
-## Stage 3C — MCP inspection (requires separate authorization)
+## Stage 3C1 — Codex MCP server explorer (implemented)
 
-- Establish exact supported path/array merge contracts and additional trust/worktree fixtures before
-  strengthening configuration claims. Validate Linux and additional current Codex versions.
-- Reuse safe provenance and redaction for declarative MCP metadata; define an explicit display allowlist.
-- Keep runtime activation, connectivity and credential retrieval separate from local declarations.
-- No server execution, configuration edits or agent launches without new scope.
+- Normalizes MCP definitions from Stage 3B's already parsed layers; no new parser, resolver,
+  client, worker or runtime. Configuration, skills and MCP refresh atomically.
+- Separate MCP identity/model and validation; standalone and plugin-qualified names never merge.
+- Stdio and Streamable HTTP, local/remote environment forwarding, authentication mechanisms,
+  startup/timeouts, allowlist-before-denylist and default/per-tool approval evidence.
+- Eligibility, disabled, invalid, conditional and unresolved-plugin states remain distinct from runtime status.
+- Same-server definitions across applicable layers remain conditional: merge contracts are not guessed.
+  Inactive project sources stay inspectable. Unsupported values produce findings, not invented defaults.
+- URL parsing uses the `url` crate; no DNS, endpoint requests or protocol client. Only scheme,
+  network category and port survive normalization; hosts and all other URL components are withheld.
+- Arguments, helper commands, inline env/header values, OAuth IDs/secrets and unknown values
+  are discarded from the presentation model. Debug and live-check output are aggregate only.
+- F3 adds MCP; six detail sections, search, four intersecting filters, source jumps/back and refresh.
+- Synthetic fixtures, deterministic security/state/rendering tests, PTY checks and `just mcp-check`.
+
+### MCP coverage and limits
+
+- Only filesystem configuration layers are modeled. CLI overrides, enterprise enforcement,
+  cloud/session state, live tools, authentication and server availability remain unobserved.
+- Plugin overrides are recognized. No authoritative installed-plugin/version mapping was established
+  by the inspected documentation; plugin cache folders are not assumed to be active installations.
+  Actual bundled definitions remain unavailable; no broad plugin scanning occurs.
+- 1,024 definitions across the inventory; 256 entries per env/header/tool/argument list/map.
+  Existing file, ancestor, cancellation and symlink limits remain in force.
+- Absolute local launcher/cwd checks inspect bounded filesystem metadata only. PATH, shell expansion,
+  package targets and remote executable origins remain unresolved. No executable or helper is run.
+- Names are conservatively sanitized/withheld. Scope values are counted rather than displayed.
+  Endpoint categories do not establish DNS resolution, reachability or safety.
+- Known fields are normalized separately per source; overlays lacking a complete transport are not
+  misreported as complete servers. Unestablished merge behavior remains a Stage 3B limitation.
+
+## Stage 3C2 — MCP security evidence (requires separate authorization)
+
+- Establish authoritative plugin metadata/version mapping and precise MCP merge contracts first.
+- Expand current-version/Linux fixtures and define executable-provenance/privacy boundaries.
+- Review launcher supply chains, filesystem permissions and environment exposure only within new scope.
+- Keep local declarations separate from live connectivity, authentication and tool metadata.
+- No server execution, connection checks, remediation or configuration edits are authorized by 3C1.
 
 ## Stage 4 — Executables, runtimes, libraries and caches
 
@@ -123,9 +156,9 @@ Later stages are proposals, not authorization to implement them now.
 - State freshness, uncertainty and limitations; unknown must never imply safe.
 - Any external advisory/network integration needs an explicit consent and privacy design.
 
-## After Stage 3B
+## After Stage 3C1
 
 Stop here unless another stage is explicitly requested. Keep `just reconcile`,
 `just dependency-check`, `just diagnostic-check`, `just skills-check` and
-`just codex-config-check` as opt-in live checks.
+`just codex-config-check` and `just mcp-check` as opt-in local checks.
 Graphs and diagnostic reports remain in memory; snapshot checks never run Homebrew.

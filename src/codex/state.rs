@@ -7,6 +7,7 @@ pub enum View {
     Skills,
     Configuration,
     Instructions,
+    Mcp,
 }
 #[derive(Default)]
 struct Position {
@@ -22,8 +23,10 @@ pub struct State {
     pub requested: bool,
     pub running: bool,
     pub error: Option<String>,
-    pub selected: [usize; 3],
-    positions: [Position; 2],
+    pub selected: [usize; 4],
+    pub mcp: super::mcp::state::Controls,
+    return_to_mcp: Option<Position>,
+    positions: [Position; 3],
     source_return: Option<(usize, String)>,
     pub scroll: u16,
     pub scroll_max: u16,
@@ -40,7 +43,7 @@ pub struct State {
 impl State {
     pub fn cycle_view(&mut self) {
         if self.view != View::Skills {
-            let n = usize::from(self.view == View::Instructions);
+            let n = self.position_slot();
             self.positions[n] = Position {
                 query: self.query.clone(),
                 scroll: self.scroll,
@@ -50,10 +53,11 @@ impl State {
         self.view = match self.view {
             View::Skills => View::Configuration,
             View::Configuration => View::Instructions,
-            View::Instructions => View::Skills,
+            View::Instructions => View::Mcp,
+            View::Mcp => View::Skills,
         };
         if self.view != View::Skills {
-            let p = &self.positions[usize::from(self.view == View::Instructions)];
+            let p = &self.positions[self.position_slot()];
             self.query = p.query.clone();
             self.scroll = p.scroll;
             self.focus_details = p.details;
@@ -61,6 +65,13 @@ impl State {
         self.searching = false;
         self.help = false;
         self.clamp();
+    }
+    fn position_slot(&self) -> usize {
+        match self.view {
+            View::Instructions => 1,
+            View::Mcp => 2,
+            _ => 0,
+        }
     }
     pub fn configure(&mut self, context: Context) {
         self.context = Some(context);
@@ -88,7 +99,7 @@ impl State {
                 self.clamp();
             }
             Err(_) => {
-                self.error=Some("Configuration collection failed; previous configuration and skills retained (stale)".into());
+                self.error=Some("Configuration collection failed; previous configuration, skills and MCP retained (stale)".into());
                 skills.error = self.error.clone();
             }
         }
@@ -115,6 +126,13 @@ impl State {
                 .and_then(|c| c.files.get(n))
                 .map(|f| f.path.to_string_lossy().into_owned())
                 .unwrap_or_default(),
+            View::Mcp => i
+                .configuration
+                .mcp
+                .servers
+                .get(n)
+                .map(|s| s.id.selection_key())
+                .unwrap_or_default(),
             View::Skills => String::new(),
         }
     }
@@ -129,6 +147,15 @@ impl State {
         };
         let rows: Vec<_> = match self.view {
             View::Skills => vec![],
+            View::Mcp => i
+                .configuration
+                .mcp
+                .servers
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| self.mcp.accepts(s))
+                .map(|(n, s)| (n, s.summary()))
+                .collect(),
             View::Configuration if self.sources => i
                 .configuration
                 .layers
@@ -189,7 +216,9 @@ impl State {
         })
     }
     pub fn slot(&self) -> usize {
-        if self.view == View::Instructions {
+        if self.view == View::Mcp {
+            3
+        } else if self.view == View::Instructions {
             2
         } else {
             usize::from(self.sources)
@@ -205,28 +234,60 @@ impl State {
                 .into();
         }
         if self.running || self.requested {
-            return "Loading / refreshing Codex configuration and skills…".into();
+            return "Loading / refreshing Codex configuration, skills and MCP…".into();
         }
         if let Some(e) = &self.error {
             return e.clone();
+        }
+        if self.view == View::Mcp {
+            return self.inventory.as_ref().map_or("Not checked".into(), |i| {
+                format!(
+                    "{} MCP servers · {} definitions · runtime not checked{}",
+                    i.configuration.mcp.servers.len(),
+                    i.configuration.mcp.definition_count(),
+                    if i.configuration.mcp.partial {
+                        " · partial coverage"
+                    } else {
+                        ""
+                    }
+                )
+            });
         }
         self.inventory.as_ref().map_or("Not checked".into(),|i|format!("Locally resolved · trust {:?} · profile {} · {} layers · {} selected instructions{}",i.configuration.trust,i.configuration.profile.as_deref().unwrap_or("none selected"),i.configuration.layers.iter().filter(|l|l.present).count(),i.instructions.selected(),if self.conditional {" · IF TRUSTED scenario"} else {""}))
     }
     pub fn text(&self) -> String {
         if self.help {
-            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions\n/: search · Tab: switch panes · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nBackspace: return to settings or originating skill\nr: refresh configuration + skills atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
+            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions/MCP\n/: search · Tab: switch panes · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nMCP: 1-6 sections; f selects filter kind; i cycles filter value; v selects source; Enter/e opens source\nBackspace: return to settings, skill or MCP server\nr: refresh configuration + skills + MCP atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
         }
         let Some(i) = &self.inventory else {
             return format!("{}\n\n{LIMITATIONS}", self.status());
         };
         let n = self.rows().get(self.selected[self.slot()]).map(|(n, _)| *n);
         let text = match (self.view, n) {
+            (View::Mcp, Some(n)) => {
+                i.configuration.mcp.servers[n].text(self.mcp.section, &i.configuration.layers)
+            }
             (View::Configuration, Some(n)) if self.sources => i.configuration.source_text(n),
             (View::Configuration, Some(n)) => i.configuration.setting_text(n),
             (View::Instructions, Some(n)) => self
                 .chain()
                 .map_or(String::new(), |c| c.text(n, self.preview)),
             _ => "No matching entries".into(),
+        };
+        let text = if self.view == View::Mcp {
+            format!(
+                "{text}\n{}\n{}",
+                super::mcp::LIMITATIONS,
+                i.configuration
+                    .mcp
+                    .findings
+                    .iter()
+                    .map(|f| format!("{:?}: {}", f.severity, f.message))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        } else {
+            text
         };
         format!(
             "{text}\n\nCollection findings / coverage:\n{}",
@@ -261,6 +322,63 @@ impl State {
             }
             self.clamp();
             return false;
+        }
+        if self.view == View::Mcp && !self.help {
+            match key.code {
+                KeyCode::Char('1'..='6') => {
+                    if let KeyCode::Char(c) = key.code {
+                        self.mcp.section = (c as u8 - b'1') as usize;
+                    }
+                    self.scroll = 0;
+                    return false;
+                }
+                KeyCode::Char('f') => {
+                    self.mcp.cycle_dimension();
+                    return false;
+                }
+                KeyCode::Char('i') => {
+                    self.mcp.cycle_value();
+                    self.selected[3] = 0;
+                    self.scroll = 0;
+                    self.clamp();
+                    return false;
+                }
+                KeyCode::Char('v') => {
+                    let count = self
+                        .rows()
+                        .get(self.selected[3])
+                        .and_then(|(n, _)| {
+                            self.inventory
+                                .as_ref()
+                                .and_then(|i| i.configuration.mcp.servers.get(*n))
+                        })
+                        .map_or(1, |s| s.definitions.len().max(1));
+                    self.mcp.source = (self.mcp.source + 1) % count;
+                    self.scroll = 0;
+                    return false;
+                }
+                KeyCode::Enter | KeyCode::Char('e') => {
+                    if let Some((n, _)) = self.rows().get(self.selected[3])
+                        && let Some(server) = self
+                            .inventory
+                            .as_ref()
+                            .and_then(|i| i.configuration.mcp.servers.get(*n))
+                        && !server.definitions.is_empty()
+                    {
+                        let source =
+                            server.definitions[self.mcp.source % server.definitions.len()].source;
+                        self.return_to_mcp = Some(Position {
+                            query: self.query.clone(),
+                            scroll: self.scroll,
+                            details: self.focus_details,
+                        });
+                        self.jump_source(source);
+                    }
+                    return false;
+                }
+                KeyCode::Esc => self.mcp.reset(),
+                _ => (),
+            }
         }
         match key.code {
             KeyCode::Char('q') => return true,
@@ -297,6 +415,16 @@ impl State {
                 }
             }
             KeyCode::Backspace => {
+                if self.view == View::Configuration && self.return_to_mcp.is_some() {
+                    if let Some(p) = self.return_to_mcp.take() {
+                        self.view = View::Mcp;
+                        self.query = p.query;
+                        self.scroll = p.scroll;
+                        self.focus_details = p.details;
+                        self.clamp();
+                    }
+                    return false;
+                }
                 if self.return_to_skill {
                     self.view = View::Skills;
                     self.return_to_skill = false;
