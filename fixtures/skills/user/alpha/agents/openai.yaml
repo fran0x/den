@@ -1,0 +1,12 @@
+interface:
+  display_name: "Alpha example"
+  short_description: "Synthetic inspection skill"
+policy:
+  allow_implicit_invocation: false
+dependencies:
+  tools:
+    - type: mcp
+      value: fixture-docs
+      description: "Declared only; never connected"
+      transport: streamable_http
+      url: https://example.invalid/mcp

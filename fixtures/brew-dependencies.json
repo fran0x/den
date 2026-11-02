@@ -1,0 +1,531 @@
+{
+  "formulae": [
+    {
+      "name": "root-a",
+      "full_name": "root-a",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": true,
+          "runtime_dependencies": [
+            {
+              "full_name": "mid",
+              "pkg_version": "2",
+              "declared_directly": true
+            },
+            {
+              "full_name": "shared",
+              "pkg_version": "3",
+              "declared_directly": true
+            },
+            {
+              "full_name": "leaf",
+              "pkg_version": "1",
+              "declared_directly": false
+            },
+            {
+              "full_name": "leaf",
+              "pkg_version": "1"
+            },
+            {
+              "full_name": "version-gap",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        "mid",
+        "declared-only"
+      ],
+      "recommended_dependencies": [
+        "shared"
+      ],
+      "optional_dependencies": [
+        "opt"
+      ],
+      "build_dependencies": [
+        "build-tool"
+      ],
+      "test_dependencies": [
+        "test-tool"
+      ]
+    },
+    {
+      "name": "root-b",
+      "full_name": "root-b",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": true,
+          "runtime_dependencies": [
+            {
+              "full_name": "shared",
+              "pkg_version": "3",
+              "declared_directly": true
+            },
+            {
+              "full_name": "mid",
+              "pkg_version": "2",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        "shared"
+      ]
+    },
+    {
+      "name": "root-old",
+      "full_name": "root-old",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": true,
+          "runtime_dependencies": [
+            {
+              "full_name": "mid",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "mid",
+      "full_name": "mid",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "2",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "old",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        },
+        {
+          "version": "2",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "leaf",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        "leaf"
+      ]
+    },
+    {
+      "name": "shared",
+      "full_name": "shared",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "3",
+      "installed": [
+        {
+          "version": "3",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "leaf",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        "leaf"
+      ]
+    },
+    {
+      "name": "leaf",
+      "full_name": "leaf",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "old",
+      "full_name": "old",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "declared-only",
+      "full_name": "declared-only",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "opt",
+      "full_name": "opt",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "build-tool",
+      "full_name": "build-tool",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "test-tool",
+      "full_name": "test-tool",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "root-current",
+      "full_name": "root-current",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": true,
+          "runtime_dependencies": null
+        }
+      ],
+      "dependencies": [
+        "leaf"
+      ]
+    },
+    {
+      "name": "same",
+      "full_name": "same",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "tool@2",
+      "full_name": "example/tools/tool@2",
+      "tap": "example/tools",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "2",
+      "installed": [
+        {
+          "version": "2",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": [],
+      "aliases": [
+        "tool"
+      ],
+      "oldnames": [
+        "old-tool"
+      ]
+    },
+    {
+      "name": "consumer",
+      "full_name": "consumer",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "example/tools/tool",
+              "pkg_version": "2",
+              "declared_directly": true
+            },
+            {
+              "full_name": "example/tools/old-tool",
+              "pkg_version": "2",
+              "declared_directly": true
+            },
+            {
+              "full_name": "absent",
+              "pkg_version": "1",
+              "declared_directly": true
+            },
+            {
+              "full_name": "clash",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        "example/tools/tool@2"
+      ]
+    },
+    {
+      "name": "clash",
+      "full_name": "alpha/tools/clash",
+      "tap": "alpha/tools",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "clash",
+      "full_name": "beta/tools/clash",
+      "tap": "beta/tools",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "cycle-a",
+      "full_name": "cycle-a",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "cycle-b",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "cycle-b",
+      "full_name": "cycle-b",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "cycle-a",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "version-gap",
+      "full_name": "version-gap",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "2",
+      "installed": [
+        {
+          "version": "2",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "multi-unlinked",
+      "full_name": "multi-unlinked",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": null,
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "leaf",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        },
+        {
+          "version": "2",
+          "runtime_dependencies": [
+            {
+              "full_name": "old",
+              "pkg_version": "1",
+              "declared_directly": true
+            }
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "malformed",
+      "full_name": "malformed",
+      "tap": "homebrew/core",
+      "desc": "Synthetic graph fixture",
+      "linked_keg": "1",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {},
+            {
+              "full_name": 17
+            }
+          ]
+        }
+      ],
+      "dependencies": []
+    }
+  ],
+  "casks": [
+    {
+      "token": "studio",
+      "full_token": "studio",
+      "tap": "homebrew/cask",
+      "name": [
+        "Studio"
+      ],
+      "installed": "1",
+      "installed_on_request": true,
+      "depends_on": {
+        "formula": [
+          "leaf",
+          "same"
+        ],
+        "cask": [
+          "helper"
+        ],
+        "macos": ">= 13",
+        "arch": "arm64"
+      }
+    },
+    {
+      "token": "helper",
+      "installed": "1",
+      "depends_on": {
+        "formula": [
+          "shared"
+        ]
+      }
+    },
+    {
+      "token": "same",
+      "installed": "1",
+      "old_tokens": [
+        "old-same"
+      ]
+    },
+    {
+      "token": "platform-only",
+      "installed": "1",
+      "depends_on": {
+        "macos": ">= 13",
+        "arch": "arm64"
+      }
+    }
+  ]
+}

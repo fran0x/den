@@ -1,0 +1,42 @@
+{
+  "missing": {
+    "code": 1,
+    "stdout": "source: absent-recorded\n",
+    "stderr": ""
+  },
+  "missing_unmapped": {
+    "code": 1,
+    "stdout": "outside-inventory: other-dependency\n",
+    "stderr": ""
+  },
+  "leaves": {
+    "code": 0,
+    "stdout": "source\nleaf\n",
+    "stderr": ""
+  },
+  "cleanup_candidates": {
+    "code": 0,
+    "stdout": "==> Would autoremove 2 unneeded formulae:\nleaf\nalpha/tools/clash\n",
+    "stderr": ""
+  },
+  "cleanup_empty": {
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "cleanup_unexpected": {
+    "code": 0,
+    "stdout": "New preview format: leaf\n",
+    "stderr": ""
+  },
+  "failure": {
+    "code": 2,
+    "stdout": "",
+    "stderr": "Failure: test diagnostic\n"
+  },
+  "missing_failure": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: cannot load formula\n"
+  }
+}
