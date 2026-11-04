@@ -1,0 +1,32 @@
+ DEN / Codex / Skills   F2:Homebrew/Codex  F3:view
+ / Search:    Scope:All  Status:All
+1 discovered skills
+> Skills inventory ─────────────────────────────────    1 Overview ─────────────────────────────────────────────────────
+> example              User         Eligible          example
+
+                                                      Synthetic skill for configuration inspection.
+
+                                                      User · Eligible
+                                                      Metadata: Valid
+                                                      1 supporting entries · 0 findings
+
+                                                      2 Instructions   3 Files   4 Findings
+                                                      5 Coverage   e Configuration source
+                                                      v Technical evidence
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Compact · Enter:inspect Tab:pane  /:search  v:mode  ?:help  q:quit

@@ -1,0 +1,32 @@
+ DEN | Homebrew snapshot | read-only | F2: Codex Skills
+Type:All Intent:All
+Search:
+┌ Inventory ───────────────────────────────────┐┌ Details / 1 Overview | 2 Deps 3 Required by 4 Paths | 5-8 Diagnostics┐
+│> ripgrep                                     ││ripgrep                                                               │
+│  Formula | Requested                         ││Kind: Formula                                                         │
+│  Installed: 14.1.1                           ││Installed version(s): 14.1.1                                          │
+│  Search source trees quickly                 ││ID: brew:formula:homebrew/core/ripgrep                                │
+│  pcre2                                       ││Path: Unknown                                                         │
+│  Formula | Dependency                        ││                                                                      │
+│  Installed: 10.44                            ││What's installed?                                                     │
+│  Regular expression library                  ││Installation intent: Requested                                        │
+│  python@3.12                                 ││Full name: ripgrep                                                    │
+│  Formula | Unknown                           ││Tap: homebrew/core                                                    │
+│  Installed: 3.12.7, 3.12.8                   ││Homepage: https://example.org/ripgrep                                 │
+│  Description: Unknown                        ││Linked keg: 14.1.1                                                    │
+│  widget                                      ││Keg 14.1.1: Requested                                                 │
+│  Formula | Unknown                           ││  on_request: true; as_dependency: false                              │
+│  Installed: 1.2                              ││  Recorded runtime dependencies: 1                                    │
+│  Description: Unknown                        ││Declared dependency metadata: 2 retained fields (2: explore)          │
+│  legacy                                      ││                                                                      │
+│  Formula | Unknown                           ││Search source trees quickly                                           │
+│  Installed: 0.8                              ││                                                                      │
+│  Description: Unknown                        ││Why is it here?                                                       │
+│  widget                                      ││Requested according to Homebrew installation records; missing or      │
+│  Cask | Unknown                              ││conflicting evidence is Unknown.                                      │
+│  Recorded: 8.1                               ││Origin: Homebrew installation records                                 │
+│  A desktop development editor                ││                                                                      │
+│                                              ││Can I trust it?                                                       │
+│                                              ││Unknown - not assessed. Snapshot claims are unverified.               │
+└──────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────┘
+LIST | 7/7 | /:search f:type i:intent r:refresh Tab:focus ?:help q:quit

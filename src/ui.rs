@@ -1,12 +1,14 @@
+mod common;
+use common::*;
 mod codex;
 mod diagnostics;
 mod skills;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 
 use crate::{
@@ -15,14 +17,14 @@ use crate::{
     inventory::{HomebrewMetadata, installation_intent, safe_text},
 };
 
-pub const HELP: &str = "Den - Stage 3A\n\n\
-F2 switches Homebrew / Codex Skills; each module retains its state.\n\n\
+pub const HELP: &str = "Den — navigation\n\n\
+F2: Homebrew / Codex · F3: next view; each view retains its state.\nEnter from list: full-screen inspector · Esc: Back\nv: Compact / Detailed · z: full-screen toggle from either pane\n\n\
 Browse read-only Homebrew inventory, or offline snapshots/demo data.\n\n\
 Up/Down or k/j   Move selection / scroll focused pane\n\
 PageUp/PageDown  Move a page\n\
 Home/End        First / last item or detail line\n\
 Tab/Shift-Tab   Switch pane focus\n\
-Enter/Right     Focus details\n\
+Enter           Inspect selected resource (full screen)\nRight           Focus details\n\
 Left            Focus inventory\n\
 /               Edit search (live, case insensitive)\n\
 Enter/Esc       Finish search, retaining the query\n\
@@ -36,7 +38,7 @@ c (diagnostics) Run the selected Homebrew check (live only)\n\
 o (diagnostics) Show original sanitized output; Space: full finding\n\
 1/2/3/4         Overview / Dependencies / Required by / Dependency paths\n\
 s (details)     Switch recorded runtime / current declaration evidence\n\
-v (details)     Cycle installed keg (linked keg is preferred initially)\n\
+V (details)     Cycle installed keg (linked keg is preferred initially)\n\
 t (relations)   Direct list / all evidence with expandable direct-edge tree\n\
 Space           Expand/collapse selected tree branch\n\
 Enter           Open selected related package overview\n\
@@ -46,7 +48,7 @@ Esc             Clear query and all filters when browsing\n\
 Esc / ? / F1    Close help\n\
 q / Ctrl-C      Quit (q is text while editing search)\n\n\
 Search matches all words across name, kind, ID, version, path, description, origin and reason.\n\n\
-Below 80 columns the panes stack vertically. Minimum useful size: 30 x 10.\n\n\
+Below 100 columns Tab switches between full-width panes. Minimum useful size: 30 x 10.\n\n\
 Trust: unknown. No security checks or package changes. Den invokes brew info once per collection; Homebrew may fetch metadata. Snapshot claims are unverified.\n\n\
 Cask versions are Homebrew-recorded versions; applications may self-update. Mixed or insufficient installation-intent records are Unknown.\n\n\
 Relationships never change installation intent. Recorded transitive/unknown-directness entries are leaves, not inferred direct edges. Current optional/build/test declarations are labeled and excluded from runtime traversal.\n\n\
@@ -55,14 +57,6 @@ Exploration limits: 100000 edges, 400 visible rows, depth 32, 10000 traversal st
 Scroll this help with arrows, j/k, PageUp/PageDown or Home/End.";
 
 pub fn render(frame: &mut Frame, app: &mut App) {
-    if app.module == crate::app::Module::Skills {
-        if app.codex.view == crate::codex::state::View::Skills {
-            skills::render(frame, &mut app.skills);
-        } else {
-            codex::render(frame, &mut app.codex);
-        }
-        return;
-    }
     let area = frame.area();
     if area.width < 30 || area.height < 10 {
         frame.render_widget(
@@ -71,146 +65,105 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         );
         return;
     }
-    let compact = area.height < 14;
-    let rows = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(if app.is_homebrew() && !compact { 2 } else { 1 }),
-        Constraint::Length(if app.live && !compact { 2 } else { 0 }),
-        Constraint::Min(1),
-        Constraint::Length(1),
-    ])
-    .split(area);
-    frame.render_widget(
-        Paragraph::new(format!(
-            " DEN | {} | read-only | F2: Codex Skills",
-            app.source_label
-        ))
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-        rows[0],
-    );
-    let search = if app.searching { "Search*" } else { "Search" };
-    let query = if app.is_homebrew() && compact {
-        format!(
-            "F:{} I:{} /{}",
-            app.filter.map_or("All", |k| k.label()),
-            app.intent_filter.map_or("All", |i| i.label()),
-            safe_text(&app.query)
-        )
-    } else if app.is_homebrew() {
-        format!(
-            "Type:{} Intent:{}\n{search}: {}",
-            app.filter.map_or("All", |k| k.label()),
-            app.intent_filter.map_or("All", |i| i.label()),
-            safe_text(&app.query)
-        )
-    } else {
-        format!(
-            "{search}: {} | Kind: {}",
-            safe_text(&app.query),
-            app.filter.map_or("All", |k| k.label())
-        )
-    };
-    frame.render_widget(Paragraph::new(query), rows[1]);
-    if app.live {
-        frame.render_widget(
-            Paragraph::new(safe_text(&app.collection_message()))
-                .wrap(Wrap { trim: true })
-                .style(Style::default().fg(Color::Yellow)),
-            rows[2],
-        );
-    }
     if app.help {
-        let block = pane(" Help ", true);
-        let inner = block.inner(rows[3]);
-        let paragraph = Paragraph::new(HELP).wrap(Wrap { trim: false });
+        let body = chrome(
+            frame,
+            "Help",
+            "Navigation and evidence · scroll for all controls",
+            "Read-only · nothing inspected is executed",
+            false,
+            app.presentation.detailed,
+            "Esc:Back arrows:scroll",
+        );
+        let block = pane(" Help · Esc:Back ", true);
+        let inner = block.inner(reading_area(body));
+        let text = format!("{}\n\n{}\n\n{}", HELP, skills::HELP, codex::HELP);
+        let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
         app.help_max = scroll_max(&paragraph, inner);
         app.help_scroll = app.help_scroll.min(app.help_max);
-        frame.render_widget(block, rows[3]);
+        frame.render_widget(block, reading_area(body));
         frame.render_widget(paragraph.scroll((app.help_scroll, 0)), inner);
-    } else {
-        let direction = if area.width >= 80 {
-            Direction::Horizontal
+        return;
+    }
+    let detailed = app.presentation.detailed;
+    let inspector = app.inspecting();
+    if app.module == crate::app::Module::Skills {
+        if app.codex.view == crate::codex::state::View::Skills {
+            skills::render(frame, &mut app.skills, detailed, inspector);
         } else {
-            Direction::Vertical
-        };
-        let panes = Layout::default()
-            .direction(direction)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-            .split(rows[3]);
+            codex::render(frame, &mut app.codex, detailed, inspector);
+        }
+        return;
+    }
+    let view = app.diagnostics.tab.map_or_else(
+        || format!("Homebrew / {}", app.explorer.section.label()),
+        |t| format!("Homebrew / Diagnostics / {}", t.label()),
+    );
+    let query = format!(
+        " /{}{}   Type:{}  Intent:{}",
+        if app.searching { " " } else { " Search: " },
+        safe_text(&app.query),
+        app.filter.map_or("All", |k| k.label()),
+        app.intent_filter.map_or("All", |i| i.label())
+    );
+    let status = if app.live {
+        app.collection_message()
+    } else {
+        format!(
+            "{}/{} resources · {}",
+            app.visible.len(),
+            app.inventory.resources.len(),
+            app.source_label
+        )
+    };
+    let body = chrome(
+        frame,
+        &view,
+        &query,
+        &status,
+        app.searching,
+        detailed,
+        &actions(
+            app.focus,
+            inspector,
+            if app.diagnostics.tab.is_some() {
+                if app.diagnostics.raw || app.diagnostics.expanded {
+                    "Backspace:up"
+                } else {
+                    "Enter:open"
+                }
+            } else if app.explorer.section != Section::Overview {
+                "Enter:follow"
+            } else {
+                ""
+            },
+        ),
+    );
+    let panes = panes(body, app.focus, inspector);
+    if panes[0].width > 0 {
         render_inventory(frame, app, panes[0]);
+    }
+    if panes[1].width > 0 {
         render_details(frame, app, panes[1]);
     }
-    let status = if compact
-        && app.live
-        && !matches!(app.collection_status, crate::app::CollectionStatus::Loaded)
-    {
-        safe_text(&app.collection_message())
-    } else if app.help {
-        "HELP | Esc:back | arrows:scroll | q:quit".to_owned()
-    } else if app.searching {
-        format!(
-            "EDIT | {} matches | Enter:done | Ctrl-U:clear",
-            app.visible.len()
-        )
-    } else {
-        let focus = if app.focus == Focus::Inventory {
-            "LIST"
-        } else {
-            "DETAIL"
-        };
-        if app.diagnostics.tab.is_some() && app.focus == Focus::Details {
-            "DIAGNOSTICS | 5-8:view c:check o:output Space:evidence Enter:open Backspace:back ?:help".into()
-        } else if app.is_homebrew() && app.focus == Focus::Details && area.width >= 80 {
-            "DETAIL | 1-4:section s:source v:keg t:tree Space:expand Enter:open Backspace:back ?:help q:quit".into()
-        } else if app.is_homebrew() && area.width >= 80 {
-            format!(
-                "{focus} | {}/{} | /:search f:type i:intent r:refresh Tab:focus ?:help q:quit",
-                app.visible.len(),
-                app.inventory.resources.len()
-            )
-        } else if area.width < 80 {
-            format!(
-                "{focus} {}/{} | ?:help q:quit",
-                app.visible.len(),
-                app.inventory.resources.len()
-            )
-        } else {
-            format!(
-                "{focus} | {}/{} resources | /:search f:filter Tab:focus ?:help q:quit",
-                app.visible.len(),
-                app.inventory.resources.len()
-            )
-        }
-    };
-    frame.render_widget(
-        Paragraph::new(status).style(Style::default().fg(Color::Black).bg(Color::Cyan)),
-        rows[4],
-    );
 }
 
-fn pane(title: &str, focused: bool) -> Block<'_> {
-    Block::bordered()
-        .title(title)
-        .border_style(Style::default().fg(if focused {
-            Color::Cyan
+fn pane(title: &str, focused: bool) -> Block<'static> {
+    Block::new()
+        .borders(Borders::TOP)
+        .title(format!("{}{}", if focused { ">" } else { " " }, title))
+        .border_style(if focused {
+            Style::default().fg(ACCENT)
         } else {
-            Color::DarkGray
-        }))
+            muted()
+        })
 }
 
 fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     let block = pane(" Inventory ", app.focus == Focus::Inventory);
     let inner = block.inner(area);
     if app.focus == Focus::Inventory {
-        app.page_size = if app.is_homebrew() {
-            (inner.height / 4).max(1)
-        } else {
-            inner.height.max(1)
-        } as usize;
+        app.page_size = inner.height.max(1) as usize;
     }
     frame.render_widget(block, area);
     if app.visible.is_empty() {
@@ -232,49 +185,25 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|&index| {
             let r = &app.inventory.resources[index];
-            if let Some(metadata) = &r.homebrew {
-                let version_label = if matches!(metadata, HomebrewMetadata::Cask { .. }) {
-                    "Recorded"
-                } else {
-                    "Installed"
-                };
-                let mut lines = vec![
-                    Line::from(safe_text(&r.name)),
-                    Line::from(format!(
-                        "{} | {}",
-                        r.kind.label(),
-                        metadata.intent().label()
-                    )),
-                    Line::from(format!(
-                        "{version_label}: {}",
-                        safe_text(r.version.as_deref().unwrap_or("Unknown"))
-                    )),
-                    Line::styled(
-                        if r.description.is_empty() {
-                            "Description: Unknown".into()
-                        } else {
-                            safe_text(&r.description)
-                        },
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                ];
-                lines.truncate(inner.height.max(1) as usize);
-                return ListItem::new(lines);
-            }
-            ListItem::new(Line::from(vec![
-                Span::raw(safe_text(&r.name)),
-                Span::styled(
-                    format!("  {}", r.kind.label()),
-                    Style::default().fg(Color::DarkGray),
+            ListItem::new(columns(
+                &format!(
+                    "{}{}",
+                    r.name,
+                    if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
+                        " [Cask]"
+                    } else {
+                        ""
+                    }
                 ),
-            ]))
+                r.version.as_deref().unwrap_or("Unknown"),
+                &r.description,
+                inner.width,
+            ))
         })
         .collect();
-    let list = List::new(items).highlight_symbol("> ").highlight_style(
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    );
+    let list = List::new(items)
+        .highlight_symbol("> ")
+        .highlight_style(selection());
     let mut state = ListState::default()
         .with_selected(app.selected)
         .with_offset(app.list_offset);
@@ -292,7 +221,7 @@ fn render_details(frame: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
     let title = if app.is_homebrew() {
-        " Details / 1 Overview | 2 Deps 3 Required by 4 Paths | 5-8 Diagnostics "
+        " Details / 1 Overview "
     } else {
         " Details "
     };
@@ -301,13 +230,16 @@ fn render_details(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.focus == Focus::Details {
         app.page_size = inner.height.max(1) as usize;
     }
-    let text = if let Some(r) = app.resource() {
+    let text = if !app.presentation.detailed {
+        overview(app)
+            .lines()
+            .map(|s| Line::from(safe_text(s)))
+            .collect()
+    } else if let Some(r) = app.resource() {
         let mut lines = vec![
             Line::styled(
                 safe_text(&r.name),
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
             ),
             Line::from(format!("Kind: {}", r.kind.label())),
             Line::from(format!(
@@ -476,7 +408,7 @@ fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
         .unwrap_or_default();
     let footer = Paragraph::new(detail)
         .wrap(Wrap { trim: false })
-        .style(Style::default().fg(Color::Yellow));
+        .style(Style::default().fg(Color::Reset));
     let footer_height = if inner.height >= 6 {
         footer
             .line_count(inner.width)
@@ -502,11 +434,9 @@ fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|row| ListItem::new(safe_text(&row.label)))
         .collect();
-    let list = List::new(items).highlight_symbol("> ").highlight_style(
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    );
+    let list = List::new(items)
+        .highlight_symbol("> ")
+        .highlight_style(selection());
     let mut state = ListState::default()
         .with_selected(Some(app.explorer.selected))
         .with_offset(app.explorer.offset);
@@ -531,4 +461,42 @@ fn scroll_max(paragraph: &Paragraph<'_>, area: Rect) -> u16 {
         .line_count(area.width)
         .saturating_sub(area.height as usize)
         .min(u16::MAX as usize) as u16
+}
+
+fn overview(app: &App) -> String {
+    let Some(r) = app.resource() else {
+        return "Select a resource to inspect its details.".into();
+    };
+    let intent = r
+        .homebrew
+        .as_ref()
+        .map_or("Unknown", |m| m.intent().label());
+    let version_label = if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
+        "Homebrew-recorded version"
+    } else {
+        "Installed"
+    };
+    let node = app.selected_node().unwrap_or(0);
+    let edges = app.graph.forward.get(node).map_or(0, Vec::len);
+    let reverse = app.graph.reverse.get(node).map_or(0, Vec::len);
+    format!(
+        "{}\n\n{}\n\n{} · {}: {}\nInstallation intent: {}\n\nRelationships: {} outgoing / {} incoming evidence records\nUnknown - not assessed for security\n\n2 Dependencies   3 Required by   4 Paths\n5–8 Diagnostics   v Technical evidence\n{}",
+        r.name,
+        if r.description.is_empty() {
+            "No description"
+        } else {
+            &r.description
+        },
+        r.kind.label(),
+        version_label,
+        r.version.as_deref().unwrap_or("Unknown"),
+        intent,
+        edges,
+        reverse,
+        if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
+            "Casks may self-update; recorded version may differ."
+        } else {
+            ""
+        }
+    )
 }

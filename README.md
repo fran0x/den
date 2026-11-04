@@ -23,20 +23,18 @@ Snapshots/demo never collect live Codex data or run Homebrew. Fixtures use expli
 
 ## Navigation
 
-`F2`: Homebrew/Codex. `F3`: Skills/Configuration/Instructions/MCP. Arrows or `j/k` navigate;
-`Tab` changes pane; `/` searches; `r` refreshes; `?` helps; `q` quits.
+`F2` switches Homebrew/Codex; `F3` cycles views. `/` searches; arrows or `j/k` select;
+`Tab` switches panes; `Enter` opens a full-screen inspector; `Esc` returns.
+`v` toggles Compact/Detailed; `z` expands a focused pane; `?` opens scrollable help.
+`r` refreshes; `q` quits. Mac keyboards may require `Fn` with function keys.
 
-- **Homebrew:** `f/i` filter; `1–4` dependency views; `5–8` diagnostics. `s/v/t/Space`
-  select evidence, keg, tree and expansion. `Enter/Backspace` jump/return; `c` checks.
-- **Skills:** `f/i` filter scope/validation; `1–5` details; `Enter` previews files;
-  `e` opens enablement provenance, `Backspace` returns.
-- **Configuration:** `s` switches settings/sources; `Enter` opens a safe source summary.
-- **Instructions:** `Enter` toggles redacted previews; `t` shows the conditional trusted
-  scenario. Page keys and Home/End scroll. Views preserve selection and search.
+Compact is the default: one row per resource and a short overview. Detailed retains
+technical evidence without exposing withheld values. Below 100 columns, only the
+focused pane is shown; wider terminals show inventory and overview together.
 
-**MCP:** `1–6` select overview, transport, authentication, policies, sources and findings.
-`f` selects a filter dimension; `i` cycles its value. `v` selects a source;
-`Enter/Backspace` inspect/return. Configuration is never executed or contacted.
+Number keys retain the existing detail sections. `Shift+V` now selects a Homebrew keg
+or MCP source. `Backspace` returns from related packages, files and source definitions.
+See [all keyboard controls](docs/KEYBOARD.md) and [before/after captures](docs/ux/README.md).
 
 ## Evidence and privacy
 
@@ -72,4 +70,4 @@ See the roadmap for filesystem limits and deliberate modeling gaps.
 Opt-in local checks: `just reconcile`, `just dependency-check`, `just diagnostic-check`,
 `just skills-check`, `just codex-config-check`, `just mcp-check` (aggregate local evidence).
 
-See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). Stage 3C1 only; deeper MCP security auditing is deferred.
+See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). UX-1 complete; deeper MCP security auditing is deferred.

@@ -1,0 +1,32 @@
+ DEN / Codex / Skills | F2: Homebrew · F3: Configuration
+Search:
+Scope: All · Status: All
+1 discovered skills; config not evaluated | 5:coverage
+┌ Skills inventory ────────────────────────────┐┌ 1 Overview ──────────────────────────────────────────────────────────┐
+│> example [User] [Eligible] Synthetic skill fo││example                                                               │
+│                                              ││                                                                      │
+│                                              ││Scope: User                                                           │
+│                                              ││Location:                                                             │
+│                                              ││<repo>/fixtures/codex/home/.agents/sk│
+│                                              ││ills/example                                                          │
+│                                              ││Resolved:                                                             │
+│                                              ││<repo>/fixtures/codex/home/.agents/sk│
+│                                              ││ills/example                                                          │
+│                                              ││Discovered: yes                                                       │
+│                                              ││Metadata: Valid                                                       │
+│                                              ││Directory accessible: true                                            │
+│                                              ││Optional metadata: Not evaluated                                      │
+│                                              ││Duplicate name: false                                                 │
+│                                              ││Configuration status: Eligible — Valid discovered skill with no       │
+│                                              ││observed disabling rule under the modeled local configuration. Runtime│
+│                                              ││overrides/policies and actual invocation are not observed. (e: source)│
+│                                              ││Loaded/invoked: not evaluated                                         │
+│                                              ││                                                                      │
+│                                              ││Description:                                                          │
+│                                              ││Synthetic skill for configuration inspection.                         │
+│                                              ││                                                                      │
+│                                              ││1 files; 0 executable files; 0 script-directory entries               │
+│                                              ││                                                                      │
+│                                              ││Declared MCP dependencies (unresolved; never connected):              │
+└──────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────────────┘
+F2:module F3:Codex e:config 1-5:view /:search f:scope i:status r:refresh ?:help q:quit

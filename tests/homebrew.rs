@@ -299,14 +299,16 @@ fn rendering_shows_installed_versions_intent_details_and_sanitizes_metadata() {
     let text = draw(&mut app, 140, 40);
     for expected in [
         "ripgrep",
-        "Formula | Requested",
+        "Installation intent: Requested",
         "Installed: 14.1.1",
         "Search source trees",
-        "Linked keg: 14.1.1",
-        "on_request: true",
     ] {
         assert!(text.contains(expected), "missing {expected}");
     }
+    app.presentation.detailed = true;
+    let evidence = draw(&mut app, 140, 40);
+    assert!(evidence.contains("Linked keg: 14.1.1"));
+    assert!(evidence.contains("on_request: true"));
     app.selected = Some(5);
     let text = draw(&mut app, 140, 40);
     assert!(text.contains("Homebrew-recorded version: 8.1"));

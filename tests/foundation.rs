@@ -144,6 +144,7 @@ fn focus_routes_scroll_and_resize_clamps_it() {
     draw(&mut app, 40, 16);
     key(&mut app, KeyCode::Tab);
     assert_eq!(app.focus, Focus::Details);
+    draw(&mut app, 40, 16); // focused pane now occupies narrow terminals
     let selected = app.selected;
     key(&mut app, KeyCode::End);
     assert!(app.detail_scroll > 0);
@@ -195,28 +196,28 @@ fn wide_and_narrow_layouts_show_panes_details_and_status() {
         let rendered = draw(&mut app, width, height);
         let text = screen(&rendered);
         assert!(text.contains("Inventory"));
-        assert!(text.contains("Details"));
         assert!(text.contains("ripgrep"));
-        assert!(text.contains("q:quit"));
-        let inventory_y = rendered
-            .content
-            .iter()
-            .position(|c| c.symbol() == "I")
-            .unwrap()
-            / width as usize;
-        // Exact title locations distinguish stacked from side-by-side layouts.
-        let details_y = (0..height)
-            .find(|&y| {
-                (0..width)
-                    .map(|x| rendered[(x, y)].symbol())
-                    .collect::<String>()
-                    .contains("Details")
-            })
-            .unwrap() as usize;
-        if width >= 80 {
-            assert_eq!(inventory_y, details_y);
+        if width >= 100 {
+            assert!(text.contains("Details"));
+            let row = |needle: &str| {
+                (0..height)
+                    .find(|&y| {
+                        (0..width)
+                            .map(|x| rendered[(x, y)].symbol())
+                            .collect::<String>()
+                            .contains(needle)
+                    })
+                    .unwrap()
+            };
+            let title_line = row("Inventory");
+            let detail_line = row("Details");
+            assert_eq!(title_line, detail_line);
         } else {
-            assert!(details_y > inventory_y);
+            assert!(!text.contains("Details"));
+            key(&mut app, KeyCode::Tab);
+            let detail = screen(&draw(&mut app, width, height));
+            assert!(detail.contains("Details"));
+            assert!(!detail.contains("Inventory"));
         }
     }
 }

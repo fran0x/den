@@ -135,6 +135,19 @@ Later stages are proposals, not authorization to implement them now.
 - Known fields are normalized separately per source; overlays lacking a complete transport are not
   misreported as complete servers. Unestablished merge behavior remains a Stage 3B limitation.
 
+## UX-1 — Interface redesign (implemented)
+
+- Shared compact navigation, status and pane primitives; no collector or domain-model changes.
+- Single-row inventories, concise overviews, one accent, terminal-default backgrounds and explicit focus markers.
+- Global Compact/Detailed toggle; full-screen inspectors with Back and preserved search/selection.
+- Below 100 columns, switchable full-width panes; longer reading columns capped at 92 cells.
+- Shared scrollable help, focused-view action hints, explicit F2 modules/F3 views, Shift+V for keg/source selection.
+- Source searches stay in the inventory; native Back actions cannot leave inventory focus hidden behind an inspector.
+- Skills status reflects evaluated eligibility without the former contradictory global message.
+- Deterministic synthetic before/after captures, UI privacy/navigation tests and three-size PTY checks.
+- Deeper relationship evidence and diagnostics retain their specialist section controls.
+  Mouse support, configurable keymaps and semantic Markdown rendering remain outside this stage.
+
 ## Stage 3C2 — MCP security evidence (requires separate authorization)
 
 - Establish authoritative plugin metadata/version mapping and precise MCP merge contracts first.
@@ -156,7 +169,7 @@ Later stages are proposals, not authorization to implement them now.
 - State freshness, uncertainty and limitations; unknown must never imply safe.
 - Any external advisory/network integration needs an explicit consent and privacy design.
 
-## After Stage 3C1
+## After UX-1
 
 Stop here unless another stage is explicitly requested. Keep `just reconcile`,
 `just dependency-check`, `just diagnostic-check`, `just skills-check` and

@@ -581,7 +581,8 @@ fn source_navigation_preserves_server_selection_search_and_filters() {
     a.codex.query = "web".into();
     a.codex.mcp.transport = 2;
     a.codex.scroll = 2;
-    key(&mut a, KeyCode::Enter);
+    key(&mut a, KeyCode::Enter); // open inspector
+    key(&mut a, KeyCode::Enter); // source
     assert_eq!(a.codex.view, View::Configuration);
     assert!(a.codex.sources);
     key(&mut a, KeyCode::Backspace);

@@ -551,7 +551,8 @@ fn codex_navigation_sources_back_and_snapshot_isolation() {
     assert_eq!(a.codex.view, View::Skills);
     key(&mut a, KeyCode::F(3));
     key(&mut a, KeyCode::Char('s'));
-    key(&mut a, KeyCode::Enter);
+    key(&mut a, KeyCode::Enter); // open inspector
+    key(&mut a, KeyCode::Enter); // inspect source
     assert!(a.codex.sources);
     key(&mut a, KeyCode::F(3));
     assert_eq!(a.codex.view, View::Instructions);

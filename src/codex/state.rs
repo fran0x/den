@@ -27,7 +27,7 @@ pub struct State {
     pub mcp: super::mcp::state::Controls,
     return_to_mcp: Option<Position>,
     positions: [Position; 3],
-    source_return: Option<(usize, String)>,
+    source_return: Option<(usize, Position)>,
     pub scroll: u16,
     pub scroll_max: u16,
     pub page: usize,
@@ -257,7 +257,7 @@ impl State {
     }
     pub fn text(&self) -> String {
         if self.help {
-            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions/MCP\n/: search · Tab: switch panes · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nMCP: 1-6 sections; f selects filter kind; i cycles filter value; v selects source; Enter/e opens source\nBackspace: return to settings, skill or MCP server\nr: refresh configuration + skills + MCP atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
+            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions/MCP\n/: search · Tab: switch panes · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nMCP: 1-6 sections; f selects filter kind; i cycles filter value; V selects source; Enter/e opens source\nBackspace: return to settings, skill or MCP server\nr: refresh configuration + skills + MCP atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
         }
         let Some(i) = &self.inventory else {
             return format!("{}\n\n{LIMITATIONS}", self.status());
@@ -296,7 +296,14 @@ impl State {
     }
     pub fn jump_source(&mut self, source: usize) {
         if self.view == View::Configuration && !self.sources {
-            self.source_return = Some((self.selected[0], self.query.clone()));
+            self.source_return = Some((
+                self.selected[0],
+                Position {
+                    query: self.query.clone(),
+                    scroll: self.scroll,
+                    details: self.focus_details,
+                },
+            ));
         }
         self.view = View::Configuration;
         self.sources = true;
@@ -304,6 +311,12 @@ impl State {
         self.selected[1] = source;
         self.scroll = 0;
         self.focus_details = true;
+    }
+    pub(crate) fn has_source_return(&self) -> bool {
+        self.view == View::Configuration
+            && (self.return_to_mcp.is_some()
+                || self.return_to_skill
+                || self.source_return.is_some())
     }
     pub fn handle(&mut self, key: KeyEvent) -> bool {
         if self.searching {
@@ -328,6 +341,7 @@ impl State {
                 KeyCode::Char('1'..='6') => {
                     if let KeyCode::Char(c) = key.code {
                         self.mcp.section = (c as u8 - b'1') as usize;
+                        self.focus_details = true;
                     }
                     self.scroll = 0;
                     return false;
@@ -343,7 +357,7 @@ impl State {
                     self.clamp();
                     return false;
                 }
-                KeyCode::Char('v') => {
+                KeyCode::Char('V') => {
                     let count = self
                         .rows()
                         .get(self.selected[3])
@@ -430,9 +444,14 @@ impl State {
                     self.return_to_skill = false;
                 } else {
                     self.sources = false;
-                    if let Some((selected, query)) = self.source_return.take() {
+                    if let Some((selected, position)) = self.source_return.take() {
                         self.selected[0] = selected;
-                        self.query = query;
+                        self.query = position.query;
+                        self.scroll = position.scroll;
+                        self.focus_details = position.details;
+                        self.preview = false;
+                        self.clamp();
+                        return false;
                     }
                     self.preview = false;
                     self.focus_details = false;

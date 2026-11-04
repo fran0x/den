@@ -147,7 +147,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App, area: Rect) {
         .collect();
     let list = List::new(rows)
         .highlight_symbol("> ")
-        .highlight_style(Style::default().fg(Color::Cyan));
+        .highlight_style(selection());
     let mut selection = ListState::default().with_selected(Some(app.diagnostics.selected - start));
     frame.render_stateful_widget(list, parts[1], &mut selection);
     let footer = format!(
@@ -163,7 +163,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App, area: Rect) {
                 .collect::<Vec<_>>(),
         )
         .wrap(Wrap { trim: false })
-        .style(Style::default().fg(Color::Yellow)),
+        .style(Style::default().fg(Color::Reset)),
         parts[2],
     );
 }

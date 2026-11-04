@@ -133,7 +133,7 @@ fn linked_keg_is_preferred_and_other_versions_remain_independent() {
     );
     let mut app = app("mid");
     assert!(app.explorer.rows[0].label.contains("leaf"));
-    key(&mut app, KeyCode::Char('v'));
+    key(&mut app, KeyCode::Char('V'));
     assert!(app.explorer.rows[0].label.contains("old"));
     assert!(app.explorer.rows[0].detail.contains("source keg 1"));
 }

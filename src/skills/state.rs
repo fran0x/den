@@ -187,13 +187,18 @@ impl State {
             format!("{}{}", if self.loaded { "STALE: " } else { "" }, error)
         } else if self.loaded {
             format!(
-                "{}{} discovered skills; config not evaluated | 5:coverage",
+                "{}{} discovered skills{}",
                 if self.inventory.partial {
                     "PARTIAL: "
                 } else {
                     ""
                 },
-                self.inventory.skills.len()
+                self.inventory.skills.len(),
+                if self.enablement.is_empty() {
+                    "; config not evaluated"
+                } else {
+                    ""
+                }
             )
         } else {
             "Not collected; r:discover".into()

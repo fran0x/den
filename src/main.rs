@@ -2,7 +2,7 @@ use std::{env, ffi::OsString, io, path::PathBuf, process::ExitCode};
 
 use den::{app::App, homebrew, inventory::safe_text, source, terminal};
 
-const USAGE: &str = "Den - read-only local environment inspector (Stage 3C1)\n\n\
+const USAGE: &str = "Den - read-only local environment inspector (UX-1)\n\n\
 Usage: den [--demo | --snapshot FILE | --brew-snapshot FILE]\n\
        den [--project DIR] [--codex-profile NAME] [--skills]\n\
        den --skills-fixture DIR\n\
@@ -19,10 +19,11 @@ Without arguments, collects local Homebrew inventory; F2 opens Codex; F3 switche
 --help, -h       Show this help without entering the TUI.\n\n\
 Keys: arrows/j/k navigate, Tab switches panes, / searches, f filters,\n\
  i filters intent, r refreshes live data, 1-4 select detail sections.\n\
-In details: s switches evidence, v selects keg, t toggles tree, Space expands,\n\
+Enter opens a full-screen inspector; Esc returns. v toggles Compact/Detailed; z expands a pane.\n\
+In details: s switches evidence, V selects keg, t toggles tree, Space expands,\n\
 Enter opens a related package, Backspace goes back. ? helps; q/Ctrl-C quits.\n\
 Diagnostics: 5-8 select views, c checks, o shows original output.\n\
-MCP: 1-6 sections, f selects filter, i cycles value, Enter opens source. Never connects.\n\
+MCP: 1-6 sections, f selects filter, i cycles value, V selects source, e opens source. Never connects.\n\
 Read-only commands: brew info, missing, leaves, autoremove --dry-run.\n\
 Snapshot modes never invoke Homebrew or scan live Codex files. Homebrew may fetch metadata.";
 

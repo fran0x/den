@@ -63,9 +63,9 @@ def visible_text(output):
     return "\n".join("".join(cells.get((row, col), " ") for col in range(200)) for row in range(80))
 
 
-def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None):
+def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None, size=(100, 30)):
     master, slave = pty.openpty()
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", size[1], size[0], 0, 0))
     before = termios.tcgetattr(slave)
 
     status_read, status_write = os.pipe()
@@ -92,6 +92,8 @@ def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None):
                     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 20, 45, 0, 0))
                     os.killpg(child.pid, signal.SIGWINCH)
                     resize = False
+                    search_start = len(output)
+                    continue  # wait for the resized frame before injecting keys
                 search_start = len(output)
                 _, keys_to_send = pending.pop(0)
                 os.write(master, keys_to_send)
@@ -208,9 +210,9 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: Skills fixture navigation, files, findings, coverage, module switching and snapshot isolation")
     output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, steps=[
         (b"1 discovered skills", b"\x1bOR"),
-        (b"Codex / Configuration", b"/model\r\r"),
+        (b"Codex / Configuration", b"/model\r\r\r"),
         (b"Raw TOML is never displayed", b"\x7f\x1bOR"),
-        (b"Codex / Instructions", b"/Selected\r\r"),
+        (b"Codex / Instructions", b"/Selected\r\r\r"),
         (b"Synthetic global guidance", b"\x7fr"),
         (b"Locally resolved", b"q"),
     ])
@@ -236,10 +238,38 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "MCP inspection must not invoke Homebrew"
+    for size in [(80, 24), (120, 32), (160, 45)]:
+        output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, size=size, steps=[
+            (b"discovered skills", b"\r"),
+            (b"Esc:Back", b"v"),
+            (b"Detailed", b"2"),
+            (b"Instructions (data)", b"?"),
+            (b"Help", b"\x1b"),
+            (b"Instructions (data)", b"\x1b"),
+            (b"Skills inventory", b"\r"),
+            (b"Esc:Back", b"\x7f"),
+            (b"Skills inventory", b"/example\r\r\x1bq"),
+        ])
+        assert b"PRIVATE-CONFIG-SENTINEL" not in output
+        assert b"PRIVATE-INSTRUCTION-SENTINEL" not in output
+    print("PASS: UX inspector, mode toggle, help/back and search at 80x24, 120x32 and 160x45")
+    output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
+        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
+        (b"7 MCP servers", b"/docs\re"),
+        (b"Codex / Configuration", b"/User\r"),
+        (b"Enter:inspect", b"\r"),
+        (b"Esc:Back", b"\x1b"),
+        (b"Codex / MCP", b"q"),
+    ])
+    assert b"MCP-SECRET-CANARY" not in output
+    assert not calls.exists(), "source navigation must never invoke Homebrew"
+    print("PASS: source search stays in inventory; inspect and Back restore the MCP context")
+
+
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
         (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
         (b"0 MCP servers", b"?"),
-        (b"Codex local evidence", b"?q"),
+        (b"Den ", b"?q"),
     ])
     run_pty([binary, "--demo", "--skills"], env=isolated_env, steps=[
         (b"no filesystem discovery", b"\x1bOR\x1bOR\x1bORr"),

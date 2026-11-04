@@ -29,6 +29,7 @@ pub enum Module {
 }
 
 pub struct App {
+    pub presentation: crate::presentation::Presentation,
     pub module: Module,
     pub skills: crate::skills::state::State,
     pub codex: crate::codex::state::State,
@@ -64,6 +65,8 @@ pub struct App {
 }
 
 struct Location {
+    detail_scroll: u16,
+    list_offset: usize,
     id: String,
     query: String,
     filter: Option<ResourceKind>,
@@ -77,6 +80,7 @@ impl App {
         let graph = Graph::build(&inventory);
         let health = Health::build(&graph);
         let mut app = Self {
+            presentation: crate::presentation::Presentation::default(),
             module: Module::Homebrew,
             skills: crate::skills::state::State::default(),
             codex: crate::codex::state::State::default(),
@@ -145,6 +149,8 @@ impl App {
                 self.history.remove(0);
             }
             self.history.push(Location {
+                detail_scroll: self.detail_scroll,
+                list_offset: self.list_offset,
                 id,
                 query: self.query.clone(),
                 filter: self.filter,
@@ -181,6 +187,8 @@ impl App {
                 .iter()
                 .position(|&i| self.inventory.resources[i].id == location.id)
                 .or(self.selected);
+            self.detail_scroll = location.detail_scroll;
+            self.list_offset = location.list_offset;
             self.explorer = location.explorer;
             self.diagnostics = location.diagnostics;
             self.focus = Focus::Details;
@@ -334,11 +342,19 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {
+        self.handle_key_inner(key);
+        self.settle_inspector();
+    }
+
+    fn handle_key_inner(&mut self, key: KeyEvent) {
         if key.kind == KeyEventKind::Release {
             return;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.quit = true;
+            return;
+        }
+        if self.presentation_key(key) {
             return;
         }
         if key.code == KeyCode::F(2) {
@@ -356,8 +372,13 @@ impl App {
                 return;
             }
             if self.codex.view != View::Skills {
+                let source_action = !self.codex.searching
+                    && matches!(key.code, KeyCode::Enter | KeyCode::Char('e'));
                 if self.codex.handle(key) {
                     self.quit = true;
+                }
+                if source_action {
+                    self.inspect_source();
                 }
                 return;
             }
@@ -370,6 +391,7 @@ impl App {
                 {
                     self.codex.jump_source(source);
                     self.codex.return_to_skill = true;
+                    self.inspect_source();
                 }
                 return;
             }
@@ -385,31 +407,6 @@ impl App {
             if self.skills.handle(key) {
                 self.quit = true;
             }
-            return;
-        }
-        if self.help {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('?') | KeyCode::F(1) => self.help = false,
-                KeyCode::Char('q') => self.quit = true,
-                KeyCode::Down | KeyCode::Char('j') => {
-                    self.help_scroll = self.help_scroll.saturating_add(1).min(self.help_max)
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    self.help_scroll = self.help_scroll.saturating_sub(1)
-                }
-                KeyCode::PageDown => {
-                    self.help_scroll = self.help_scroll.saturating_add(5).min(self.help_max)
-                }
-                KeyCode::PageUp => self.help_scroll = self.help_scroll.saturating_sub(5),
-                KeyCode::Home => self.help_scroll = 0,
-                KeyCode::End => self.help_scroll = self.help_max,
-                _ => {}
-            }
-            return;
-        }
-        if key.code == KeyCode::F(1) || (!self.searching && key.code == KeyCode::Char('?')) {
-            self.help = true;
-            self.help_scroll = 0;
             return;
         }
         if self.searching {
@@ -462,7 +459,7 @@ impl App {
                 self.explorer.clear_navigation();
                 self.sync_explorer();
             }
-            KeyCode::Char('v') if self.focus == Focus::Details && self.is_homebrew() => {
+            KeyCode::Char('V') if self.focus == Focus::Details && self.is_homebrew() => {
                 self.explorer.cycle_keg(&self.graph);
                 self.sync_explorer();
             }
@@ -666,7 +663,7 @@ impl App {
                 self.diagnostics.scroll = 0;
             }
             // Existing relationship controls must not change hidden explorer state.
-            KeyCode::Char('s' | 'v' | 't') => {}
+            KeyCode::Char('s' | 'V' | 't') => {}
             _ => return false,
         }
         true
