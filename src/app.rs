@@ -41,7 +41,6 @@ pub struct App {
     pub checks: [CheckState; 3],
     pub check_requested: Option<Check>,
     pub inventory_epoch: u64,
-    history: Vec<Location>,
     pub source_label: &'static str,
     pub query: String,
     pub filter: Option<ResourceKind>,
@@ -64,17 +63,6 @@ pub struct App {
     pub page_size: usize,
 }
 
-struct Location {
-    detail_scroll: u16,
-    list_offset: usize,
-    id: String,
-    query: String,
-    filter: Option<ResourceKind>,
-    intent: Option<InstallationIntent>,
-    explorer: Explorer,
-    diagnostics: View,
-}
-
 impl App {
     pub fn new(inventory: Inventory, source_label: &'static str) -> Self {
         let graph = Graph::build(&inventory);
@@ -91,7 +79,6 @@ impl App {
             check_requested: None,
             inventory_epoch: 0,
             explorer: Explorer::default(),
-            history: vec![],
             inventory,
             source_label,
             query: String::new(),
@@ -128,7 +115,7 @@ impl App {
         self.selected.and_then(|i| self.visible.get(i)).copied()
     }
 
-    fn sync_explorer(&mut self) {
+    pub(crate) fn sync_explorer(&mut self) {
         let node = self.selected_node();
         if self.explorer.installation.as_ref().map(|s| s.node) != node {
             self.explorer.select(&self.graph, node);
@@ -140,25 +127,13 @@ impl App {
         if target.node >= self.inventory.resources.len() {
             return;
         }
-        {
-            let id = self.resource().map(|r| r.id.clone()).unwrap_or_default();
-            let mut explorer = self.explorer.clone();
-            explorer.rows.clear();
-            explorer.note.clear();
-            if self.history.len() >= 32 {
-                self.history.remove(0);
-            }
-            self.history.push(Location {
-                detail_scroll: self.detail_scroll,
-                list_offset: self.list_offset,
-                id,
-                query: self.query.clone(),
-                filter: self.filter,
-                intent: self.intent_filter,
-                explorer,
-                diagnostics: self.diagnostics.clone(),
-            });
-        }
+        self.remember();
+        self.presentation.page = crate::presentation::Page::Inspector {
+            detail: crate::presentation::Detail::Overview,
+            focus: crate::presentation::InspectorFocus::Content,
+            selected: 0,
+            query: String::new(),
+        };
         self.diagnostics = View::default();
         // Related packages may be hidden by the current query. Back restores that context.
         self.query.clear();
@@ -174,26 +149,6 @@ impl App {
         self.detail_scroll = 0;
         self.focus = Focus::Details;
         self.sync_explorer();
-    }
-
-    fn go_back(&mut self) {
-        if let Some(location) = self.history.pop() {
-            self.query = location.query;
-            self.filter = location.filter;
-            self.intent_filter = location.intent;
-            self.refresh();
-            self.selected = self
-                .visible
-                .iter()
-                .position(|&i| self.inventory.resources[i].id == location.id)
-                .or(self.selected);
-            self.detail_scroll = location.detail_scroll;
-            self.list_offset = location.list_offset;
-            self.explorer = location.explorer;
-            self.diagnostics = location.diagnostics;
-            self.focus = Focus::Details;
-            self.sync_explorer();
-        }
     }
 
     pub fn live_homebrew() -> Self {
@@ -242,7 +197,6 @@ impl App {
                 self.diagnostics.selected = 0;
                 self.diagnostics.scroll = 0;
                 self.graph = graph;
-                self.history.clear();
                 self.explorer.installation = None;
                 self.selected = None;
                 self.refresh();
@@ -342,11 +296,6 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {
-        self.handle_key_inner(key);
-        self.settle_inspector();
-    }
-
-    fn handle_key_inner(&mut self, key: KeyEvent) {
         if key.kind == KeyEventKind::Release {
             return;
         }
@@ -357,41 +306,15 @@ impl App {
         if self.presentation_key(key) {
             return;
         }
-        if key.code == KeyCode::F(2) {
-            self.module = if self.module == Module::Homebrew {
-                Module::Skills
-            } else {
-                Module::Homebrew
-            };
-            return;
-        }
+        let previous = self.navigation_checkpoint(key);
+        self.handle_key_inner(key);
+        self.finish_navigation(previous);
+    }
+    pub(crate) fn handle_key_inner(&mut self, key: KeyEvent) {
         if self.module == Module::Skills {
-            use crate::codex::state::View;
-            if key.code == KeyCode::F(3) {
-                self.codex.cycle_view();
-                return;
-            }
-            if self.codex.view != View::Skills {
-                let source_action = !self.codex.searching
-                    && matches!(key.code, KeyCode::Enter | KeyCode::Char('e'));
+            if self.codex.view != crate::codex::state::View::Skills {
                 if self.codex.handle(key) {
                     self.quit = true;
-                }
-                if source_action {
-                    self.inspect_source();
-                }
-                return;
-            }
-            if !self.skills.searching && key.code == KeyCode::Char('e') {
-                if let Some(index) = self
-                    .skills
-                    .selected
-                    .and_then(|n| self.skills.visible.get(n))
-                    && let Some(source) = self.skills.enablement.get(*index).and_then(|e| e.source)
-                {
-                    self.codex.jump_source(source);
-                    self.codex.return_to_skill = true;
-                    self.inspect_source();
                 }
                 return;
             }
@@ -488,7 +411,7 @@ impl App {
                     self.jump_to(target);
                 }
             }
-            KeyCode::Backspace => self.go_back(),
+            KeyCode::Backspace => self.back(),
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('/') => {
                 self.searching = true;

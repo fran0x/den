@@ -10,12 +10,6 @@ pub enum View {
     Mcp,
 }
 #[derive(Default)]
-struct Position {
-    query: String,
-    scroll: u16,
-    details: bool,
-}
-#[derive(Default)]
 pub struct State {
     pub context: Option<Context>,
     pub inventory: Option<Inventory>,
@@ -25,9 +19,6 @@ pub struct State {
     pub error: Option<String>,
     pub selected: [usize; 4],
     pub mcp: super::mcp::state::Controls,
-    return_to_mcp: Option<Position>,
-    positions: [Position; 3],
-    source_return: Option<(usize, Position)>,
     pub scroll: u16,
     pub scroll_max: u16,
     pub page: usize,
@@ -38,41 +29,8 @@ pub struct State {
     pub preview: bool,
     pub conditional: bool,
     pub help: bool,
-    pub return_to_skill: bool,
 }
 impl State {
-    pub fn cycle_view(&mut self) {
-        if self.view != View::Skills {
-            let n = self.position_slot();
-            self.positions[n] = Position {
-                query: self.query.clone(),
-                scroll: self.scroll,
-                details: self.focus_details,
-            };
-        }
-        self.view = match self.view {
-            View::Skills => View::Configuration,
-            View::Configuration => View::Instructions,
-            View::Instructions => View::Mcp,
-            View::Mcp => View::Skills,
-        };
-        if self.view != View::Skills {
-            let p = &self.positions[self.position_slot()];
-            self.query = p.query.clone();
-            self.scroll = p.scroll;
-            self.focus_details = p.details;
-        }
-        self.searching = false;
-        self.help = false;
-        self.clamp();
-    }
-    fn position_slot(&self) -> usize {
-        match self.view {
-            View::Instructions => 1,
-            View::Mcp => 2,
-            _ => 0,
-        }
-    }
     pub fn configure(&mut self, context: Context) {
         self.context = Some(context);
         self.requested = true;
@@ -104,7 +62,7 @@ impl State {
             }
         }
     }
-    fn identity(&self, n: usize) -> String {
+    pub(crate) fn identity(&self, n: usize) -> String {
         let Some(i) = &self.inventory else {
             return String::new();
         };
@@ -136,7 +94,7 @@ impl State {
             View::Skills => String::new(),
         }
     }
-    fn selected_identity(&self) -> Option<String> {
+    pub(crate) fn selected_identity(&self) -> Option<String> {
         self.rows()
             .get(self.selected[self.slot()])
             .map(|(n, _)| self.identity(*n))
@@ -276,8 +234,7 @@ impl State {
         };
         let text = if self.view == View::Mcp {
             format!(
-                "{text}\n{}\n{}",
-                super::mcp::LIMITATIONS,
+                "{text}\n{}",
                 i.configuration
                     .mcp
                     .findings
@@ -295,16 +252,6 @@ impl State {
         )
     }
     pub fn jump_source(&mut self, source: usize) {
-        if self.view == View::Configuration && !self.sources {
-            self.source_return = Some((
-                self.selected[0],
-                Position {
-                    query: self.query.clone(),
-                    scroll: self.scroll,
-                    details: self.focus_details,
-                },
-            ));
-        }
         self.view = View::Configuration;
         self.sources = true;
         self.query.clear();
@@ -312,11 +259,25 @@ impl State {
         self.scroll = 0;
         self.focus_details = true;
     }
-    pub(crate) fn has_source_return(&self) -> bool {
-        self.view == View::Configuration
-            && (self.return_to_mcp.is_some()
-                || self.return_to_skill
-                || self.source_return.is_some())
+    pub(crate) fn selected_source(&self) -> Option<usize> {
+        let (n, _) = self.rows().get(self.selected[self.slot()])?.clone();
+        let i = self.inventory.as_ref()?;
+        match self.view {
+            View::Mcp => {
+                let server = i.configuration.mcp.servers.get(n)?;
+                server
+                    .definitions
+                    .get(self.mcp.source % server.definitions.len().max(1))
+                    .map(|d| d.source)
+            }
+            View::Configuration if self.sources => Some(n),
+            View::Configuration => i
+                .configuration
+                .settings
+                .get(n)
+                .and_then(|s| s.source.or_else(|| s.conditional.as_ref().map(|(_, n)| *n))),
+            _ => None,
+        }
     }
     pub fn handle(&mut self, key: KeyEvent) -> bool {
         if self.searching {
@@ -371,25 +332,6 @@ impl State {
                     self.scroll = 0;
                     return false;
                 }
-                KeyCode::Enter | KeyCode::Char('e') => {
-                    if let Some((n, _)) = self.rows().get(self.selected[3])
-                        && let Some(server) = self
-                            .inventory
-                            .as_ref()
-                            .and_then(|i| i.configuration.mcp.servers.get(*n))
-                        && !server.definitions.is_empty()
-                    {
-                        let source =
-                            server.definitions[self.mcp.source % server.definitions.len()].source;
-                        self.return_to_mcp = Some(Position {
-                            query: self.query.clone(),
-                            scroll: self.scroll,
-                            details: self.focus_details,
-                        });
-                        self.jump_source(source);
-                    }
-                    return false;
-                }
                 KeyCode::Esc => self.mcp.reset(),
                 _ => (),
             }
@@ -415,48 +357,6 @@ impl State {
             KeyCode::Enter if self.view == View::Instructions => {
                 self.preview = !self.preview;
                 self.focus_details = true;
-                self.scroll = 0;
-            }
-            KeyCode::Enter if self.view == View::Configuration && !self.sources => {
-                if let Some((n, _)) = self.rows().get(self.selected[0])
-                    && let Some(source) = self
-                        .inventory
-                        .as_ref()
-                        .and_then(|i| i.configuration.settings.get(*n))
-                        .and_then(|s| s.source.or_else(|| s.conditional.as_ref().map(|(_, i)| *i)))
-                {
-                    self.jump_source(source);
-                }
-            }
-            KeyCode::Backspace => {
-                if self.view == View::Configuration && self.return_to_mcp.is_some() {
-                    if let Some(p) = self.return_to_mcp.take() {
-                        self.view = View::Mcp;
-                        self.query = p.query;
-                        self.scroll = p.scroll;
-                        self.focus_details = p.details;
-                        self.clamp();
-                    }
-                    return false;
-                }
-                if self.return_to_skill {
-                    self.view = View::Skills;
-                    self.return_to_skill = false;
-                } else {
-                    self.sources = false;
-                    if let Some((selected, position)) = self.source_return.take() {
-                        self.selected[0] = selected;
-                        self.query = position.query;
-                        self.scroll = position.scroll;
-                        self.focus_details = position.details;
-                        self.preview = false;
-                        self.clamp();
-                        return false;
-                    }
-                    self.preview = false;
-                    self.focus_details = false;
-                    self.clamp();
-                }
                 self.scroll = 0;
             }
             KeyCode::Esc => {

@@ -1,6 +1,6 @@
 //! MCP-only filter controls; selection, search, focus and scrolling use Codex state.
 use super::*;
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Controls {
     pub section: usize,
     pub source: usize,

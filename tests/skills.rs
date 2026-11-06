@@ -410,7 +410,9 @@ fn skills_search_filters_and_module_switch_preserve_homebrew_state() {
     assert_eq!(a.query, "preserved brew search");
     key(&mut a, KeyCode::F(2));
     assert_eq!(a.skills.query, "synthetic evidence");
-    key(&mut a, KeyCode::Esc);
+    key(&mut a, KeyCode::Char('/'));
+    a.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    key(&mut a, KeyCode::Enter);
     key(&mut a, KeyCode::Char('f'));
     assert_eq!(a.skills.scope, Some(Scope::User));
     key(&mut a, KeyCode::Char('i'));
@@ -492,7 +494,9 @@ fn empty_inventory_coverage_help_and_search_shortcuts_are_consistent() {
     key(&mut a, KeyCode::Esc);
     key(&mut a, KeyCode::Char('/'));
     key(&mut a, KeyCode::Char('r'));
-    assert_eq!(a.skills.query, "r");
+    assert!(
+        matches!(&a.presentation.page,den::presentation::Page::Inspector{query,..} if query=="r")
+    );
     assert!(!a.skills.requested);
 }
 

@@ -1,9 +1,9 @@
 use super::*;
 use crate::codex::state::{State, View};
 
-pub(super) const HELP: &str = "Codex local evidence\nF3: Skills / Configuration / Instructions / MCP\nConfiguration: s toggles settings/sources; Enter in inspector opens source\nInstructions: Enter in inspector toggles redacted preview; t toggles if-trusted scenario\nMCP: 1–6 Overview / Transport / Authentication / Tools / Sources / Findings\nf selects filter dimension; i cycles value; V selects source; e or Enter in inspector opens source\nBackspace returns to setting, skill or MCP server\nr refreshes configuration, skills and MCP together\n\nRaw TOML is never displayed. CLI, managed policies and live state are unobserved.";
+pub(super) const HELP: &str = "Codex configuration, instructions and MCP\nUse g to choose any Codex section. Enter inspects a resource.\nTab selects inspector sections; arrows select; Enter opens; Esc returns.\nConfiguration source and Evidence show provenance without raw TOML.\nInstruction preview is bounded and redacted. The conditional trusted scenario is a visible inspector action.\nMCP Transport, Authentication, Tools, Findings and Evidence retain existing configuration details.\nf/i select and cycle MCP filters; r refreshes configuration, skills and MCP together.\nCLI, managed policies and live state remain unobserved; see Evidence for coverage.";
 
-pub(super) fn render(frame: &mut Frame, state: &mut State, detailed: bool, inspector: bool) {
+pub(super) fn render(frame: &mut Frame, state: &mut State) {
     let view = match state.view {
         View::Mcp => "MCP",
         View::Configuration => "Configuration",
@@ -26,10 +26,9 @@ pub(super) fn render(frame: &mut Frame, state: &mut State, detailed: bool, inspe
         &query,
         &state.status(),
         state.searching,
-        detailed,
         &actions(
             state.focus(),
-            inspector,
+            false,
             match state.view {
                 View::Instructions => "Enter:preview",
                 View::Mcp => "Enter:source",
@@ -38,7 +37,7 @@ pub(super) fn render(frame: &mut Frame, state: &mut State, detailed: bool, inspe
             },
         ),
     );
-    let panes = panes(body, state.focus(), inspector);
+    let panes = panes(body, state.focus(), false);
     state.clamp();
     let entries = state.rows();
     if panes[0].width > 0 {
@@ -117,6 +116,9 @@ pub(super) fn render(frame: &mut Frame, state: &mut State, detailed: bool, inspe
     if panes[1].width == 0 {
         return;
     }
+    render_details(frame, state, panes[1], false);
+}
+pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, evidence: bool) {
     let title = if state.view == View::Mcp {
         format!(
             " Section {}: {} ",
@@ -134,14 +136,46 @@ pub(super) fn render(frame: &mut Frame, state: &mut State, detailed: bool, inspe
         " Overview / local evidence ".into()
     };
     let block = pane(&title, state.focus_details);
-    let inner = block.inner(panes[1]);
-    frame.render_widget(block, panes[1]);
-    let text = if detailed
-        || state.sources
-        || state.preview
-        || (state.view == View::Mcp && state.mcp.section != 0)
-    {
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let text = if evidence {
         state.text()
+    } else if state.sources {
+        state
+            .inventory
+            .as_ref()
+            .and_then(|i| {
+                state
+                    .rows()
+                    .get(state.selected[state.slot()])
+                    .map(|(n, _)| i.configuration.source_text(*n))
+            })
+            .unwrap_or_else(|| state.status())
+    } else if state.preview {
+        state
+            .chain()
+            .and_then(|c| {
+                state
+                    .rows()
+                    .get(state.selected[state.slot()])
+                    .map(|(n, _)| c.text(*n, true))
+            })
+            .unwrap_or_default()
+    } else if state.view == View::Mcp && state.mcp.section != 0 {
+        state
+            .inventory
+            .as_ref()
+            .and_then(|i| {
+                state
+                    .rows()
+                    .get(state.selected[state.slot()])
+                    .map(|(n, _)| {
+                        i.configuration.mcp.servers[*n]
+                            .text(state.mcp.section, &i.configuration.layers)
+                            .replace(crate::codex::mcp::LIMITATIONS, "")
+                    })
+            })
+            .unwrap_or_else(|| state.status())
     } else {
         overview(state)
     };
@@ -167,7 +201,7 @@ fn overview(state: &State) -> String {
         View::Mcp => {
             let s = &i.configuration.mcp.servers[*n];
             format!(
-                "{}\n\n{} · {}\nValidation: {}\n{} configuration definitions\nRuntime: not checked\n\n2 Transport   3 Authentication\n4 Tools and approvals   5 Sources\n6 Findings   e Configuration source\nv Technical evidence",
+                "{}\n\n{} · {}\nValidation: {}\n{} configuration definitions\nRuntime: not checked\n\nEnter: inspect · Tab: choose inspector section",
                 s.name,
                 s.transport().label(),
                 s.status.label(),
@@ -184,7 +218,7 @@ fn overview(state: &State) -> String {
                     format!("{:?} configuration", l.scope)
                 });
             format!(
-                "{}\n\nLocally resolved: {}\nSource: {}\n{} definitions{}\n\nCLI overrides and managed policies unobserved.\nEnter in inspector: source   s: sources\nv: precedence and evidence",
+                "{}\n\nLocally resolved: {}\nSource: {}\n{} definitions{}\n\nEnter: inspect · Sources and Evidence available inside.",
                 s.key,
                 s.value,
                 source,
@@ -202,7 +236,7 @@ fn overview(state: &State) -> String {
             };
             let f = &c.files[*n];
             format!(
-                "{}\n\n{} · {:?}\nIncluded: {} / {} file bytes\n\nChain: {} selected files · {} / {} byte limit\n{}\n\nEnter in inspector: redacted preview\nv: paths and selection evidence\nt: conditional trusted scenario",
+                "{}\n\n{} · {:?}\nIncluded: {} / {} file bytes\n\nChain: {} selected files · {} / {} byte limit\n{}\n\nEnter: inspect · Preview and Evidence available inside.",
                 f.path.file_name().unwrap_or_default().to_string_lossy(),
                 if f.global { "Global" } else { "Project" },
                 f.status,

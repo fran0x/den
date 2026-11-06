@@ -23,18 +23,19 @@ Snapshots/demo never collect live Codex data or run Homebrew. Fixtures use expli
 
 ## Navigation
 
-`F2` switches Homebrew/Codex; `F3` cycles views. `/` searches; arrows or `j/k` select;
-`Tab` switches panes; `Enter` opens a full-screen inspector; `Esc` returns.
-`v` toggles Compact/Detailed; `z` expands a focused pane; `?` opens scrollable help.
-`r` refreshes; `q` quits. Mac keyboards may require `Fn` with function keys.
+`g` opens **Sections**. Press `/` to find a destination, arrows or `j/k` to select,
+and Enter to open it. Function keys are optional compatibility shortcuts.
 
-Compact is the default: one row per resource and a short overview. Detailed retains
-technical evidence without exposing withheld values. Below 100 columns, only the
-focused pane is shown; wider terminals show inventory and overview together.
+In an inventory: `/` searches, Enter finishes search, and Enter inspects the resource.
+The inspector starts at **Overview**. Tab selects its section list; arrows and Enter
+open Dependencies, Files, Sources, Evidence or other available details. Esc returns
+to the previous context, preserving selection, filters, scroll and dependency expansion.
 
-Number keys retain the existing detail sections. `Shift+V` now selects a Homebrew keg
-or MCP source. `Backspace` returns from related packages, files and source definitions.
-See [all keyboard controls](docs/KEYBOARD.md) and [before/after captures](docs/ux/README.md).
+There are no Compact/Detailed modes. Technical information lives in **Evidence**.
+Below 100 columns, Tab switches full-width inspector panes. `?` gives contextual
+help; `r` refreshes; `q` quits. No persistent sidebar consumes inventory space.
+
+See [keyboard controls](docs/KEYBOARD.md) and the [four navigation walkthroughs](docs/ux2/README.md).
 
 ## Evidence and privacy
 
@@ -70,4 +71,4 @@ See the roadmap for filesystem limits and deliberate modeling gaps.
 Opt-in local checks: `just reconcile`, `just dependency-check`, `just diagnostic-check`,
 `just skills-check`, `just codex-config-check`, `just mcp-check` (aggregate local evidence).
 
-See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). UX-1 complete; deeper MCP security auditing is deferred.
+See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). UX-2A complete; deeper MCP security auditing is deferred.

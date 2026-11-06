@@ -1,0 +1,24 @@
+ DEN / Homebrew / Packages   g:sections                                         
+ Inspector / Evidence                                                           
+Homebrew snapshot                                                               
+> Evidence ─────────────────────────────────────────────────────────────────────
+ripgrep                                                                         
+Kind: Formula                                                                   
+Installed version(s): 14.1.1                                                    
+ID: brew:formula:homebrew/core/ripgrep                                          
+Path: Unknown                                                                   
+                                                                                
+What's installed?                                                               
+Installation intent: Requested                                                  
+Full name: ripgrep                                                              
+Tap: homebrew/core                                                              
+Homepage: https://example.org/ripgrep                                           
+Linked keg: 14.1.1                                                              
+Keg 14.1.1: Requested                                                           
+  on_request: true; as_dependency: false                                        
+  Recorded runtime dependencies: 1                                              
+Declared dependency metadata: 2 retained fields (2: explore)                    
+                                                                                
+Search source trees quickly                                                     
+                                                                                
+ Tab:sections Esc:Back  g:sections  /:search  ?:help  q:quit                    

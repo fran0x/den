@@ -580,9 +580,9 @@ fn source_navigation_preserves_server_selection_search_and_filters() {
     let mut a = t.app();
     a.codex.query = "web".into();
     a.codex.mcp.transport = 2;
-    a.codex.scroll = 2;
     key(&mut a, KeyCode::Enter); // open inspector
-    key(&mut a, KeyCode::Enter); // source
+    a.codex.scroll = 2;
+    key(&mut a, KeyCode::Char('e')); // source
     assert_eq!(a.codex.view, View::Configuration);
     assert!(a.codex.sources);
     key(&mut a, KeyCode::Backspace);
@@ -611,7 +611,8 @@ fn search_and_all_four_filter_dimensions_compose() {
     a.codex.mcp.status = 2;
     a.codex.mcp.validation = 1;
     assert_eq!(a.codex.rows().len(), 1);
-    key(&mut a, KeyCode::Esc);
+    a.codex.mcp.reset();
+    a.codex.query.clear();
     assert_eq!(a.codex.rows().len(), 2);
 }
 #[test]

@@ -206,7 +206,11 @@ fn search_type_and_intent_filters_compose_without_changing_existing_controls() {
     key(&mut app, KeyCode::Char('i')); // Dependency
     key(&mut app, KeyCode::Char('i')); // Unknown
     assert_eq!(app.visible.len(), 1);
-    key(&mut app, KeyCode::Esc);
+    key(&mut app, KeyCode::Char('f')); // All types
+    key(&mut app, KeyCode::Char('i')); // All intents
+    key(&mut app, KeyCode::Char('/'));
+    app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    key(&mut app, KeyCode::Enter);
     assert_eq!(app.visible.len(), 7);
     app.query = "Widget Studio".into();
     app.refresh();
@@ -305,7 +309,7 @@ fn rendering_shows_installed_versions_intent_details_and_sanitizes_metadata() {
     ] {
         assert!(text.contains(expected), "missing {expected}");
     }
-    app.presentation.detailed = true;
+    app.open_detail(den::presentation::Detail::Evidence);
     let evidence = draw(&mut app, 140, 40);
     assert!(evidence.contains("Linked keg: 14.1.1"));
     assert!(evidence.contains("on_request: true"));

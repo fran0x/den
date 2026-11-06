@@ -2,12 +2,12 @@ use std::{env, ffi::OsString, io, path::PathBuf, process::ExitCode};
 
 use den::{app::App, homebrew, inventory::safe_text, source, terminal};
 
-const USAGE: &str = "Den - read-only local environment inspector (UX-1)\n\n\
+const USAGE: &str = "Den - read-only local environment inspector (UX-2A)\n\n\
 Usage: den [--demo | --snapshot FILE | --brew-snapshot FILE]\n\
        den [--project DIR] [--codex-profile NAME] [--skills]\n\
        den --skills-fixture DIR\n\
        den --help\n\n\
-Without arguments, collects local Homebrew inventory; F2 opens Codex; F3 switches Skills/Configuration/Instructions/MCP.\n\
+Without arguments, collects local Homebrew inventory; g opens the section switcher for Homebrew and Codex.\n\
 --project DIR    Select project context (default: current working directory).\n\
 --codex-profile NAME  Inspect a separate profile file; no session is launched.\n\
 --codex-fixture DIR  Isolated home/.codex, project and system fixture.\n\
@@ -17,13 +17,10 @@ Without arguments, collects local Homebrew inventory; F2 opens Codex; F3 switche
 --snapshot FILE  Load a local JSON inventory (schema_version: 1).\n\
 --brew-snapshot FILE  Load raw Homebrew JSON without running Homebrew.\n\
 --help, -h       Show this help without entering the TUI.\n\n\
-Keys: arrows/j/k navigate, Tab switches panes, / searches, f filters,\n\
- i filters intent, r refreshes live data, 1-4 select detail sections.\n\
-Enter opens a full-screen inspector; Esc returns. v toggles Compact/Detailed; z expands a pane.\n\
-In details: s switches evidence, V selects keg, t toggles tree, Space expands,\n\
-Enter opens a related package, Backspace goes back. ? helps; q/Ctrl-C quits.\n\
-Diagnostics: 5-8 select views, c checks, o shows original output.\n\
-MCP: 1-6 sections, f selects filter, i cycles value, V selects source, e opens source. Never connects.\n\
+Keys: g opens Sections; / searches; arrows/j/k select; Enter opens; Esc goes back.\n\
+Tab switches inventory/overview or inspector sections/content; ? opens contextual help.\n\
+Inspectors provide Overview and specialized sections, including Evidence. No display modes.\n\
+F2/F3 and number keys remain secondary shortcuts; q/Ctrl-C quits.\n\
 Read-only commands: brew info, missing, leaves, autoremove --dry-run.\n\
 Snapshot modes never invoke Homebrew or scan live Codex files. Homebrew may fetch metadata.";
 

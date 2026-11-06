@@ -1,4 +1,5 @@
 mod common;
+mod navigation;
 use common::*;
 mod codex;
 mod diagnostics;
@@ -65,6 +66,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         );
         return;
     }
+    if app.presentation.switcher.is_some() && !app.help {
+        navigation::switcher(frame, app);
+        return;
+    }
     if app.help {
         let body = chrome(
             frame,
@@ -72,12 +77,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             "Navigation and evidence · scroll for all controls",
             "Read-only · nothing inspected is executed",
             false,
-            app.presentation.detailed,
             "Esc:Back arrows:scroll",
         );
         let block = pane(" Help · Esc:Back ", true);
         let inner = block.inner(reading_area(body));
-        let text = format!("{}\n\n{}\n\n{}", HELP, skills::HELP, codex::HELP);
+        let text = navigation::help(app);
         let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
         app.help_max = scroll_max(&paragraph, inner);
         app.help_scroll = app.help_scroll.min(app.help_max);
@@ -85,13 +89,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         frame.render_widget(paragraph.scroll((app.help_scroll, 0)), inner);
         return;
     }
-    let detailed = app.presentation.detailed;
-    let inspector = app.inspecting();
+    if app.inspecting() {
+        navigation::inspector(frame, app);
+        return;
+    }
+
     if app.module == crate::app::Module::Skills {
         if app.codex.view == crate::codex::state::View::Skills {
-            skills::render(frame, &mut app.skills, detailed, inspector);
+            skills::render(frame, &mut app.skills);
         } else {
-            codex::render(frame, &mut app.codex, detailed, inspector);
+            codex::render(frame, &mut app.codex);
         }
         return;
     }
@@ -122,10 +129,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         &query,
         &status,
         app.searching,
-        detailed,
         &actions(
             app.focus,
-            inspector,
+            false,
             if app.diagnostics.tab.is_some() {
                 if app.diagnostics.raw || app.diagnostics.expanded {
                     "Backspace:up"
@@ -139,7 +145,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             },
         ),
     );
-    let panes = panes(body, app.focus, inspector);
+    let panes = panes(body, app.focus, false);
     if panes[0].width > 0 {
         render_inventory(frame, app, panes[0]);
     }
@@ -220,7 +226,9 @@ fn render_details(frame: &mut Frame, app: &mut App, area: Rect) {
         render_relationships(frame, app, area);
         return;
     }
-    let title = if app.is_homebrew() {
+    let title = if app.evidence() {
+        " Evidence "
+    } else if app.is_homebrew() {
         " Details / 1 Overview "
     } else {
         " Details "
@@ -230,7 +238,7 @@ fn render_details(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.focus == Focus::Details {
         app.page_size = inner.height.max(1) as usize;
     }
-    let text = if !app.presentation.detailed {
+    let text = if !app.evidence() {
         overview(app)
             .lines()
             .map(|s| Line::from(safe_text(s)))
@@ -480,7 +488,7 @@ fn overview(app: &App) -> String {
     let edges = app.graph.forward.get(node).map_or(0, Vec::len);
     let reverse = app.graph.reverse.get(node).map_or(0, Vec::len);
     format!(
-        "{}\n\n{}\n\n{} · {}: {}\nInstallation intent: {}\n\nRelationships: {} outgoing / {} incoming evidence records\nUnknown - not assessed for security\n\n2 Dependencies   3 Required by   4 Paths\n5–8 Diagnostics   v Technical evidence\n{}",
+        "{}\n\n{}\n\n{} · {}: {}\nInstallation intent: {}\n\nRelationships: {} outgoing / {} incoming evidence records\nUnknown - not assessed for security\n\nEnter: inspect · Tab: choose inspector section\n{}",
         r.name,
         if r.description.is_empty() {
             "No description"

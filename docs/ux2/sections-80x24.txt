@@ -1,0 +1,24 @@
+ DEN / Sections   g:sections                                                    
+ Search:                                                                        
+Choose a destination; the previous context is retained.                         
+> Sections · / search · arrows select ──────────────────────────────────────────
+> Homebrew / Packages                                                           
+  Homebrew / Dependencies                                                       
+  Homebrew / Required by                                                        
+  Homebrew / Dependency paths                                                   
+  Homebrew / Diagnostics / Unresolved                                           
+  Homebrew / Diagnostics / Missing                                              
+  Homebrew / Diagnostics / Leaves                                               
+  Homebrew / Diagnostics / Cleanup preview                                      
+  Codex / Skills                                                                
+  Codex / Configuration                                                         
+  Codex / Configuration / Sources                                               
+  Codex / Instructions                                                          
+  Codex / MCP                                                                   
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+ Enter:open Esc:Back  g:sections  /:search  ?:help  q:quit                      

@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
-    app::{App, Focus},
+    app::App,
     diagnostics::{Cause, Check, Health, Item, Report, Status, Tab, describe},
     graph::{Graph, Resolution},
     homebrew::{self, CollectionError, CommandOutput},
@@ -365,8 +365,10 @@ fn pending_checks_do_not_block_keys_or_confuse_search_text() {
     key(&mut app, KeyCode::Char('/'));
     key(&mut app, KeyCode::Char('8'));
     key(&mut app, KeyCode::Char('c'));
-    assert_eq!(app.query, "8c");
-    assert_eq!(app.focus, Focus::Inventory);
+    assert!(
+        matches!(&app.presentation.page,den::presentation::Page::Inspector{query,..} if query=="8c")
+    );
+    assert_eq!(app.check_requested, None);
 }
 
 #[test]

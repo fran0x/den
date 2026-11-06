@@ -42,12 +42,12 @@ fn draw(a: &mut App, w: u16, h: u16) -> String {
 fn captures() {
     let phase = std::env::var("DEN_CAPTURE_PHASE").unwrap_or("after".into());
     assert!(phase == "before" || phase == "after");
-    std::fs::create_dir_all("docs/ux").unwrap();
+    std::fs::create_dir_all("docs/ux2").unwrap();
     for (name, mut a) in [("homebrew", brew()), ("skills", skills())] {
         let text = draw(&mut a, 120, 32);
         let root = std::env::current_dir().unwrap();
         let text = text.replace(root.to_str().unwrap(), "<repo>");
-        std::fs::write(format!("docs/ux/{name}-{phase}.txt"), format!("{text}\n")).unwrap();
+        std::fs::write(format!("docs/ux2/{name}-{phase}.txt"), format!("{text}\n")).unwrap();
     }
 }
 
@@ -111,7 +111,7 @@ fn skills_rows_show_scope_and_eligibility_without_technical_noise() {
     assert!(s.contains("Resolved:") && s.contains("Configuration status: Eligible"));
 }
 #[test]
-fn compact_and_detailed_share_inventory_and_never_collect() {
+fn overview_and_evidence_share_inventory_and_never_collect() {
     let mut a = brew();
     let id = a.resource().unwrap().id.clone();
     key(&mut a, KeyCode::Char('v'));
@@ -120,7 +120,7 @@ fn compact_and_detailed_share_inventory_and_never_collect() {
     assert!(text.contains("ID: brew:formula:"));
     assert_eq!(a.resource().unwrap().id, id);
     assert!(!a.refresh_requested && !a.codex.requested);
-    key(&mut a, KeyCode::Char('v'));
+    key(&mut a, KeyCode::Esc);
     assert!(!draw(&mut a, 160, 45).contains("on_request:"));
 }
 #[test]
@@ -174,24 +174,27 @@ fn inspector_scrolling_and_help_preserve_reading_context() {
     assert_eq!(a.skills.scroll, scroll);
     assert!(a.inspecting());
     key(&mut a, KeyCode::Esc);
+    assert!(a.inspecting()); // Overview restored
+    assert_eq!(a.skills.section, den::skills::state::Section::Overview);
+    key(&mut a, KeyCode::Esc);
     assert!(!a.inspecting());
-    key(&mut a, KeyCode::Enter);
-    assert_eq!(a.skills.scroll, scroll);
 }
 #[test]
-fn search_is_immediate_from_inspector_and_does_not_dispatch_mode_keys() {
+fn search_is_local_to_inspector_sections_and_does_not_dispatch_actions() {
     let mut a = brew();
     key(&mut a, KeyCode::Enter);
     key(&mut a, KeyCode::Char('/'));
-    assert!(!a.inspecting());
-    assert!(a.searching);
+    assert!(a.inspecting());
+    assert!(a.presentation.menu_searching);
     for c in "v?z".chars() {
         key(&mut a, KeyCode::Char(c));
     }
-    assert_eq!(a.query, "v?z");
-    assert!(!a.presentation.detailed && !a.help);
+    assert!(
+        matches!(&a.presentation.page,den::presentation::Page::Inspector{query,..} if query=="v?z")
+    );
+    assert!(!a.evidence() && !a.help);
     key(&mut a, KeyCode::Esc);
-    assert!(draw(&mut a, 80, 24).contains("No matches"));
+    assert!(draw(&mut a, 80, 24).contains("No matching sections"));
     key(&mut a, KeyCode::Esc);
     assert_eq!(a.visible.len(), 7);
 }
@@ -233,7 +236,7 @@ fn mcp_inventory_has_transport_status_and_inspector_source_return() {
     assert!(row.contains("Stdio"));
     assert!(row.contains("Locally eligible"));
     key(&mut a, KeyCode::Enter);
-    key(&mut a, KeyCode::Enter);
+    key(&mut a, KeyCode::Char('e'));
     assert_eq!(a.codex.view, View::Configuration);
     key(&mut a, KeyCode::Backspace);
     assert_eq!(a.codex.view, View::Mcp);
@@ -245,9 +248,9 @@ fn configuration_source_back_preserves_scroll_and_selection() {
     let mut a = skills();
     a.codex.view = View::Configuration;
     a.codex.query = "model".into();
+    key(&mut a, KeyCode::Enter);
     a.codex.scroll = 3;
-    key(&mut a, KeyCode::Enter);
-    key(&mut a, KeyCode::Enter);
+    key(&mut a, KeyCode::Char('e'));
     assert!(a.codex.sources);
     key(&mut a, KeyCode::Backspace);
     assert!(!a.codex.sources);
@@ -261,10 +264,16 @@ fn long_unicode_names_and_paths_are_truncated_without_controls_or_panics() {
     a.inventory.resources[0].description = "é\u{1b}[31m\u{202e}".repeat(60);
     a.inventory.resources[0].path = Some("/synthetic/very-long/".repeat(150));
     for detailed in [false, true] {
-        a.presentation.detailed = detailed;
+        if detailed {
+            a.open_detail(den::presentation::Detail::Evidence);
+        } else {
+            a.presentation.page = den::presentation::Page::Browse;
+        }
         for (w, h) in [(80, 24), (120, 32), (160, 45)] {
             let text = draw(&mut a, w, h);
-            assert!(text.contains('…'));
+            if !detailed {
+                assert!(text.contains('…'));
+            }
             assert!(!text.contains('\u{1b}'));
             assert!(!text.contains('\u{202e}'));
         }
@@ -275,7 +284,11 @@ fn empty_and_failed_views_remain_explainable_in_both_modes() {
     let mut a = fixture("fixtures/mcp-empty");
     a.codex.view = View::Mcp;
     for detailed in [false, true] {
-        a.presentation.detailed = detailed;
+        if detailed {
+            a.open_detail(den::presentation::Detail::Evidence);
+        } else {
+            a.presentation.page = den::presentation::Page::Browse;
+        }
         assert!(draw(&mut a, 120, 32).contains("No matching entries"));
         a.codex.error = Some("Collection failed; previous inventory retained (stale)".into());
         assert!(draw(&mut a, 80, 24).contains("Collection failed"));
@@ -293,14 +306,24 @@ fn all_codex_modes_inspectors_sections_and_sources_keep_secrets_redacted() {
         ] {
             a.codex.view = view;
             for detailed in [false, true] {
-                a.presentation.detailed = detailed;
+                if detailed {
+                    a.open_detail(den::presentation::Detail::Evidence);
+                } else {
+                    a.presentation.page = den::presentation::Page::Browse;
+                }
                 for (w, h) in [(80, 24), (120, 32), (160, 45)] {
                     for section in 0..6 {
                         a.codex.mcp.section = section;
                         a.codex.preview = true;
                         for full in [false, true] {
-                            if a.inspecting() != full {
-                                key(&mut a, KeyCode::Char('z'));
+                            if full {
+                                a.open_detail(if detailed {
+                                    den::presentation::Detail::Evidence
+                                } else {
+                                    den::presentation::Detail::Overview
+                                });
+                            } else {
+                                a.presentation.page = den::presentation::Page::Browse;
                             }
                             let s = draw(&mut a, w, h);
                             for secret in [
@@ -366,31 +389,25 @@ fn escape_from_source_returns_to_inspected_mcp_without_losing_context() {
 }
 
 #[test]
-fn searching_a_source_keeps_inventory_visible_until_explicitly_inspected() {
+fn searching_source_sections_does_not_jump_or_execute_commands() {
     let mut a = fixture("fixtures/mcp");
     a.codex.view = View::Mcp;
     a.codex.query = "docs".into();
     key(&mut a, KeyCode::Char('e'));
     assert!(a.inspecting());
     key(&mut a, KeyCode::Char('/'));
-    assert!(a.codex.searching);
-    assert!(!a.inspecting());
-    for c in "User".chars() {
+    assert!(a.presentation.menu_searching);
+    for c in "Evidence".chars() {
         key(&mut a, KeyCode::Char(c));
-        assert!(!a.inspecting());
     }
     key(&mut a, KeyCode::Enter);
-    assert!(!a.inspecting());
-    assert_eq!(a.active_focus(), Focus::Inventory);
-    key(&mut a, KeyCode::Down);
-    assert!(!a.inspecting());
-    assert!(draw(&mut a, 80, 24).contains("Sources"));
-    key(&mut a, KeyCode::Enter);
-    assert!(a.inspecting());
+    assert_eq!(a.codex.view, View::Configuration);
+    assert!(draw(&mut a, 80, 24).contains("Evidence"));
     key(&mut a, KeyCode::Esc);
     assert_eq!(a.codex.view, View::Mcp);
     assert_eq!(a.codex.query, "docs");
 }
+
 #[test]
 fn backspace_never_leaves_inventory_focused_behind_an_inspector() {
     let mut a = skills();
@@ -416,6 +433,8 @@ fn file_back_first_returns_to_files_then_to_visible_inventory() {
     assert!(!a.skills.file_open);
     assert!(a.inspecting());
     key(&mut a, KeyCode::Backspace);
+    assert!(a.inspecting());
+    key(&mut a, KeyCode::Backspace);
     assert!(!a.inspecting());
     assert_eq!(a.skills.focus, Focus::Inventory);
 }
@@ -432,15 +451,14 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
     key(&mut a, KeyCode::Tab);
     let s = draw(&mut a, 80, 24);
     let footer = s.lines().last().unwrap();
-    assert!(footer.contains("z:expand"));
-    assert!(!footer.contains("Enter:inspect"));
+    assert!(footer.contains("Enter:inspect"));
     key(&mut a, KeyCode::Char('2'));
     assert!(
         draw(&mut a, 80, 24)
             .lines()
             .last()
             .unwrap()
-            .contains("Enter:follow")
+            .contains("Tab:sections")
     );
     for size in [(30, 10), (45, 20), (80, 24)] {
         let s = draw(&mut a, size.0, size.1);
@@ -454,6 +472,6 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
             .lines()
             .last()
             .unwrap()
-            .contains("Enter:preview")
+            .contains("Tab:sections")
     );
 }

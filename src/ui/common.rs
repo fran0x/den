@@ -14,7 +14,6 @@ pub(super) fn chrome(
     query: &str,
     status: &str,
     searching: bool,
-    detailed: bool,
     actions: &str,
 ) -> Rect {
     let rows = Layout::vertical([
@@ -28,7 +27,7 @@ pub(super) fn chrome(
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(format!(" DEN / {view}"), Style::default().fg(ACCENT).bold()),
-            Span::styled("   F2:Homebrew/Codex  F3:view", muted()),
+            Span::styled("   g:sections", muted()),
         ])),
         rows[0],
     );
@@ -37,11 +36,7 @@ pub(super) fn chrome(
     let footer = if searching {
         " Search · Enter:done  Esc:done  Ctrl-U:clear".to_owned()
     } else {
-        format!(
-            " {} · {}  /:search  v:mode  ?:help  q:quit",
-            if detailed { "Detailed" } else { "Compact" },
-            actions
-        )
+        format!(" {}  g:sections  /:search  ?:help  q:quit", actions)
     };
     let footer = if frame.area().width < 65 && !searching {
         format!(
@@ -147,8 +142,8 @@ pub(super) fn actions(focus: Focus, inspector: bool, detail: &str) -> String {
             }
         )
     } else if detail.is_empty() {
-        "z:expand Tab:list".into()
+        "Enter:inspect Tab:list".into()
     } else {
-        format!("{detail} z:expand")
+        format!("{detail} Tab:pane")
     }
 }

@@ -148,6 +148,25 @@ Later stages are proposals, not authorization to implement them now.
 - Deeper relationship evidence and diagnostics retain their specialist section controls.
   Mouse support, configurable keymaps and semantic Markdown rendering remain outside this stage.
 
+## UX-2A — Navigation and interaction (implemented)
+
+- Searchable `g` switcher exposes every Homebrew/Codex destination without function keys.
+- One inspector: brief Overview, visible section list, progressive Evidence and context actions.
+- Tab switches sections/content; narrow terminals show one focused pane at a time.
+- One typed, bounded history replaces separate Homebrew/source/inspector return mechanisms.
+  Snapshots retain UI state and stable identities, never old inventories or worker state.
+- Esc restores origin, resource, detail section, focus, filters, query, scroll and dependency expansion.
+  Refresh revalidates identities and discards stale graph-indexed expansion state.
+- Per-destination return positions; context-aware help; repeated MCP coverage moved to Evidence.
+- Existing function/number keys remain secondary; `v` opens Evidence, with no display-mode toggle.
+- Interaction tests, synthetic walkthroughs and three-size PTY checks. No collector changes.
+- No persistent sidebar: a single switcher keeps the model consistent at all terminal sizes.
+
+## UX-2B — Hierarchical dependency tree (requires separate authorization)
+
+- Stop after UX-2A. The existing bounded dependency tree remains unchanged.
+- Design the new hierarchy and traversal interactions only under a separate task.
+
 ## Stage 3C2 — MCP security evidence (requires separate authorization)
 
 - Establish authoritative plugin metadata/version mapping and precise MCP merge contracts first.
@@ -169,7 +188,7 @@ Later stages are proposals, not authorization to implement them now.
 - State freshness, uncertainty and limitations; unknown must never imply safe.
 - Any external advisory/network integration needs an explicit consent and privacy design.
 
-## After UX-1
+## After UX-2A
 
 Stop here unless another stage is explicitly requested. Keep `just reconcile`,
 `just dependency-check`, `just diagnostic-check`, `just skills-check` and

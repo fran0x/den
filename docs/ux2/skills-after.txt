@@ -1,0 +1,32 @@
+ DEN / Codex / Skills   g:sections
+ / Search:    Scope:All  Status:All
+1 discovered skills
+> Skills inventory ─────────────────────────────────    1 Overview ─────────────────────────────────────────────────────
+> example              User         Eligible          example
+
+                                                      Synthetic skill for configuration inspection.
+
+                                                      User · Eligible
+                                                      Metadata: Valid
+                                                      1 supporting entries · 0 findings
+
+                                                      Enter: inspect · Tab: choose inspector section
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Enter:inspect Tab:pane  g:sections  /:search  ?:help  q:quit

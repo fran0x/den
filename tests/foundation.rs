@@ -119,7 +119,9 @@ fn no_matches_is_safe_and_can_recover() {
     let rendered = screen(&draw(&mut app, 100, 24));
     assert!(rendered.contains("No matches"));
     assert!(rendered.contains("Select a resource"));
-    key(&mut app, KeyCode::Esc);
+    key(&mut app, KeyCode::Char('/'));
+    app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    key(&mut app, KeyCode::Enter);
     assert_eq!(app.selected, Some(0));
 }
 

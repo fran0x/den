@@ -1,0 +1,32 @@
+ DEN / Homebrew / Overview   g:sections
+ / Search:    Type:All  Intent:All
+7/7 resources · Homebrew snapshot
+> Inventory ────────────────────────────────────────    Details / 1 Overview ───────────────────────────────────────────
+> ripgrep              14.1.1       Search source t…  ripgrep
+  pcre2                10.44        Regular express…
+  python@3.12          3.12.7, 3.1…                   Search source trees quickly
+  widget               1.2
+  legacy               0.8                            Formula · Installed: 14.1.1
+  widget [Cask]        8.1          A desktop devel…  Installation intent: Requested
+  requested-app [Cask] 2.0
+                                                      Relationships: 3 outgoing / 0 incoming evidence records
+                                                      Unknown - not assessed for security
+
+                                                      Enter: inspect · Tab: choose inspector section
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Enter:inspect Tab:pane  g:sections  /:search  ?:help  q:quit

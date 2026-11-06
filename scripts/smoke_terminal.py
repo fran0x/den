@@ -173,7 +173,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], b"fri/ripgrep\r\tq", env=isolated_env)
     assert not calls.exists(), "snapshot mode must not execute Homebrew"
     run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, steps=[
-        (b"Inventory", b"2"),
+        (b"Inventory", b"\r/dependencies\r\r"),
         (b"Dependencies", b"t "),
         (b"recorded direct runtime", b"\r"),
         (b"1 Overview", b"\x7f"),
@@ -210,9 +210,9 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: Skills fixture navigation, files, findings, coverage, module switching and snapshot isolation")
     output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, steps=[
         (b"1 discovered skills", b"\x1bOR"),
-        (b"Codex / Configuration", b"/model\r\r\r"),
+        (b"Codex / Configuration", b"/model\r\re"),
         (b"Raw TOML is never displayed", b"\x7f\x1bOR"),
-        (b"Codex / Instructions", b"/Selected\r\r\r"),
+        (b"Codex / Instructions", b"/Selected\r\r/preview\r\r"),
         (b"Synthetic global guidance", b"\x7fr"),
         (b"Locally resolved", b"q"),
     ])
@@ -230,42 +230,39 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         (b"7 MCP servers", b"/docs\r2"),
         (b"Launcher: npx", b"3"),
         (b"Section 3: Authentication", b"4"),
-        (b"Allowlist first", b"5\r"),
+        (b"Allowlist first", b"5e"),
         (b"Codex / Configuration", b"\x7f6"),
-        (b"Section 6: Findings", b"\x1b/absent\r"),
-        (b"No matching entries", b"\x1br"),
-        (b"7 MCP servers", b"q"),
+        (b"Section 6: Findings", b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "MCP inspection must not invoke Homebrew"
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, size=size, steps=[
-            (b"discovered skills", b"\r"),
-            (b"Esc:Back", b"v"),
-            (b"Detailed", b"2"),
-            (b"Instructions (data)", b"?"),
+            (b"discovered skills", b"/example\r\r"),
+            (b"Inspector / Overview", b"/evidence\r\r"),
+            (b"Inspector / Evidence", b"?"),
             (b"Help", b"\x1b"),
-            (b"Instructions (data)", b"\x1b"),
-            (b"Skills inventory", b"\r"),
-            (b"Esc:Back", b"\x7f"),
-            (b"Skills inventory", b"/example\r\r\x1bq"),
+            (b"Inspector / Evidence", b"\x1b"),
+            (b"Inspector / Overview", b"\x1b"),
+            (b"Skills inventory", b"g"),
+            (b"Sections", b"/configuration\r"),
+            (b"Codex / Configuration", b"g/mcp\r"),
+            (b"Codex / MCP", b"q"),
         ])
         assert b"PRIVATE-CONFIG-SENTINEL" not in output
         assert b"PRIVATE-INSTRUCTION-SENTINEL" not in output
-    print("PASS: UX inspector, mode toggle, help/back and search at 80x24, 120x32 and 160x45")
+    print("PASS: section switcher, inspector Evidence and Esc history at 80x24, 120x32 and 160x45")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
-        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
-        (b"7 MCP servers", b"/docs\re"),
-        (b"Codex / Configuration", b"/User\r"),
-        (b"Enter:inspect", b"\r"),
-        (b"Esc:Back", b"\x1b"),
-        (b"Codex / MCP", b"q"),
+        (b"discovered skills", b"g/mcp\r"),
+        (b"7 MCP servers", b"/docs\r\r/sources\r\r"),
+        (b"Codex / Configuration", b"\x1b"),
+        (b"Codex / MCP", b"\x1b"),
+        (b"MCP inventory", b"/\x15absent\r"),
+        (b"No matching entries", b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "source navigation must never invoke Homebrew"
-    print("PASS: source search stays in inventory; inspect and Back restore the MCP context")
-
-
+    print("PASS: source inspector Back restores MCP selection; no-match search remains offline")
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
         (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
         (b"0 MCP servers", b"?"),

@@ -1,0 +1,32 @@
+ DEN / Homebrew / Packages   g:sections                                                                                 
+ Inspector / Overview                                                                                                   
+Homebrew snapshot                                                                                                       
+  Inspector sections ────── > Details / 1 Overview ─────────────────────────────────────────────────────────────────────
+  • Overview                ripgrep                                                                                     
+    Dependencies                                                                                                        
+    Required by             Search source trees quickly                                                                 
+    Dependency paths                                                                                                    
+    Diagnostics / Unresolv… Formula · Installed: 14.1.1                                                                 
+    Diagnostics / Missing   Installation intent: Requested                                                              
+    Diagnostics / Leaves                                                                                                
+    Diagnostics / Cleanup   Relationships: 3 outgoing / 0 incoming evidence records                                     
+    Evidence                Unknown - not assessed for security                                                         
+    Recorded / current evi…                                                                                             
+    Next installed keg      Enter: inspect · Tab: choose inspector section                                              
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ Tab:sections Esc:Back  g:sections  /:search  ?:help  q:quit                                                            
