@@ -173,6 +173,41 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], b"fri/ripgrep\r\tq", env=isolated_env)
     assert not calls.exists(), "snapshot mode must not execute Homebrew"
     for size in [(80, 24), (120, 32), (160, 45)]:
+        run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
+            (b"Inventory", b"j"),
+            (b"> pcre2", b"\t"),
+            (b"Skills inventory", b"\x1b[Z"),
+            (b"> pcre2", b"\r"),
+            (b"Inspector / Overview", b"\t"),
+            (b"Skills inventory", b"\x1b[Z"),
+            (b"Inspector / Overview", b"q"),
+        ])
+    assert not calls.exists(), "area switching must preserve snapshot isolation"
+    print("PASS: Tab/Shift-Tab areas restore selection and explicit inspectors at three sizes")
+    for size in [(80, 24), (120, 32), (160, 45)]:
+        run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
+            (b"[All 7]", b"u"),
+            (b"Used by others 1 [ON]", b"i"),
+            (b"No matches", b"i"),
+            (b"> pcre2", b"\t"),
+            (b"Skills inventory", b"\x1b[Z"),
+            (b"Used by others 1 [ON]", b"u"),
+            (b"Used by others 1 [off]", b"q"),
+        ])
+    assert not calls.exists(), "intent and usage filtering must remain offline"
+    print("PASS: visible intent counts, separate recorded-used filter, empty matches and area context at three sizes")
+    for size in [(80, 24), (120, 32), (160, 45)]:
+        output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
+            (b"Inventory", b"/mid\r"),
+            (b"Recorded runtime", b"\x1b[C \x1b[Dq"),
+        ])
+        text = visible_text(output)
+        for label in ["Depends on", "Required by", "leaf", "root-a", "keg 2"]:
+            assert label in text, f"passive tree missing {label} at {size}"
+        assert "Inspector /" not in text, "passive tree keys must not open an inspector"
+    assert not calls.exists(), "passive trees must never execute Homebrew"
+    print("PASS: passive dependency trees in both directions with evidence/keg context at three sizes")
+    for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
             (b"Inventory", b"\r/dependencies\r\r"),
             (b"[+] mid", b"\x1b[C"),
@@ -202,9 +237,9 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         (b"3 Files", b"\r"),
         (b"Instructions", b"\x7f4"),
         (b"4 Validation", b"5"),
-        (b"Discovery coverage", b"\x1bOQ"),
-        (b"fixture (Homebrew unavailable)", b"\x1bOQ"),
-        (b"Codex / Skills", b"/alpha\r1rq"),
+        (b"Discovery coverage", b"\t"),
+        (b"fixture (Homebrew unavailable)", b"\x1b[Z"),
+        (b"Codex / Skills", b"\x1b/alpha\r1rq"),
     ])
     assert not calls.exists(), "skills fixtures and module switching must never invoke Homebrew"
     run_pty([binary, "--brew-snapshot", "fixtures/brew.json", "--skills"], env=isolated_env, steps=[

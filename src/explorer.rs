@@ -7,6 +7,13 @@ use std::collections::HashSet;
 
 pub const MAX_ROWS: usize = 400;
 
+#[derive(Clone, Copy)]
+struct Projection {
+    rows: usize,
+    depth: usize,
+    passive: bool,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Section {
     #[default]
@@ -154,6 +161,47 @@ impl Explorer {
         }
     }
     pub fn rebuild(&mut self, graph: &Graph, inventory: &Inventory) {
+        self.project(
+            graph,
+            inventory,
+            Projection {
+                rows: MAX_ROWS,
+                depth: MAX_DEPTH,
+                passive: false,
+            },
+        );
+    }
+    /// A bounded, automatically opened two-level tree; never changes inspector state.
+    pub fn preview(
+        graph: &Graph,
+        inventory: &Inventory,
+        root: Installation,
+        evidence: Evidence,
+        reverse: bool,
+        rows: usize,
+    ) -> Self {
+        let mut preview = Self {
+            installation: Some(root),
+            evidence,
+            section: if reverse {
+                Section::RequiredBy
+            } else {
+                Section::Dependencies
+            },
+            ..Self::default()
+        };
+        preview.project(
+            graph,
+            inventory,
+            Projection {
+                rows: rows.min(MAX_ROWS),
+                depth: 1,
+                passive: true,
+            },
+        );
+        preview
+    }
+    fn project(&mut self, graph: &Graph, inventory: &Inventory, projection: Projection) {
         self.rows.clear();
         self.limited = graph.truncated;
         let Some(mut root) = self.installation.clone() else {
@@ -222,6 +270,7 @@ impl Explorer {
                 &[root.clone()],
                 &edges,
                 "",
+                projection,
             );
             if self.rows.is_empty() {
                 if !reverse && !graph.available(&root, self.evidence) {
@@ -256,9 +305,10 @@ impl Explorer {
         ancestors: &[Installation],
         edges: &[usize],
         prefix: &str,
+        projection: Projection,
     ) {
         for (position, &index) in edges.iter().enumerate() {
-            if self.rows.len() >= MAX_ROWS {
+            if self.rows.len() >= projection.rows {
                 self.limited = true;
                 return;
             }
@@ -268,15 +318,48 @@ impl Explorer {
             let mut key = branch.to_vec();
             key.push(index);
             let mut row = row_for(graph, inventory, state, index, reverse, key.clone(), cycle);
-            row.expandable = next.as_ref().is_some_and(|next| {
+            if projection.passive && self.evidence == Evidence::Recorded {
+                let keg = if reverse {
+                    edge.source_keg.as_ref()
+                } else {
+                    edge.target_version
+                        .as_ref()
+                        .or_else(|| row.target.as_ref().and_then(|target| target.keg.as_ref()))
+                };
+                if let Some(keg) = keg {
+                    row.label.push_str(&format!(" @{keg}"));
+                }
+            }
+            let children_available = next.as_ref().is_some_and(|next| {
                 !graph
                     .adjacent(next, self.evidence, reverse, true)
                     .is_empty()
-            }) && !cycle
-                && branch.len() < MAX_DEPTH;
-            let expanded = self.tree && row.expandable && self.expanded.contains(&key);
+            }) && !cycle;
+            row.expandable = children_available && branch.len() < projection.depth;
+            if projection.passive
+                && next
+                    .as_ref()
+                    .is_some_and(|next| !graph.available(next, self.evidence))
+            {
+                row.label.push_str(" [metadata unavailable]");
+            }
+            let expanded =
+                self.tree && row.expandable && (projection.passive || self.expanded.contains(&key));
             let last = position + 1 == edges.len();
-            row.label = if self.tree {
+            row.label = if projection.passive {
+                format!(
+                    "{prefix}{} {}{}",
+                    if last { "└─" } else { "├─" },
+                    row.label,
+                    if cycle {
+                        " [cycle]"
+                    } else if children_available && !expanded {
+                        " …"
+                    } else {
+                        ""
+                    }
+                )
+            } else if self.tree {
                 format!(
                     "{prefix}{} {} {}{}",
                     if last { "└─" } else { "├─" },
@@ -296,7 +379,14 @@ impl Explorer {
                 format!("  {}", row.label)
             };
             self.rows.push(row);
-            if self.tree && branch.len() >= MAX_DEPTH && next.is_some() {
+            if self.tree
+                && branch.len() >= projection.depth
+                && if projection.passive {
+                    children_available
+                } else {
+                    next.is_some()
+                }
+            {
                 self.limited = true;
             }
             if expanded && let Some(next) = next {
@@ -305,7 +395,7 @@ impl Explorer {
                 let children = graph.adjacent(&next, self.evidence, reverse, true);
                 let prefix = format!("{prefix}{}", if last { "   " } else { "│  " });
                 self.append_children(
-                    graph, inventory, &next, reverse, &key, &path, &children, &prefix,
+                    graph, inventory, &next, reverse, &key, &path, &children, &prefix, projection,
                 );
             }
         }

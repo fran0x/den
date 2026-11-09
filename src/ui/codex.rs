@@ -1,7 +1,7 @@
 use super::*;
 use crate::codex::state::{State, View};
 
-pub(super) const HELP: &str = "Codex configuration, instructions and MCP\nUse g to choose any Codex section. Enter inspects a resource.\nTab selects inspector sections; arrows select; Enter opens; Esc returns.\nConfiguration source and Evidence show provenance without raw TOML.\nInstruction preview is bounded and redacted. The conditional trusted scenario is a visible inspector action.\nMCP Transport, Authentication, Tools, Findings and Evidence retain existing configuration details.\nf/i select and cycle MCP filters; r refreshes configuration, skills and MCP together.\nCLI, managed policies and live state remain unobserved; see Evidence for coverage.";
+pub(super) const HELP: &str = "Codex configuration, instructions and MCP\nTab switches Homebrew/Codex; g chooses a Codex subview or specialist destination. Enter inspects a resource.\n[ selects inspector sections; arrows select; Enter opens; Esc returns.\nConfiguration source and Evidence show provenance without raw TOML.\nInstruction preview is bounded and redacted. The conditional trusted scenario is a visible inspector action.\nMCP Transport, Authentication, Tools, Findings and Evidence retain existing configuration details.\nf/i select and cycle MCP filters; r refreshes configuration, skills and MCP together.\nCLI, managed policies and live state remain unobserved; see Evidence for coverage.";
 
 pub(super) fn render(frame: &mut Frame, state: &mut State) {
     let view = match state.view {
@@ -26,9 +26,9 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         &query,
         &state.status(),
         state.searching,
-        actions(state.focus(), state.searching),
+        actions(state.searching),
     );
-    let panes = panes(body, state.focus(), false);
+    let panes = panes(body);
     state.clamp();
     let entries = state.rows();
     if panes[0].width > 0 {
@@ -107,7 +107,21 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
     if panes[1].width == 0 {
         return;
     }
-    render_details(frame, state, panes[1], false);
+    let text = if state.sources {
+        state
+            .inventory
+            .as_ref()
+            .and_then(|i| {
+                state
+                    .rows()
+                    .get(state.selected[state.slot()])
+                    .map(|(n, _)| i.configuration.source_text(*n))
+            })
+            .unwrap_or_else(|| state.status())
+    } else {
+        overview(state)
+    };
+    information(frame, panes[1], text);
 }
 pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, evidence: bool) {
     let title = if state.view == View::Mcp {

@@ -158,11 +158,36 @@ pub struct Presentation {
     pub switcher: Option<Switcher>,
     history: Vec<Location>,
     saved: BTreeMap<Destination, Location>,
+    areas: [Option<Location>; 2],
     pub(super) revision: u64,
     pub menu_searching: bool,
     pub notice: Option<String>,
 }
 impl App {
+    /// Area switching remembers the complete view, including an explicit inspector.
+    pub fn switch_area(&mut self) {
+        let current = usize::from(self.module == Module::Skills);
+        self.presentation.areas[current] = Some(self.location());
+        self.presentation.menu_searching = false;
+        self.presentation.notice = None;
+        if let Some(location) = self.presentation.areas[1 - current].clone() {
+            self.remember();
+            self.restore(location);
+        } else {
+            self.navigate(if current == 0 {
+                Destination::Skills
+            } else {
+                Destination::Homebrew
+            });
+        }
+    }
+    pub(crate) fn focus_inventory(&mut self) {
+        match (self.module, self.codex.view) {
+            (Module::Homebrew, _) => self.focus = Focus::Inventory,
+            (_, View::Skills) => self.skills.focus = Focus::Inventory,
+            _ => self.codex.focus_details = false,
+        }
+    }
     pub fn destination(&self) -> Destination {
         match (self.module, self.codex.view) {
             (Module::Homebrew, _) => match self.diagnostics.tab {
@@ -270,6 +295,7 @@ impl App {
         if destination == self.destination() {
             return;
         }
+        self.presentation.areas[usize::from(self.module == Module::Skills)] = Some(self.location());
         self.presentation
             .saved
             .insert(self.destination(), self.location());
@@ -685,6 +711,10 @@ impl App {
             self.help_scroll = 0;
             return true;
         }
+        if matches!(key.code, KeyCode::Tab | KeyCode::BackTab | KeyCode::F(2)) {
+            self.switch_area();
+            return true;
+        }
         if self.active_searching() {
             return false;
         }
@@ -726,12 +756,7 @@ impl App {
                 self.back();
                 return true;
             }
-            KeyCode::F(2) => {
-                self.navigate(if self.module == Module::Homebrew {
-                    Destination::Skills
-                } else {
-                    Destination::Homebrew
-                });
+            KeyCode::Left | KeyCode::Right if !self.inspecting() => {
                 return true;
             }
             KeyCode::F(3) => {
@@ -785,11 +810,11 @@ impl App {
                 }
                 return true;
             }
-            if matches!(key.code, KeyCode::Tab | KeyCode::BackTab) {
+            if matches!(key.code, KeyCode::Char('[' | ']')) {
                 if let Page::Inspector { focus, .. } = &mut self.presentation.page {
-                    *focus = match focus {
-                        InspectorFocus::Sections => InspectorFocus::Content,
-                        InspectorFocus::Content => InspectorFocus::Sections,
+                    *focus = match key.code {
+                        KeyCode::Char('[') => InspectorFocus::Sections,
+                        _ => InspectorFocus::Content,
                     };
                 }
                 return true;

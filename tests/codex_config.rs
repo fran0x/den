@@ -797,7 +797,7 @@ fn selected_profile_rejects_path_traversal() {
 }
 
 #[test]
-#[ignore = "opt-in local configuration counts only; just codex-config-check"]
+#[ignore = "opt-in local configuration counts only; just live codex"]
 fn live_codex_configuration() {
     let cx = Context::local(std::env::current_dir().unwrap(), None).unwrap();
     let i = codex::discover(&cx, &AtomicBool::new(false)).unwrap();

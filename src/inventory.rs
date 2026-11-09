@@ -54,6 +54,13 @@ pub struct Resource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homebrew: Option<HomebrewMetadata>,
 }
+impl Resource {
+    pub fn intent(&self) -> InstallationIntent {
+        self.homebrew
+            .as_ref()
+            .map_or(InstallationIntent::Unknown, HomebrewMetadata::intent)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

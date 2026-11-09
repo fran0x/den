@@ -22,7 +22,8 @@ UX-1 before/after files. See the [capture instructions](../ux2/README.md#design-
 before intentionally updating generated documentation.
 
 Automated UI and PTY tests also cover **80 × 24** and **160 × 45**, full-screen reading,
-redaction, search, source jumps, help and returning without losing context. Below
-100 columns, Tab switches full-width panes instead of stacking them. Text columns
+redaction, search, source jumps, help and returning without losing context. Current
+browsing stacks passive information below the inventory at narrow widths. Explicit
+inspectors use `[` / `]` to switch full-width panes below 100 columns. Text columns
 are capped at 92 cells. In the current interface, `?` documents specialist actions
 and `v` opens Evidence.

@@ -20,6 +20,8 @@ Keep changes within the requested scope; later stages in `ROADMAP.md` are propos
 Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing
 modules; do not funnel Codex/Skills models into the original snapshot resource type.
+Browsing keeps input in the inventory and updates a passive information panel.
+Tab/Shift+Tab switches top-level areas; explicit inspectors use `[` / `]` for sections/content.
 
 ## Build, Test, and Development Commands
 
@@ -40,9 +42,17 @@ modules; do not funnel Codex/Skills models into the original snapshot resource t
   Pass a binary path as the first argument when using a separate `CARGO_TARGET_DIR`.
 
 `just check` composes formatting, Clippy, tests and release build. `just smoke` builds
-and runs the offline PTY harness. The `justfile` is the command reference. Live checks
-(`reconcile`, `dependency-check`, `diagnostic-check`, `skills-check`, `codex-config-check`,
-`mcp-check`, `live-check`) are opt-in; do not include them in routine offline validation.
+and runs the offline PTY harness. Use `just smoke /path/to/release/den` with an external
+`CARGO_TARGET_DIR`. Root `justfile` recipes are everyday commands; `just/fixtures.just`
+contains offline launchers and `just/live.just` contains opt-in local checks. Each module
+sets the working directory back to the repository root and lists commands by default.
+Use `just fixtures demo`, `just fixtures snapshot`, `just fixtures brew`,
+`just fixtures skills` or `just fixtures codex`; path parameters remain optional.
+Live checks (`just live reconcile`, `just live dependencies`, `just live diagnostics`,
+`just live skills`, `just live codex`, `just live mcp`, `just live terminal`) are opt-in;
+do not include them in routine offline validation. The terminal recipe accepts an optional
+release binary path too. When changing recipes, validate module defaults, working directories,
+argument forwarding and the offline/live boundary without incidentally executing live checks.
 
 ## Coding Style & Naming Conventions
 

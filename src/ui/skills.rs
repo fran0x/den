@@ -4,7 +4,7 @@ use crate::skills::{
     state::{Section, State},
 };
 
-pub(super) const HELP: &str = "Codex Skills\nOverview, Instructions, Supporting files, Findings, Coverage and Evidence are available in the inspector.\nTab selects the section list; arrows select; Enter opens; Esc returns.\nIn Supporting files, Enter opens the selected file as text.\nf/i filter scope/validation in the inventory. r refreshes configured roots.\nSkills and scripts are data, never executed. Eligibility does not establish invocation. Coverage describes discovery limits.";
+pub(super) const HELP: &str = "Codex Skills\nOverview, Instructions, Supporting files, Findings, Coverage and Evidence are available in the inspector.\n[ selects the section list; arrows select; Enter opens; Esc returns.\nIn Supporting files, Enter opens the selected file as text.\nf/i filter scope/validation in the inventory. r refreshes configured roots.\nSkills and scripts are data, never executed. Eligibility does not establish invocation. Coverage describes discovery limits.";
 
 pub(super) fn render(frame: &mut Frame, state: &mut State) {
     let query = format!(
@@ -20,9 +20,9 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         &query,
         &state.status(),
         state.searching,
-        actions(state.focus, state.searching),
+        actions(state.searching),
     );
-    let panes = panes(body, state.focus, false);
+    let panes = panes(body);
     if panes[0].width > 0 {
         let block = pane(" Skills inventory ", state.focus == Focus::Inventory);
         let inner = block.inner(panes[0]);
@@ -68,7 +68,27 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
     if panes[1].width == 0 {
         return;
     }
-    render_details(frame, state, panes[1], false);
+    information(frame, panes[1], overview(state));
+}
+fn overview(state: &State) -> String {
+    let Some(skill) = state.selected_skill() else {
+        return "No matching skills.".into();
+    };
+    let eligibility = state
+        .selected
+        .and_then(|n| state.visible.get(n))
+        .and_then(|n| state.enablement.get(*n))
+        .map_or("Not evaluated", |e| e.label.as_str());
+    format!(
+        "{}\n\n{}\n\n{} · {}\nMetadata: {}\n{} supporting entries · {} findings",
+        skill.name,
+        skill.description,
+        skill.scope.label(),
+        eligibility,
+        skill.metadata.label(),
+        skill.files.len(),
+        skill.findings.len()
+    )
 }
 pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, evidence: bool) {
     if state.section == Section::Coverage {
@@ -142,10 +162,7 @@ pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, e
         Section::Coverage => " Coverage ",
     };
     let text=match state.section {
-        Section::Overview if !evidence => {
-            let eligibility=state.selected.and_then(|n|state.visible.get(n)).and_then(|n|state.enablement.get(*n)).map_or("Not evaluated",|e|e.label.as_str());
-            format!("{}\n\n{}\n\n{} · {}\nMetadata: {}\n{} supporting entries · {} findings",skill.name,skill.description,skill.scope.label(),eligibility,skill.metadata.label(),skill.files.len(),skill.findings.len())
-        },
+        Section::Overview if !evidence => overview(state),
         Section::Overview=>{
             let mut text=format!("{}\n\nScope: {}\nLocation: {}\nResolved: {}\nDiscovered: yes\nMetadata: {}\nDirectory accessible: {}\nOptional metadata: {}\nDuplicate name: {}\nConfiguration status: {}\nLoaded/invoked: not evaluated\n\nDescription:\n{}\n\n{} files; {} executable files; {} script-directory entries\n\nDeclared MCP dependencies (unresolved; never connected):\n",skill.name,skill.scope.label(),skill.path.display(),skill.resolved.as_ref().map_or("Unresolved".into(),|p|p.display().to_string()),skill.metadata.label(),skill.accessible,skill.optional.label(),skill.duplicate,state.selected.and_then(|n|state.visible.get(n)).and_then(|n|state.enablement.get(*n)).map_or("Not evaluated".into(),|e|format!("{} — {} (e: source)",e.label,e.explanation)),skill.description,skill.files.len(),skill.files.iter().filter(|f|f.executable).count(),skill.files.iter().filter(|f|f.path.starts_with("scripts")).count());
             for dep in &skill.mcp{text.push_str(&format!("{} · {} · {}\n{}\n",dep.value,dep.transport.as_deref().unwrap_or("transport not declared"),dep.url.as_deref().unwrap_or("URL not declared"),dep.description.as_deref().unwrap_or("")));}

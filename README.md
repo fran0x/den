@@ -14,13 +14,13 @@ Live Homebrew needs `brew` on `PATH`; `just` is optional.
 just run                                  # live Homebrew; Codex loads when opened
 just run --project /path/to/repo --skills  # start in Codex; defer Homebrew
 just run --skills --codex-profile review  # inspect review.config.toml
-just demo
-just snapshot                             # Den JSON
-just brew-snapshot fixtures/brew.json
-just skills-fixture
-just codex-fixture                        # isolated synthetic configuration
-just codex-fixture fixtures/mcp           # synthetic MCP definitions
-just brew-snapshot fixtures/brew-dependencies.json # synthetic dependency trees
+just fixtures demo
+just fixtures snapshot                    # Den JSON
+just fixtures brew fixtures/brew.json
+just fixtures skills
+just fixtures codex                       # isolated synthetic configuration
+just fixtures codex fixtures/mcp          # synthetic MCP definitions
+just fixtures brew fixtures/brew-dependencies.json # synthetic dependency trees
 ```
 
 Without `just`, use `cargo run -- --demo`, `cargo run -- --skills` or pass the
@@ -35,12 +35,25 @@ instructions, skills and MCP definitions. Fixture refresh rereads those roots on
 
 ## Navigation
 
-`g` opens **Sections**. Press `/` to find a destination, arrows or `j/k` to select,
-and Enter to open it. Function keys are optional compatibility shortcuts.
+Tab switches the top-level **Homebrew / Codex** areas; Shift+Tab reverses.
+Each area restores its last view, selection, filters and inspector context.
+`g` opens **Sections** for Codex subviews and specialist destinations: `/` finds
+a destination, arrows or `j/k` select, and Enter opens it.
 
-In either browse pane, Enter inspects the selected resource. `/` edits inventory search;
+The inventory keeps focus while browsing. Selection automatically updates a passive
+information panel alongside it, or below it on narrow terminals.
+Homebrew information includes **Depends on** and **Required by**
+trees, automatically opened up to two levels. Both use the displayed evidence and keg;
+uncertain records stay labeled leaves. `PARTIAL` / `…` marks omitted information.
+Homebrew rows label installation intent. `i` cycles All / Explicitly requested /
+Dependencies / Unknown; `u` independently toggles **Used by others**. Visible counts
+use the current search and type filter, before intent/usage filtering. Usage counts
+overlap intent: recorded runtime references from other packages to an installed version
+qualify, including records with unknown directness. Current declarations, self references
+and unresolved versions do not. Nonmatching packages are not proven unused.
+Enter explicitly inspects the selected resource. `/` edits inventory search;
 Enter or Esc finishes editing and retains the query. The inspector starts at **Overview**.
-Tab selects its section list; arrows and Enter
+`[` selects its section list; `]` returns to content. Arrows and Enter
 open Dependencies, Files, Sources, Evidence or other available details. Esc returns
 to the previous context, preserving selection, filters, scroll and dependency expansion.
 
@@ -49,7 +62,7 @@ Left collapses or selects the parent; Space toggles a branch. Enter inspects a
 package and Esc restores the tree. `t` retains the direct-list alternative.
 
 There are no Compact/Detailed modes. Technical information lives in **Evidence**.
-Below 100 columns, Tab switches full-width inspector panes. `?` gives contextual
+Below 100 columns, explicit inspectors show one full-width pane at a time. `?` gives contextual
 help; `r` refreshes the configured source; `q` quits, including from the section switcher.
 While editing any search, `q` is text and Ctrl-C quits. No persistent sidebar consumes inventory space.
 
@@ -96,13 +109,19 @@ See the roadmap for filesystem limits and deliberate modeling gaps.
 ## Development
 
 `just check` runs formatting, Clippy, tests and release build; `just smoke` checks terminals.
+Bare `just` lists everyday commands: `run`, `build`, `fmt`, `lint`, `test`, `check`
+and `smoke`. `just fixtures` lists offline launchers; `just live` lists opt-in local
+checks. Listing either module does no collection or launching. Recipes run from the
+repository root, including when invoked from a subdirectory.
 The equivalent checks are `cargo fmt --all -- --check`,
 `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`,
 then `python3 scripts/smoke_terminal.py`. The normal test suite leaves live checks,
 capture regeneration and PTY-only tests ignored; the smoke harness runs the terminal tests.
-Opt-in local checks: `just reconcile`, `just dependency-check`, `just diagnostic-check`,
-`just skills-check`, `just codex-config-check`, `just mcp-check` (aggregate local evidence).
-`just live-check` also launches the live TUI and cleanup preview in a PTY; it is opt-in.
+Opt-in local checks: `just live reconcile`, `just live dependencies`, `just live diagnostics`,
+`just live skills`, `just live codex`, `just live mcp` (aggregate local evidence).
+`just live terminal` also launches the live TUI and cleanup preview in a PTY; it is opt-in.
+With a separate `CARGO_TARGET_DIR`, pass the release binary explicitly:
+`just smoke /path/to/target/release/den` or `just live terminal /path/to/target/release/den`.
 For documentation-only edits, verify commands and links without collecting live data
 or regenerating captures.
 

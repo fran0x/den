@@ -395,6 +395,17 @@ impl Graph {
         self.requested.get(node).copied().unwrap_or(false)
     }
 
+    /// Positive recorded runtime evidence from another installed package. This
+    /// neither establishes installation intent nor proves nonmatching packages unused.
+    pub fn has_recorded_users(&self, node: usize) -> bool {
+        self.reverse.get(node).into_iter().flatten().any(|&index| {
+            let edge = &self.edges[index];
+            edge.from != node
+                && edge.provenance.evidence() == Evidence::Recorded
+                && self.target_state(edge).is_some()
+        })
+    }
+
     /// Unknown/missing target versions are never silently replaced by a different keg.
     pub fn target_state(&self, edge: &Edge) -> Option<Installation> {
         let Resolution::Installed(node) = edge.target else {

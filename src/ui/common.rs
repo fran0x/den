@@ -24,11 +24,15 @@ pub(super) fn chrome(
         Constraint::Length(1),
     ])
     .split(frame.area());
+    let title = if view.starts_with("Homebrew") {
+        format!(" DEN [Homebrew] Codex · Tab:area · {view}")
+    } else if view.starts_with("Codex") {
+        format!(" DEN Homebrew [Codex] · Tab:area · {view}")
+    } else {
+        format!(" DEN / {view}")
+    };
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(format!(" DEN / {view}"), Style::default().fg(ACCENT).bold()),
-            Span::styled("   g:sections", muted()),
-        ])),
+        Paragraph::new(title).style(Style::default().fg(ACCENT).bold()),
         rows[0],
     );
     frame.render_widget(Paragraph::new(safe_text(query)), rows[1]);
@@ -50,17 +54,11 @@ pub(super) fn chrome(
     rows[3]
 }
 
-/// At narrow sizes only the focused pane is shown. Full inspectors use a readable column.
-pub(super) fn panes(area: Rect, focus: Focus, inspector: bool) -> [Rect; 2] {
-    if inspector {
-        return [Rect::default(), reading_area(area)];
-    }
+/// Browsing always keeps the inventory and its passive information visible.
+pub(super) fn panes(area: Rect) -> [Rect; 2] {
     if area.width < 100 {
-        return if focus == Focus::Inventory {
-            [area, Rect::default()]
-        } else {
-            [Rect::default(), reading_area(area)]
-        };
+        let rows = Layout::vertical([Constraint::Percentage(55), Constraint::Min(1)]).split(area);
+        return [rows[0], reading_area(rows[1])];
     }
     let widths =
         Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(area);
@@ -71,6 +69,28 @@ pub(super) fn panes(area: Rect, focus: Focus, inspector: bool) -> [Rect; 2] {
         },
         reading_area(widths[1]),
     ]
+}
+pub(super) fn information(frame: &mut Frame, area: Rect, text: String) {
+    let block = pane(" Information ", false);
+    let inner = block.inner(area);
+    let lines: Vec<_> = text
+        .lines()
+        .map(|line| Line::from(safe_text(line)))
+        .collect();
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+    let clipped = paragraph.line_count(inner.width) > inner.height as usize;
+    frame.render_widget(block, area);
+    frame.render_widget(paragraph, inner);
+    if clipped && inner.height > 0 {
+        frame.render_widget(
+            Paragraph::new(fit("… Enter:inspect for more", inner.width as usize)).style(muted()),
+            Rect {
+                y: inner.bottom() - 1,
+                height: 1,
+                ..inner
+            },
+        );
+    }
 }
 pub(super) fn reading_area(mut area: Rect) -> Rect {
     area.width = area.width.min(92);
@@ -128,13 +148,10 @@ pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<
 }
 
 /// Short action hints describe the focused view, not every available binding.
-pub(super) fn actions(focus: Focus, searching: bool) -> &'static str {
+pub(super) fn actions(searching: bool) -> &'static str {
     if searching {
         "Enter:done Esc:done"
     } else {
-        match focus {
-            Focus::Inventory => "Enter:inspect Tab:pane Esc:Back",
-            Focus::Details => "Enter:inspect Tab:list Esc:Back",
-        }
+        "Enter:inspect Tab:area Esc:Back"
     }
 }

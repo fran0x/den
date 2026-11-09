@@ -5,6 +5,8 @@ shortcuts. UX-2A uses one searchable Sections switcher and one explicit Back his
 The [UX-1 captures](../ux/README.md) remain frozen for comparison.
 These walkthroughs describe the navigation introduced in UX-2A; the
 [keyboard guide](../KEYBOARD.md) includes current UX-2B tree controls and search/quit behavior.
+The walkthroughs below use current keys: Tab switches Homebrew/Codex while retaining
+each area's context; browsing information is passive; `[` / `]` select inspector sections/content.
 
 ## 1. Homebrew → search → inspect → back
 
@@ -12,14 +14,14 @@ These walkthroughs describe the navigation introduced in UX-2A; the
 Esc and filter reset depended on the current focus.
 
 **After:** `/ripgrep`, Enter finishes search; Enter opens Overview. Esc restores the
-same filtered inventory and selected package. For technical fields, Tab selects the
+same filtered inventory and selected package. For technical fields, `[` selects the
 inspector section list, then choose Evidence and Enter. Esc returns to Overview.
 
 ## 2. Dependencies → follow package → back
 
 **Before:** remember `2` for dependencies, Enter to follow, Backspace to return.
 
-**After:** inspect the package, Tab to sections, select Dependencies and Enter.
+**After:** inspect the package, `[` to sections, select Dependencies and Enter.
 Select a related package and Enter. Esc restores the original package's dependency
 section, selected relationship, filters, scroll and existing expansion state.
 Recorded runtime/current declaration distinctions and installation intent are unchanged.
@@ -28,7 +30,7 @@ Recorded runtime/current declaration distinctions and installation intent are un
 
 **Before:** F2 switched modules; repeated F3 presses cycled Codex views.
 
-**After:** `g`, `/skills`, Enter. Then `g`, `/configuration`, Enter. Then `g`, `/mcp`,
+**After:** Tab opens the last Codex view (Skills on first entry). Then `g`, `/configuration`, Enter. Then `g`, `/mcp`,
 Enter. Every destination is visible in the switcher; returning restores its saved
 context. No function keys or permanent sidebar are needed.
 
@@ -36,7 +38,7 @@ context. No function keys or permanent sidebar are needed.
 
 **Before:** `v`, full-screen state and pane focus interacted independently.
 
-**After:** Enter opens Overview. Tab selects inspector sections; choose Evidence
+**After:** Enter opens Overview. `[` selects inspector sections; choose Evidence
 and Enter. Scroll with arrows or PageDown. Esc restores the prior overview position;
 another Esc returns to the original inventory. Source jumps use the same history.
 

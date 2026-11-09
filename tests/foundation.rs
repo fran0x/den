@@ -135,7 +135,7 @@ fn empty_inventory_renders_and_navigates() {
         "snapshot (unverified)",
     );
     key(&mut app, KeyCode::End);
-    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::Right);
     key(&mut app, KeyCode::Down);
     assert!(screen(&draw(&mut app, 80, 24)).contains("0/0 resources"));
 }
@@ -144,7 +144,7 @@ fn empty_inventory_renders_and_navigates() {
 fn focus_routes_scroll_and_resize_clamps_it() {
     let mut app = app();
     draw(&mut app, 40, 16);
-    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::Enter);
     assert_eq!(app.focus, Focus::Details);
     draw(&mut app, 40, 16); // focused pane now occupies narrow terminals
     let selected = app.selected;
@@ -153,7 +153,7 @@ fn focus_routes_scroll_and_resize_clamps_it() {
     assert_eq!(app.selected, selected);
     draw(&mut app, 160, 60);
     assert_eq!(app.detail_scroll, 0);
-    key(&mut app, KeyCode::BackTab);
+    key(&mut app, KeyCode::Esc);
     assert_eq!(app.focus, Focus::Inventory);
     key(&mut app, KeyCode::Enter);
     assert_eq!(app.focus, Focus::Details);
@@ -200,7 +200,7 @@ fn wide_and_narrow_layouts_show_panes_details_and_status() {
         assert!(text.contains("Inventory"));
         assert!(text.contains("ripgrep"));
         if width >= 100 {
-            assert!(text.contains("Details"));
+            assert!(text.contains("Information"));
             let row = |needle: &str| {
                 (0..height)
                     .find(|&y| {
@@ -212,14 +212,13 @@ fn wide_and_narrow_layouts_show_panes_details_and_status() {
                     .unwrap()
             };
             let title_line = row("Inventory");
-            let detail_line = row("Details");
+            let detail_line = row("Information");
             assert_eq!(title_line, detail_line);
         } else {
-            assert!(!text.contains("Details"));
-            key(&mut app, KeyCode::Tab);
-            let detail = screen(&draw(&mut app, width, height));
-            assert!(detail.contains("Details"));
-            assert!(!detail.contains("Inventory"));
+            assert!(text.contains("Information"));
+            let inventory = text.find("Inventory").unwrap();
+            let information = text.find("Information").unwrap();
+            assert!(inventory < information);
         }
     }
 }

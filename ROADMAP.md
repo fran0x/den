@@ -8,6 +8,15 @@ The current implementation includes Stages 0–3C1 and UX-2B. Stage descriptions
 their delivery history; later UX changes supersede earlier controls. Use the
 [keyboard guide](docs/KEYBOARD.md) for current behavior. In particular, UX-2A removed
 the Compact/Detailed toggle introduced in UX-1.
+The subsequent navigation refinement makes Tab/Shift+Tab switch top-level areas,
+keeps browsing input in the inventory and shows a passive information panel. Explicit
+inspectors use `[` / `]` for sections/content; older pane-switching instructions are historical.
+Homebrew's passive information now shows both dependency directions, automatically
+opened to two levels with bounded rows, explicit omissions and recorded/current/keg labels.
+It reuses the existing projection and does not change graph, intent or collector semantics.
+Homebrew inventory now exposes intent labels/counts and an independent recorded **Used by
+others** filter. Counts use search/type scope; usage never reclassifies unknown intent or
+establishes that nonmatching packages are unused. All filters survive navigation and refresh.
 
 ## Stage 0 — Foundation (implemented)
 
@@ -25,7 +34,7 @@ the Compact/Detailed toggle introduced in UX-1.
 - Offline raw Homebrew snapshots, original Den snapshots and explicit `--demo` mode.
 - Type/intent filters and source-specific list rows/details without replacing Stage 0.
 - Fixture, process, state and PTY tests; opt-in real inventory verification.
-- `just reconcile` gates inventory accuracy: separate formula/cask counts, every
+- `just live reconcile` gates inventory accuracy: separate formula/cask counts, every
   recorded installed version, per-package intent and an explanation for every Unknown.
 - Homebrew may fetch metadata despite disabled auto-update/analytics. Snapshot mode is offline.
 - Unknown intent remains common when modern Homebrew omits explicit dependency flags.
@@ -39,7 +48,7 @@ the Compact/Detailed toggle introduced in UX-1.
 - Bounded trees, cycle detection, related-package navigation and context-preserving Back.
 - Missing/ambiguous references and unavailable target versions remain explicit uncertainties.
 - Installation intent is unchanged. Failed refresh preserves both inventory and graph.
-- Synthetic graph/UI tests and opt-in `just dependency-check` against representative Homebrew commands.
+- Synthetic graph/UI tests and opt-in `just live dependencies` against representative Homebrew commands.
 
 ## Stage 2B — Dependency diagnostics and cleanup preview (implemented)
 
@@ -52,7 +61,7 @@ the Compact/Detailed toggle introduced in UX-1.
   bounded process runner, worker cancellation and fixed arguments. No removal capability.
 - Original sanitized stdout/stderr, exit status, check time and stale/unchecked/failed states.
   Unexpected output keeps an unknown structured count; exact identity correlation only.
-- Offline diagnostic fixtures and tests; `just diagnostic-check` prints aggregate live
+- Offline diagnostic fixtures and tests; `just live diagnostics` prints aggregate live
   comparisons without saving machine-specific inventories or raw reports.
 
 ## Next dependency work — requires separate scope
@@ -76,7 +85,7 @@ the Compact/Detailed toggle introduced in UX-1.
   Required metadata validity and configured names/transports remain separate from URL semantics.
 - Duplicate names are informational. Discovery, validation, filesystem access and configuration status stay distinct.
 - Descriptor-relative reads, bounded symlinks/traversal, no script execution or external supporting-file reads.
-- Isolated fixture discovery and temporary-filesystem tests; just skills-check reports local aggregate evidence.
+- Isolated fixture discovery and temporary-filesystem tests; just live skills reports local aggregate evidence.
 - No private instructions or machine-specific paths are saved as fixtures; existing snapshots stay isolated.
 
 ## Stage 3B — Codex configuration and instructions (implemented)
@@ -96,7 +105,7 @@ the Compact/Detailed toggle introduced in UX-1.
 - Skills retain discovery diagnostics; canonical directory/SKILL.md enablement references have source jumps.
 - The `g` switcher exposes Codex views; F3 remains a compatibility cycle. Search, selection,
   source inspection, Back and refresh preserve context.
-- Isolated Codex fixtures, configuration/security/state/render tests and aggregate `just codex-config-check`.
+- Isolated Codex fixtures, configuration/security/state/render tests and aggregate `just live codex`.
 - No auth/session access, Codex execution, configuration modification or private committed fixtures.
 
 ### Deliberate modeling limits
@@ -130,10 +139,10 @@ the Compact/Detailed toggle introduced in UX-1.
 - URL parsing uses the `url` crate; no DNS, endpoint requests or protocol client. Only scheme,
   network category and port survive normalization; hosts and all other URL components are withheld.
 - Arguments, helper commands, inline env/header values, OAuth IDs/secrets and unknown values
-  are discarded from the presentation model. Debug and live-check output are aggregate only.
+  are discarded from the presentation model. Debug and local MCP check output are aggregate only.
 - MCP is available through `g` and the compatibility F3 cycle. Six domain detail sections plus
   shared Evidence, search, four intersecting filters, source jumps/Back and refresh are implemented.
-- Synthetic fixtures, deterministic security/state/rendering tests, PTY checks and `just mcp-check`.
+- Synthetic fixtures, deterministic security/state/rendering tests, PTY checks and `just live mcp`.
 
 ### MCP coverage and limits
 
@@ -218,9 +227,9 @@ the Compact/Detailed toggle introduced in UX-1.
 
 ## After UX-2B
 
-Stop here unless another stage is explicitly requested. Keep `just reconcile`,
-`just dependency-check`, `just diagnostic-check`, `just skills-check`,
-`just codex-config-check`, `just mcp-check` and `just live-check` as opt-in local checks.
+Stop here unless another stage is explicitly requested. Keep `just live reconcile`,
+`just live dependencies`, `just live diagnostics`, `just live skills`,
+`just live codex`, `just live mcp` and `just live terminal` as opt-in local checks.
 Graphs and diagnostic reports remain in memory. Den/raw Homebrew snapshots are loadable
 inputs; snapshot creation/comparison and external-change detection are not implemented.
 Snapshot checks never run Homebrew or collect live Codex data.

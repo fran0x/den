@@ -43,7 +43,7 @@ fn detail(a: &mut App, d: Detail) {
             ..
         }
     ) {
-        key(a, KeyCode::Tab);
+        key(a, KeyCode::Char('['));
     }
     key(a, KeyCode::Char('/'));
     a.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
@@ -62,6 +62,219 @@ fn draw(a: &mut App, w: u16, h: u16) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn tab_switches_areas_and_restores_the_last_codex_subview_and_inventory_context() {
+    let mut a = app();
+    a.query = "widget".into();
+    a.filter = Some(den::inventory::ResourceKind::Formula);
+    a.refresh();
+    let package = a.resource().unwrap().id.clone();
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::Skills);
+    a.navigate(Destination::Mcp);
+    a.codex.query = "docs".into();
+    a.codex.clamp();
+    key(&mut a, KeyCode::Char('f'));
+    let controls = a.codex.mcp.label();
+    let server = a.codex.rows()[a.codex.selected[3]].clone();
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::Homebrew);
+    assert_eq!(a.query, "widget");
+    assert_eq!(a.filter, Some(den::inventory::ResourceKind::Formula));
+    assert_eq!(a.resource().unwrap().id, package);
+    assert_eq!(a.active_focus(), Focus::Inventory);
+    key(&mut a, KeyCode::BackTab);
+    assert_eq!(a.destination(), Destination::Mcp);
+    assert_eq!(a.codex.query, "docs");
+    assert_eq!(a.codex.rows()[a.codex.selected[3]], server);
+    assert_eq!(a.codex.mcp.label(), controls);
+    assert_eq!(a.active_focus(), Focus::Inventory);
+    assert!(!a.refresh_requested && !a.codex.requested && !a.skills.requested);
+}
+
+#[test]
+fn tab_preserves_explicit_inspector_context_and_search_queries() {
+    let mut a = app();
+    a.finish_collection(Ok(homebrew::load_snapshot(Path::new(
+        "fixtures/brew-dependencies.json",
+    ))
+    .unwrap()));
+    key(&mut a, KeyCode::Char('/'));
+    text(&mut a, "root-a");
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::Skills);
+    key(&mut a, KeyCode::BackTab);
+    assert_eq!(a.query, "root-a");
+    assert!(!a.searching);
+    key(&mut a, KeyCode::Enter);
+    a.open_detail(Detail::Dependencies);
+    a.explorer.selected = a
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    key(&mut a, KeyCode::Right);
+    let expanded = a.explorer.expanded.clone();
+    assert!(!expanded.is_empty());
+    let page = a.presentation.page.clone();
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::Skills);
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.presentation.page, page);
+    assert_eq!(a.explorer.expanded, expanded);
+    assert_eq!(a.query, "root-a");
+    key(&mut a, KeyCode::Char('['));
+    assert!(matches!(
+        a.presentation.page,
+        Page::Inspector {
+            focus: InspectorFocus::Sections,
+            ..
+        }
+    ));
+    key(&mut a, KeyCode::Char(']'));
+    assert!(matches!(
+        a.presentation.page,
+        Page::Inspector {
+            focus: InspectorFocus::Content,
+            ..
+        }
+    ));
+    key(&mut a, KeyCode::Esc);
+    assert_eq!(a.destination(), Destination::Skills);
+    key(&mut a, KeyCode::Esc);
+    assert_eq!(a.destination(), Destination::Dependencies);
+    assert_eq!(a.explorer.expanded, expanded);
+}
+
+#[test]
+fn area_return_after_refresh_revalidates_identity_and_discards_old_tree_indices() {
+    let mut a = app();
+    a.finish_collection(Ok(homebrew::load_snapshot(Path::new(
+        "fixtures/brew-dependencies.json",
+    ))
+    .unwrap()));
+    a.query = "root-a".into();
+    a.refresh();
+    key(&mut a, KeyCode::Enter);
+    a.open_detail(Detail::Dependencies);
+    a.explorer.selected = a
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    key(&mut a, KeyCode::Right);
+    assert!(!a.explorer.expanded.is_empty());
+    key(&mut a, KeyCode::Tab);
+    let mut changed = a.inventory.clone();
+    changed.resources.reverse();
+    a.finish_collection(Ok(changed));
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.resource().unwrap().name, "root-a");
+    assert_eq!(a.destination(), Destination::Dependencies);
+    assert!(a.explorer.expanded.is_empty());
+    assert!(a.explorer.tree);
+    assert!(a.explorer.rows.iter().all(|row| row.branch.len() == 1));
+    key(&mut a, KeyCode::Esc);
+    assert_eq!(a.destination(), Destination::Skills);
+    key(&mut a, KeyCode::F(2));
+    assert_eq!(a.destination(), Destination::Dependencies);
+}
+
+fn information_text(screen: &str, width: u16) -> String {
+    if width < 100 {
+        screen
+            .lines()
+            .skip_while(|line| !line.contains(" Information "))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        screen
+            .lines()
+            .map(|line| {
+                line.chars()
+                    .skip((width as usize * 45) / 100)
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+#[test]
+fn browsing_selection_updates_passive_information_in_every_resource_view() {
+    for destination in [
+        Destination::Homebrew,
+        Destination::Skills,
+        Destination::Configuration,
+        Destination::Sources,
+        Destination::Instructions,
+        Destination::Mcp,
+    ] {
+        for (width, height) in [(80, 24), (120, 32), (160, 45)] {
+            let mut a = app();
+            let c = codex::Context::fixture(Path::new("fixtures/codex"), None).unwrap();
+            if matches!(destination, Destination::Skills | Destination::Instructions) {
+                a.codex.configure(c.clone());
+                a.codex
+                    .finish(codex::discover(&c, &AtomicBool::new(false)), &mut a.skills);
+                a.codex.requested = false;
+            }
+            if destination == Destination::Skills {
+                let c = den::skills::Config::fixture(Path::new("fixtures/skills")).unwrap();
+                a.skills
+                    .finish(den::skills::discover(&c, &AtomicBool::new(false)));
+            }
+            a.navigate(destination);
+            let before = information_text(&draw(&mut a, width, height), width);
+            assert!(before.contains("Information"));
+            key(&mut a, KeyCode::Right);
+            key(&mut a, KeyCode::Down);
+            let after = information_text(&draw(&mut a, width, height), width);
+            assert_ne!(before, after, "{destination:?} at {width}");
+            assert_eq!(a.active_focus(), Focus::Inventory);
+            assert!(!a.inspecting());
+            assert!(!after.contains("> Information"));
+            assert!(
+                !after.contains('\u{fffd}'),
+                "layout newlines must remain newlines"
+            );
+            assert!(after.contains('\n'));
+            let screen = draw(&mut a, width, height);
+            assert!(screen.lines().next().unwrap().contains("Tab:area"));
+            assert!(!screen.contains("Tab:pane") && !screen.contains("Tab:list"));
+        }
+    }
+}
+
+#[test]
+fn passive_information_handles_empty_and_long_content_without_taking_inventory_input() {
+    let mut a = app();
+    a.inventory.resources[0].description = "Private prose stays data. ".repeat(200);
+    for (width, height) in [(30, 10), (80, 24), (120, 32)] {
+        let screen = draw(&mut a, width, height);
+        let information = information_text(&screen, width);
+        if width == 30 {
+            assert!(information.contains("Depends on / Required by"));
+        } else {
+            assert!(information.contains("Enter:inspect"));
+        }
+        key(&mut a, KeyCode::Home);
+        key(&mut a, KeyCode::Right);
+        key(&mut a, KeyCode::End);
+        assert_eq!(a.selected, Some(a.visible.len() - 1));
+        assert_eq!(a.detail_scroll, 0);
+        key(&mut a, KeyCode::Home);
+    }
+    a.query = "no-such-package".into();
+    a.refresh();
+    let screen = draw(&mut a, 80, 24);
+    assert!(screen.contains("No matches"));
+    assert!(information_text(&screen, 80).contains("Select a resource"));
+    assert_eq!(a.active_focus(), Focus::Inventory);
 }
 #[test]
 fn all_destinations_are_reachable_without_function_keys() {
@@ -85,7 +298,7 @@ fn browse_and_inspector_hints_match_enter_and_escape_routing() {
         Destination::Mcp,
     ] {
         for (width, height) in [(80, 24), (120, 32), (160, 45)] {
-            for focus in [Focus::Inventory, Focus::Details] {
+            for arrow in [KeyCode::Left, KeyCode::Right] {
                 let mut a = app();
                 if destination == Destination::Skills {
                     let config =
@@ -94,15 +307,13 @@ fn browse_and_inspector_hints_match_enter_and_escape_routing() {
                         .finish(den::skills::discover(&config, &AtomicBool::new(false)));
                 }
                 a.navigate(destination);
-                if focus == Focus::Details {
-                    key(&mut a, KeyCode::Tab);
-                }
-                assert_eq!(a.active_focus(), focus);
+                key(&mut a, arrow);
+                assert_eq!(a.active_focus(), Focus::Inventory);
                 let browse = draw(&mut a, width, height);
                 let footer = browse.lines().last().unwrap();
                 assert!(
                     footer.contains("Enter:inspect") && footer.contains("Esc:Back"),
-                    "{destination:?}, {focus:?}, {width}: {footer}"
+                    "{destination:?}, {arrow:?}, {width}: {footer}"
                 );
                 assert!(!footer.contains("Enter:source") && !footer.contains("Enter:preview"));
                 key(&mut a, KeyCode::Enter);
@@ -116,8 +327,8 @@ fn browse_and_inspector_hints_match_enter_and_escape_routing() {
                 ));
                 let overview = draw(&mut a, width, height);
                 assert!(!overview.contains("Enter: inspect"));
-                assert!(overview.lines().last().unwrap().contains("Tab:sections"));
-                key(&mut a, KeyCode::Tab);
+                assert!(overview.lines().last().unwrap().contains("[:sections"));
+                key(&mut a, KeyCode::Char('['));
                 assert!(
                     draw(&mut a, width, height)
                         .lines()
@@ -136,7 +347,7 @@ fn browse_and_inspector_hints_match_enter_and_escape_routing() {
                 key(&mut a, KeyCode::Esc);
                 assert!(!a.inspecting());
                 assert_eq!(a.destination(), destination);
-                assert_eq!(a.active_focus(), focus);
+                assert_eq!(a.active_focus(), Focus::Inventory);
             }
         }
     }
@@ -401,7 +612,7 @@ fn inspector_focus_and_evidence_are_responsive_and_private() {
         key(&mut a, KeyCode::Enter);
         let s = draw(&mut a, w, h);
         assert!(s.contains("Overview"));
-        key(&mut a, KeyCode::Tab);
+        key(&mut a, KeyCode::Char('['));
         assert!(matches!(
             a.presentation.page,
             Page::Inspector {

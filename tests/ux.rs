@@ -94,7 +94,7 @@ fn homebrew_rows_are_single_line_and_have_room_for_all_fixture_packages() {
         assert!(s.contains("[Cask]"));
         assert!(!s.contains("on_request:"));
         assert!(!s.contains("brew:formula:"));
-        assert!(a.page_size >= 19);
+        assert!(a.page_size >= if w < 100 { 7 } else { 19 });
     }
 }
 #[test]
@@ -142,12 +142,12 @@ fn inspector_back_retains_query_selection_filters_and_list_position() {
     assert_eq!(a.selected, selected);
 }
 #[test]
-fn narrow_layout_is_switchable_not_squeezed_or_stacked() {
+fn narrow_browsing_stacks_information_without_requiring_focus() {
     let mut a = skills();
     let list = draw(&mut a, 80, 24);
     assert!(list.contains("Skills inventory"));
-    assert!(!list.contains("supporting entries"));
-    key(&mut a, KeyCode::Tab);
+    assert!(list.contains("Information"));
+    key(&mut a, KeyCode::Enter);
     let detail = draw(&mut a, 80, 24);
     assert!(!detail.contains("Skills inventory"));
     assert!(detail.contains("supporting entries"));
@@ -367,7 +367,7 @@ fn focus_is_visible_without_color_and_uses_terminal_default_background() {
             .iter()
             .all(|c| c.bg == Color::Reset && c.fg != Color::Cyan)
     );
-    key(&mut a, KeyCode::Tab);
+    key(&mut a, KeyCode::Enter);
     assert!(draw(&mut a, 120, 32).contains("> Details"));
 }
 
@@ -448,7 +448,7 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
             .unwrap()
             .contains("Enter:inspect")
     );
-    key(&mut a, KeyCode::Tab);
+    key(&mut a, KeyCode::Right);
     let s = draw(&mut a, 80, 24);
     let footer = s.lines().last().unwrap();
     assert!(footer.contains("Enter:inspect"));
@@ -458,7 +458,7 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
             .lines()
             .last()
             .unwrap()
-            .contains("Tab:sections")
+            .contains("[:sections")
     );
     for size in [(30, 10), (45, 20), (80, 24)] {
         let s = draw(&mut a, size.0, size.1);
@@ -472,6 +472,6 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
             .lines()
             .last()
             .unwrap()
-            .contains("Tab:sections")
+            .contains("[:sections")
     );
 }

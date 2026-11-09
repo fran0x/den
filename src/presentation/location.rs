@@ -16,6 +16,7 @@ pub(super) enum Location {
         query: String,
         filter: Option<ResourceKind>,
         intent: Option<InstallationIntent>,
+        used_by_others: bool,
         focus: Focus,
         scroll: u16,
         offset: usize,
@@ -64,6 +65,7 @@ impl App {
                     query: self.query.clone(),
                     filter: self.filter,
                     intent: self.intent_filter,
+                    used_by_others: self.used_by_others,
                     focus: self.focus,
                     scroll: self.detail_scroll,
                     offset: self.list_offset,
@@ -108,6 +110,10 @@ impl App {
         }
     }
     pub(super) fn restore(&mut self, location: Location) {
+        if matches!(&location, Location::Homebrew { .. }) != (self.module == Module::Homebrew) {
+            self.presentation.areas[usize::from(self.module == Module::Skills)] =
+                Some(self.location());
+        }
         match location {
             Location::Homebrew {
                 page,
@@ -115,6 +121,7 @@ impl App {
                 query,
                 filter,
                 intent,
+                used_by_others,
                 focus,
                 scroll,
                 offset,
@@ -126,6 +133,7 @@ impl App {
                 self.query = query;
                 self.filter = filter;
                 self.intent_filter = intent;
+                self.used_by_others = used_by_others;
                 self.refresh();
                 self.selected = id
                     .and_then(|id| {
@@ -231,6 +239,9 @@ impl App {
                 s.searching = false;
                 self.presentation.page = page;
             }
+        }
+        if !self.inspecting() {
+            self.focus_inventory();
         }
     }
 }

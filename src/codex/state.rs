@@ -242,7 +242,7 @@ impl State {
     }
     pub fn text(&self) -> String {
         if self.help {
-            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions/MCP\n/: search · Tab: switch panes · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nMCP: 1-6 sections; f selects filter kind; i cycles filter value; V selects source; Enter/e opens source\nBackspace: return to settings, skill or MCP server\nr: refresh configuration + skills + MCP atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
+            return "Codex local evidence\nF2: Homebrew/Codex; F3: Skills/Configuration/Instructions/MCP\n/: search · Tab: Homebrew/Codex · [ / ]: inspector sections/content · arrows/j/k: select/scroll\nConfiguration: s toggles settings/sources; Enter opens selected setting's safe source\nInstructions: Enter toggles redacted preview; t toggles if-trusted scenario\nMCP: 1-6 sections; f selects filter kind; i cycles filter value; V selects source; Enter/e opens source\nBackspace: return to settings, skill or MCP server\nr: refresh configuration + skills + MCP atomically\nPageUp/PageDown/Home/End: navigate/scroll\n?: help · q: quit\n\nUnknown values are withheld; raw TOML is never displayed. CLI, managed policies and runtime configuration are unobserved.".into();
         }
         let Some(i) = &self.inventory else {
             return format!("{}\n\n{LIMITATIONS}", self.status());

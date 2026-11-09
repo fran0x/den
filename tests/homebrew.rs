@@ -233,7 +233,7 @@ fn refresh_preserves_selection_filters_focus_and_valid_data_after_failure() {
     app.intent_filter = Some(Intent::Unknown);
     app.query = "widget".into();
     app.refresh();
-    app.focus = Focus::Details;
+    key(&mut app, KeyCode::Enter);
     let selected = app.resource().unwrap().id.clone();
     key(&mut app, KeyCode::Char('r'));
     assert!(app.refresh_requested);

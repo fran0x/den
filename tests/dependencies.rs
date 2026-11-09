@@ -231,7 +231,7 @@ fn reverse_tree_parent_navigation_preserves_exact_keg_linkage() {
 #[test]
 fn tree_arrows_do_not_override_section_focus_or_dependency_paths() {
     let mut app = app("root-a");
-    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::Char('['));
     key(&mut app, KeyCode::Right);
     key(&mut app, KeyCode::Char(' '));
     key(&mut app, KeyCode::Char('t'));
@@ -350,9 +350,9 @@ fn tree_rendering_shows_root_connectors_and_focused_controls_at_supported_sizes(
         ] {
             assert!(tree.contains(text), "missing {text} at {width}");
         }
-        key(&mut app, KeyCode::Tab);
+        key(&mut app, KeyCode::Char('['));
         assert!(!draw(&mut app, width, height).contains("Right:expand/child"));
-        key(&mut app, KeyCode::Tab);
+        key(&mut app, KeyCode::Char(']'));
     }
 }
 

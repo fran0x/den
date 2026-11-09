@@ -1,4 +1,5 @@
 mod common;
+mod homebrew;
 mod navigation;
 use common::*;
 mod codex;
@@ -24,15 +25,16 @@ Browse read-only Homebrew inventory, or offline snapshots/demo data.\n\n\
 Up/Down or k/j   Move selection / scroll focused pane\n\
 PageUp/PageDown  Move a page\n\
 Home/End        First / last item or detail line\n\
-Tab/Shift-Tab   Switch pane focus\n\
-Enter           Inspect selected resource (full screen)\nRight           Focus details\n\
-Left            Focus inventory\n\
+Tab/Shift-Tab   Switch Homebrew/Codex areas; retain context\n\
+Enter           Inspect selected resource (full screen)\nRight           Tree expansion in an explicit inspector\n\
+[ / ]           Inspector sections / content\n\
 /               Edit search (live, case insensitive)\n\
 Enter/Esc       Finish search, retaining the query\n\
 Backspace       Delete last search character\n\
 Ctrl-U          Clear query while editing\n\
 f               Cycle kind filter; wraps back to All\n\
 i               Cycle Homebrew intent: Requested/Dependency/Unknown/All\n\
+u               Toggle Used by others (recorded runtime; independent of intent)\n\
 r               Refresh live Homebrew inventory (snapshots stay offline)\n\
 5/6/7/8         Diagnostics: Unresolved / Missing / Leaves / Cleanup\n\
 c (diagnostics) Run the selected Homebrew check (live only)\n\
@@ -49,7 +51,7 @@ Esc             Clear query and all filters when browsing\n\
 Esc / ? / F1    Close help\n\
 q / Ctrl-C      Quit (q is text while editing search)\n\n\
 Search matches all words across name, kind, ID, version, path, description, origin and reason.\n\n\
-Below 100 columns Tab switches between full-width panes. Minimum useful size: 30 x 10.\n\n\
+Browsing information is passive, below the inventory at narrow widths. Minimum useful size: 30 x 10.\n\n\
 Trust: unknown. No security checks or package changes. Den invokes brew info once per collection; Homebrew may fetch metadata. Snapshot claims are unverified.\n\n\
 Cask versions are Homebrew-recorded versions; applications may self-update. Mixed or insufficient installation-intent records are Unknown.\n\n\
 Relationships never change installation intent. Recorded transitive/unknown-directness entries are leaves, not inferred direct edges. Current optional/build/test declarations are labeled and excluded from runtime traversal.\n\n\
@@ -93,6 +95,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         navigation::inspector(frame, app);
         return;
     }
+    app.focus_inventory();
 
     if app.module == crate::app::Module::Skills {
         if app.codex.view == crate::codex::state::View::Skills {
@@ -129,14 +132,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         &query,
         &status,
         app.searching,
-        actions(app.focus, app.searching),
+        actions(app.searching),
     );
-    let panes = panes(body, app.focus, false);
+    let panes = panes(body);
     if panes[0].width > 0 {
         render_inventory(frame, app, panes[0]);
     }
     if panes[1].width > 0 {
-        render_details(frame, app, panes[1]);
+        if app.is_homebrew() {
+            homebrew::information(frame, app, panes[1]);
+        } else {
+            information(frame, panes[1], overview(app));
+        }
     }
 }
 
@@ -152,18 +159,30 @@ fn pane(title: &str, focused: bool) -> Block<'static> {
 }
 
 fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
-    let block = pane(" Inventory ", app.focus == Focus::Inventory);
-    let inner = block.inner(area);
+    let block = pane(
+        if app.is_homebrew() {
+            " Inventory · counts for search/type "
+        } else {
+            " Inventory "
+        },
+        app.focus == Focus::Inventory,
+    );
+    let mut inner = block.inner(area);
+    frame.render_widget(block, area);
+    if app.is_homebrew() {
+        inner = homebrew::filters(frame, app, inner);
+    }
     if app.focus == Focus::Inventory {
         app.page_size = inner.height.max(1) as usize;
     }
-    frame.render_widget(block, area);
     if app.visible.is_empty() {
         frame.render_widget(
             Paragraph::new(if app.live && app.inventory.resources.is_empty() {
                 app.collection_message()
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
+            } else if app.is_homebrew() {
+                "No matches.\n/:search · f/i/u:filters · Esc:Back".into()
             } else {
                 "No matches.\n/:search · f/i:filters · Esc:Back".into()
             })
@@ -188,7 +207,15 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                     }
                 ),
                 r.version.as_deref().unwrap_or("Unknown"),
-                &r.description,
+                &if app.is_homebrew() {
+                    if r.description.is_empty() {
+                        r.intent().label().into()
+                    } else {
+                        format!("{} · {}", r.intent().label(), r.description)
+                    }
+                } else {
+                    r.description.clone()
+                },
                 inner.width,
             ))
         })
