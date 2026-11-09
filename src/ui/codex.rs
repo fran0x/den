@@ -26,16 +26,7 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         &query,
         &state.status(),
         state.searching,
-        &actions(
-            state.focus(),
-            false,
-            match state.view {
-                View::Instructions => "Enter:preview",
-                View::Mcp => "Enter:source",
-                View::Configuration if !state.sources => "Enter:source",
-                _ => "",
-            },
-        ),
+        actions(state.focus(), state.searching),
     );
     let panes = panes(body, state.focus(), false);
     state.clamp();
@@ -201,7 +192,7 @@ fn overview(state: &State) -> String {
         View::Mcp => {
             let s = &i.configuration.mcp.servers[*n];
             format!(
-                "{}\n\n{} · {}\nValidation: {}\n{} configuration definitions\nRuntime: not checked\n\nEnter: inspect · Tab: choose inspector section",
+                "{}\n\n{} · {}\nValidation: {}\n{} configuration definitions\nRuntime: not checked",
                 s.name,
                 s.transport().label(),
                 s.status.label(),
@@ -218,8 +209,14 @@ fn overview(state: &State) -> String {
                     format!("{:?} configuration", l.scope)
                 });
             format!(
-                "{}\n\nLocally resolved: {}\nSource: {}\n{} definitions{}\n\nEnter: inspect · Sources and Evidence available inside.",
+                "{}\n\n{}{}: {}\nSource: {}\n{} definitions{}\n\nSources and Evidence are available in the inspector.",
                 s.key,
+                if i.configuration.is_incomplete() {
+                    "Configuration incomplete; values may change.\n"
+                } else {
+                    ""
+                },
+                i.configuration.value_label(),
                 s.value,
                 source,
                 s.definitions.len(),
@@ -236,7 +233,7 @@ fn overview(state: &State) -> String {
             };
             let f = &c.files[*n];
             format!(
-                "{}\n\n{} · {:?}\nIncluded: {} / {} file bytes\n\nChain: {} selected files · {} / {} byte limit\n{}\n\nEnter: inspect · Preview and Evidence available inside.",
+                "{}\n\n{} · {:?}\nIncluded: {} / {} file bytes\n\nChain: {} selected files · {} / {} byte limit\n{}\n\nPreview and Evidence are available in the inspector.",
                 f.path.file_name().unwrap_or_default().to_string_lossy(),
                 if f.global { "Global" } else { "Project" },
                 f.status,

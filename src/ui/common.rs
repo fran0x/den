@@ -34,7 +34,7 @@ pub(super) fn chrome(
     frame.render_widget(Paragraph::new(safe_text(query)), rows[1]);
     frame.render_widget(Paragraph::new(safe_text(status)).style(muted()), rows[2]);
     let footer = if searching {
-        " Search · Enter:done  Esc:done  Ctrl-U:clear".to_owned()
+        format!(" Search · {actions}  Ctrl-U:clear  Ctrl-C:quit")
     } else {
         format!(" {}  g:sections  /:search  ?:help  q:quit", actions)
     };
@@ -128,22 +128,13 @@ pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<
 }
 
 /// Short action hints describe the focused view, not every available binding.
-pub(super) fn actions(focus: Focus, inspector: bool, detail: &str) -> String {
-    if focus == Focus::Inventory {
-        return "Enter:inspect Tab:pane".into();
-    }
-    if inspector {
-        format!(
-            "Esc:Back {}",
-            if detail.is_empty() {
-                "arrows:scroll"
-            } else {
-                detail
-            }
-        )
-    } else if detail.is_empty() {
-        "Enter:inspect Tab:list".into()
+pub(super) fn actions(focus: Focus, searching: bool) -> &'static str {
+    if searching {
+        "Enter:done Esc:done"
     } else {
-        format!("{detail} Tab:pane")
+        match focus {
+            Focus::Inventory => "Enter:inspect Tab:pane Esc:Back",
+            Focus::Details => "Enter:inspect Tab:list Esc:Back",
+        }
     }
 }

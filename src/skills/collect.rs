@@ -342,13 +342,20 @@ pub(crate) fn discover_bounded(
                                     "Supporting-file traversal limit reached; coverage incomplete",
                                 );
                             }
-                            if let Some(file) = skill
+                            if let Some(index) = skill
                                 .files
                                 .iter()
-                                .find(|f| f.path == Path::new("agents/openai.yaml"))
+                                .position(|f| f.path == Path::new("agents/openai.yaml"))
                             {
-                                if let Some(text) = file.text.clone() {
+                                if let Some(text) = skill.files[index].text.take() {
                                     metadata::optional(&mut skill, &text);
+                                    // Do not retain a raw copy that bypasses URL redaction
+                                    // through Supporting files or derived Debug output.
+                                    skill.files[index].text = Some(
+                                        "Raw optional metadata withheld.\nUse Evidence for normalized MCP declarations.".into(),
+                                    );
+                                    skill.files[index].note =
+                                        "Metadata URL values are withheld.".into();
                                 } else {
                                     skill.optional = Validity::Invalid;
                                     skill.finding(

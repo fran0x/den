@@ -1,6 +1,6 @@
 //! Dependency-pane state and bounded tree/path projection; no terminal widgets.
 use crate::{
-    graph::{Evidence, Graph, Installation, MAX_DEPTH, Resolution},
+    graph::{Evidence, Graph, Installation, MAX_DEPTH, Provenance, Resolution},
     inventory::Inventory,
 };
 use std::collections::HashSet;
@@ -55,7 +55,7 @@ impl Default for Explorer {
         Self {
             section: Section::Overview,
             evidence: Evidence::Recorded,
-            tree: false,
+            tree: true,
             installation: None,
             rows: vec![],
             selected: 0,
@@ -68,6 +68,9 @@ impl Default for Explorer {
 }
 
 impl Explorer {
+    pub fn hierarchical(&self) -> bool {
+        self.tree && matches!(self.section, Section::Dependencies | Section::RequiredBy)
+    }
     pub fn select(&mut self, graph: &Graph, node: Option<usize>) {
         self.installation = node.map(|node| graph.preferred(node));
         if self.evidence == Evidence::Recorded
@@ -106,12 +109,48 @@ impl Explorer {
             .min(self.rows.len().saturating_sub(1));
     }
     pub fn toggle_expansion(&mut self) {
-        if self.tree
+        if self.hierarchical()
             && let Some(row) = self.rows.get(self.selected)
             && row.expandable
             && !self.expanded.remove(&row.branch)
         {
             self.expanded.insert(row.branch.clone());
+        }
+    }
+    /// Expand in place first; a second Right enters the first visible child.
+    pub fn expand_or_child(&mut self) {
+        if !self.hierarchical() {
+            return;
+        }
+        let Some(row) = self.rows.get(self.selected).filter(|r| r.expandable) else {
+            return;
+        };
+        if !self.expanded.insert(row.branch.clone())
+            && self.rows.get(self.selected + 1).is_some_and(|child| {
+                child.branch.len() == row.branch.len() + 1 && child.branch.starts_with(&row.branch)
+            })
+        {
+            self.selected += 1;
+        }
+    }
+    /// Collapse in place first; otherwise select this occurrence's parent branch.
+    pub fn collapse_or_parent(&mut self) {
+        if !self.hierarchical() {
+            return;
+        }
+        let Some(row) = self.rows.get(self.selected) else {
+            return;
+        };
+        if row.expandable && self.expanded.remove(&row.branch) {
+            return;
+        }
+        if row.branch.len() > 1
+            && let Some(parent) = self
+                .rows
+                .iter()
+                .position(|candidate| candidate.branch == row.branch[..row.branch.len() - 1])
+        {
+            self.selected = parent;
         }
     }
     pub fn rebuild(&mut self, graph: &Graph, inventory: &Inventory) {
@@ -126,9 +165,9 @@ impl Explorer {
         }
         self.note = match self.evidence {
             Evidence::Recorded => match &root.keg {
-                Some(keg) => format!("Recorded keg {keg}. t: direct / all evidence + tree"),
+                Some(keg) => format!("Recorded keg {keg}."),
                 None if !graph.versions(root.node).is_empty() => {
-                    "No identifiable linked keg; v selects a version.".into()
+                    "No identifiable linked keg; V selects a version.".into()
                 }
                 None => {
                     "Recorded runtime metadata unavailable; s shows current declarations.".into()
@@ -182,6 +221,7 @@ impl Explorer {
                 &[],
                 &[root.clone()],
                 &edges,
+                "",
             );
             if self.rows.is_empty() {
                 if !reverse && !graph.available(&root, self.evidence) {
@@ -189,8 +229,13 @@ impl Explorer {
                 } else if self.evidence == Evidence::Current {
                     self.note
                         .push_str(" No matching current package relationships in this snapshot.");
+                } else if self.tree {
+                    self.note
+                        .push_str(" No matching recorded relationships in this snapshot.");
                 } else {
-                    self.note.push_str(" No matching direct relationships. t includes non-direct/uncertain runtime records.");
+                    self.note.push_str(
+                        " No matching direct relationships. t shows all records as a tree.",
+                    );
                 }
             }
         }
@@ -210,8 +255,9 @@ impl Explorer {
         branch: &[usize],
         ancestors: &[Installation],
         edges: &[usize],
+        prefix: &str,
     ) {
-        for &index in edges {
+        for (position, &index) in edges.iter().enumerate() {
             if self.rows.len() >= MAX_ROWS {
                 self.limited = true;
                 return;
@@ -229,21 +275,26 @@ impl Explorer {
             }) && !cycle
                 && branch.len() < MAX_DEPTH;
             let expanded = self.tree && row.expandable && self.expanded.contains(&key);
-            row.label = format!(
-                "{}{} {}{}",
-                "  ".repeat(branch.len()),
-                if cycle {
-                    "!"
-                } else if expanded {
-                    "-"
-                } else if row.expandable && self.tree {
-                    "+"
-                } else {
-                    " "
-                },
-                row.label,
-                if cycle { " [cycle]" } else { "" }
-            );
+            let last = position + 1 == edges.len();
+            row.label = if self.tree {
+                format!(
+                    "{prefix}{} {} {}{}",
+                    if last { "└─" } else { "├─" },
+                    if cycle {
+                        "!"
+                    } else if expanded {
+                        "[-]"
+                    } else if row.expandable {
+                        "[+]"
+                    } else {
+                        "·"
+                    },
+                    row.label,
+                    if cycle { " [cycle]" } else { "" }
+                )
+            } else {
+                format!("  {}", row.label)
+            };
             self.rows.push(row);
             if self.tree && branch.len() >= MAX_DEPTH && next.is_some() {
                 self.limited = true;
@@ -252,7 +303,10 @@ impl Explorer {
                 let mut path = ancestors.to_vec();
                 path.push(next.clone());
                 let children = graph.adjacent(&next, self.evidence, reverse, true);
-                self.append_children(graph, inventory, &next, reverse, &key, &path, &children);
+                let prefix = format!("{prefix}{}", if last { "   " } else { "│  " });
+                self.append_children(
+                    graph, inventory, &next, reverse, &key, &path, &children, &prefix,
+                );
             }
         }
     }
@@ -326,6 +380,7 @@ fn row_for(
         && edge.provenance.evidence() == Evidence::Recorded
     {
         if graph.target_state(edge).is_none() {
+            label.push_str(" [keg unresolved]");
             detail.push_str("; target keg unresolved/not installed: traversal stops (Enter opens package overview)");
         } else if edge.target_version.is_none() {
             detail.push_str("; target version unrecorded, using sole installed keg");
@@ -334,6 +389,15 @@ fn row_for(
     if reverse && graph.step(edge, state, true).is_none() && edge.provenance.traversable() {
         detail.push_str("; version linkage uncertain");
     }
+    label.push_str(match edge.provenance {
+        Provenance::RecordedTransitive => " [transitive record]",
+        Provenance::RecordedUnknown => " [directness unknown]",
+        Provenance::Recommended => " [recommended]",
+        Provenance::Optional => " [optional]",
+        Provenance::Build => " [build only]",
+        Provenance::Test => " [test only]",
+        _ => "",
+    });
     Row {
         label,
         detail,

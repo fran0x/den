@@ -87,6 +87,184 @@ fn app(t: &Temp) -> App {
     a
 }
 
+fn draw(a: &mut App, width: u16, height: u16) -> String {
+    use ratatui::{Terminal, backend::TestBackend};
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal.draw(|frame| ui::render(frame, a)).unwrap();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| terminal.backend().buffer()[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn incomplete_configuration_is_provisional_in_inventory_and_overview() {
+    for failure in ["invalid TOML", "unavailable", "missing profile"] {
+        let t = Temp::new();
+        t.trust("trusted", "sandbox_mode='read-only'");
+        match failure {
+            "invalid TOML" => t.write(
+                "project/.codex/config.toml",
+                "secret='PRIVATE-INCOMPLETE-SENTINEL\n",
+            ),
+            "unavailable" => {
+                t.write("project/.codex/config.toml", "");
+                fs::write(t.0.join("project/.codex/config.toml"), [255]).unwrap();
+            }
+            "missing profile" => (),
+            _ => unreachable!(),
+        }
+        let mut a = app(&t);
+        if failure == "missing profile" {
+            let mut context = t.context();
+            context.profile = Some("absent".into());
+            a.codex.configure(context.clone());
+            a.codex.finish(
+                codex::discover(&context, &AtomicBool::new(false)),
+                &mut a.skills,
+            );
+            a.codex.requested = false;
+        }
+        a.navigate(den::presentation::Destination::Configuration);
+        let c = &a.codex.inventory.as_ref().unwrap().configuration;
+        assert_eq!(value(c, "sandbox_mode"), "read-only");
+        assert_eq!(value(c, "project_doc_max_bytes"), "32768");
+        let setting = c
+            .settings
+            .iter()
+            .position(|s| s.key == "sandbox_mode")
+            .unwrap();
+        assert_eq!(
+            c.layers[c.settings[setting].source.unwrap()].scope,
+            config::Scope::User
+        );
+        assert!(
+            c.setting_text(setting)
+                .contains("Provisional value: read-only")
+        );
+        assert!(
+            a.codex
+                .rows()
+                .iter()
+                .all(|(_, label)| label.contains("[provisional]"))
+        );
+        for (width, height) in [(80, 24), (120, 32), (160, 45)] {
+            for setting in ["sandbox_mode", "project_doc_max_bytes"] {
+                a.codex.query = setting.into();
+                a.codex.clamp();
+                let inventory = draw(&mut a, width, height);
+                assert!(
+                    inventory
+                        .lines()
+                        .nth(2)
+                        .unwrap()
+                        .contains("INCOMPLETE configuration"),
+                    "{failure}, {width}"
+                );
+                assert!(
+                    inventory
+                        .lines()
+                        .find(|line| line.contains(&format!("{setting}:")))
+                        .unwrap()
+                        .contains("[provisional]"),
+                    "{failure}, {width}, {setting}"
+                );
+                key(&mut a, KeyCode::Enter);
+                let overview = draw(&mut a, width, height);
+                assert!(
+                    overview.contains("Provisional value:"),
+                    "{failure}, {width}, {setting}"
+                );
+                assert!(
+                    overview.contains("Configuration incomplete"),
+                    "{failure}, {width}, {setting}"
+                );
+                assert!(!overview.contains("Locally resolved:"));
+                assert!(!overview.contains("PRIVATE-INCOMPLETE-SENTINEL"));
+                key(&mut a, KeyCode::Esc);
+            }
+        }
+    }
+}
+
+#[test]
+fn complete_and_inactive_configuration_keep_normal_presentation() {
+    for (trust, project, expected) in [
+        ("trusted", None, "read-only"),
+        (
+            "trusted",
+            Some("sandbox_mode='workspace-write'"),
+            "workspace-write",
+        ),
+        (
+            "untrusted",
+            Some("secret='PRIVATE-INCOMPLETE-SENTINEL\n"),
+            "read-only",
+        ),
+    ] {
+        let t = Temp::new();
+        t.trust(trust, "sandbox_mode='read-only'");
+        if let Some(project) = project {
+            t.write("project/.codex/config.toml", project);
+        }
+        let mut a = app(&t);
+        a.navigate(den::presentation::Destination::Configuration);
+        a.codex.query = "sandbox_mode".into();
+        a.codex.clamp();
+        assert_eq!(
+            value(
+                &a.codex.inventory.as_ref().unwrap().configuration,
+                "sandbox_mode"
+            ),
+            expected
+        );
+        assert!(!a.codex.rows()[0].1.contains("[provisional]"));
+        for (width, height) in [(80, 24), (120, 32)] {
+            assert!(!draw(&mut a, width, height).contains("INCOMPLETE configuration"));
+            key(&mut a, KeyCode::Enter);
+            let overview = draw(&mut a, width, height);
+            assert!(overview.contains(&format!("Locally resolved: {expected}")));
+            assert!(!overview.contains("Provisional value:"));
+            assert!(!overview.contains("Configuration incomplete"));
+            key(&mut a, KeyCode::Esc);
+        }
+    }
+}
+
+#[test]
+fn configuration_refresh_updates_provisional_presentation() {
+    let t = Temp::new();
+    t.trust("trusted", "sandbox_mode='read-only'");
+    t.write("project/.codex/config.toml", "sandbox_mode=[invalid");
+    let mut a = app(&t);
+    a.navigate(den::presentation::Destination::Configuration);
+    a.codex.query = "sandbox_mode".into();
+    a.codex.clamp();
+    key(&mut a, KeyCode::Enter);
+    assert!(draw(&mut a, 80, 24).contains("Provisional value: read-only"));
+
+    t.write(
+        "project/.codex/config.toml",
+        "sandbox_mode='workspace-write'",
+    );
+    a.codex.finish(Ok(t.collect()), &mut a.skills);
+    let repaired = draw(&mut a, 80, 24);
+    assert!(repaired.contains("Locally resolved: workspace-write"));
+    assert!(!repaired.contains("INCOMPLETE configuration"));
+    assert_eq!(a.codex.query, "sandbox_mode");
+
+    t.write("project/.codex/config.toml", "sandbox_mode=[invalid");
+    a.codex.finish(Ok(t.collect()), &mut a.skills);
+    let incomplete = draw(&mut a, 80, 24);
+    assert!(incomplete.contains("Provisional value: read-only"));
+    assert!(incomplete.contains("INCOMPLETE configuration"));
+    assert_eq!(a.codex.query, "sandbox_mode");
+}
+
 #[test]
 fn system_user_profile_and_closest_trusted_project_precedence() {
     let t = Temp::new();

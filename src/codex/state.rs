@@ -135,8 +135,13 @@ impl State {
                     (
                         n,
                         format!(
-                            "{}: {}{}",
+                            "{}: {}{}{}",
                             s.key,
+                            if i.configuration.is_incomplete() {
+                                "[provisional] "
+                            } else {
+                                ""
+                            },
                             s.value,
                             if s.conditional.is_some() {
                                 " [conditional]"
@@ -211,7 +216,29 @@ impl State {
                 )
             });
         }
-        self.inventory.as_ref().map_or("Not checked".into(),|i|format!("Locally resolved · trust {:?} · profile {} · {} layers · {} selected instructions{}",i.configuration.trust,i.configuration.profile.as_deref().unwrap_or("none selected"),i.configuration.layers.iter().filter(|l|l.present).count(),i.instructions.selected(),if self.conditional {" · IF TRUSTED scenario"} else {""}))
+        self.inventory.as_ref().map_or("Not checked".into(), |i| {
+            let resolution = if self.view == View::Configuration && i.configuration.is_incomplete()
+            {
+                "INCOMPLETE configuration · values provisional"
+            } else {
+                "Locally resolved"
+            };
+            format!(
+                "{resolution} · trust {:?} · profile {} · {} layers · {} selected instructions{}",
+                i.configuration.trust,
+                i.configuration
+                    .profile
+                    .as_deref()
+                    .unwrap_or("none selected"),
+                i.configuration.layers.iter().filter(|l| l.present).count(),
+                i.instructions.selected(),
+                if self.conditional {
+                    " · IF TRUSTED scenario"
+                } else {
+                    ""
+                }
+            )
+        })
     }
     pub fn text(&self) -> String {
         if self.help {

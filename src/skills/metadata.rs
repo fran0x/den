@@ -145,7 +145,12 @@ pub fn optional(skill: &mut Skill, text: &str) {
                                 .get("transport")
                                 .and_then(Value::as_str)
                                 .map(str::to_owned),
-                            url: tool.get("url").and_then(Value::as_str).map(str::to_owned),
+                            // Any URL component can contain credentials, including the host.
+                            // Retain presence only; URL validity and connectivity are unverified.
+                            url: tool
+                                .get("url")
+                                .and_then(Value::as_str)
+                                .map(|_| "[URL withheld]".into()),
                         });
                     }
                 }

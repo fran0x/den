@@ -3,6 +3,8 @@
 The earlier interface required F2/F3 plus a mixture of modes, focus and inspector
 shortcuts. UX-2A uses one searchable Sections switcher and one explicit Back history.
 The [UX-1 captures](../ux/README.md) remain frozen for comparison.
+These walkthroughs describe the navigation introduced in UX-2A; the
+[keyboard guide](../KEYBOARD.md) includes current UX-2B tree controls and search/quit behavior.
 
 ## 1. Homebrew → search → inspect → back
 
@@ -54,11 +56,14 @@ navigation. Den uses those principles without importing their runtime architectu
 A persistent sidebar was considered and omitted: the same switcher works at 80×24,
 120×32 and 160×45. Inspector sections remain visible beside content when space allows.
 Deterministic UI tests and PTY checks cover these workflows, privacy and terminal
-restoration. Synthetic captures can be regenerated with:
+restoration. The following commands render the current implementation and overwrite
+the synthetic text captures in `docs/ux2/` (they do not recreate historical layouts).
+Run them from the repository root only when intentionally refreshing those captures:
 
 ```sh
 cargo test --test ux captures -- --ignored
 cargo test --test navigation navigation_captures -- --ignored
 ```
 
-Scope stops at UX-2A. The existing dependency tree is preserved; UX-2B is not implemented.
+These captures document UX-2A. UX-2B adds tree-first dependency exploration;
+see the [current dependency controls](../KEYBOARD.md#dependency-trees-ux-2b).

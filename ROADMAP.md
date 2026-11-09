@@ -4,6 +4,11 @@ Den is an inspector, not a package manager or administration tool. Each stage sh
 remain read-only, independently demonstrable and covered by fixtures and tests.
 Later stages are proposals, not authorization to implement them now.
 
+The current implementation includes Stages 0–3C1 and UX-2B. Stage descriptions record
+their delivery history; later UX changes supersede earlier controls. Use the
+[keyboard guide](docs/KEYBOARD.md) for current behavior. In particular, UX-2A removed
+the Compact/Detailed toggle introduced in UX-1.
+
 ## Stage 0 — Foundation (implemented)
 
 - Typed inventory and versioned JSON snapshots; embedded synthetic demo.
@@ -59,12 +64,16 @@ Later stages are proposals, not authorization to implement them now.
 
 ## Stage 3A — Codex Skills explorer (implemented)
 
-- F2 module navigation preserves Homebrew and Skills state; project context defaults to CWD.
+- The `g` switcher preserves Homebrew and Skills state; F2 remains a compatibility shortcut.
+  Project context defaults to CWD.
 - Documented user/project/admin roots; bounded ancestor probing to a Git directory/file marker.
 - Explicit legacy and system-cache candidates under CODEX_HOME, with incomplete plugin/session coverage.
 - Separate skill domain model, shared cancellable worker and literal search; no plugin framework.
 - Real YAML parsing with budgets, required frontmatter, optional openai.yaml and unresolved MCP declarations.
 - Search, scope/status filters, full bounded instructions, text file previews, findings and coverage.
+- Skill-declared MCP URL fields retain presence as `[URL withheld]`. Raw `agents/openai.yaml`
+  previews are withheld, including malformed metadata, before inventory publication.
+  Required metadata validity and configured names/transports remain separate from URL semantics.
 - Duplicate names are informational. Discovery, validation, filesystem access and configuration status stay distinct.
 - Descriptor-relative reads, bounded symlinks/traversal, no script execution or external supporting-file reads.
 - Isolated fixture discovery and temporary-filesystem tests; just skills-check reports local aggregate evidence.
@@ -79,10 +88,14 @@ Later stages are proposals, not authorization to implement them now.
 - User trust entries matched at canonical project root/selected directory: trusted, inactive untrusted,
   or conditional unknown. Root markers select the bounded ancestor chain without Git execution.
 - Unknown tables and arrays remain unresolved; raw unknown names/values and parser diagnostics withheld.
+- Incomplete applicable layers (invalid/unavailable files or a missing selected profile) produce
+  visible inventory warnings and provisional value labels in Overview and Evidence. Existing
+  values/defaults and provenance remain inspectable; inactive untrusted layers do not cause this warning.
 - Ordered global/project instructions, override/fallback priority, empty/shadowed/unavailable states,
   UTF-8-safe inclusion accounting and bounded, opt-in, redacted previews.
 - Skills retain discovery diagnostics; canonical directory/SKILL.md enablement references have source jumps.
-- F3 cycles Codex views; search, selection, source inspection, back and refresh preserve context.
+- The `g` switcher exposes Codex views; F3 remains a compatibility cycle. Search, selection,
+  source inspection, Back and refresh preserve context.
 - Isolated Codex fixtures, configuration/security/state/render tests and aggregate `just codex-config-check`.
 - No auth/session access, Codex execution, configuration modification or private committed fixtures.
 
@@ -91,6 +104,8 @@ Later stages are proposals, not authorization to implement them now.
 - CLI flags, cloud defaults, enforced requirements and active session state are unobserved.
 - Legacy profile structures are flagged, not applied. Unknown model identifiers and custom/granular
   approval policies are withheld rather than guessed. Only classified settings are resolved.
+- Named permission profiles (`default_permissions` and `[permissions]`) are not modeled;
+  this inspector does not represent the entire current configuration schema.
 - `skills.config` across multiple applicable layers has unestablished array merge semantics;
   non-project relative skill paths have unestablished base semantics. Both remain undetermined.
 - Exact user trust entries are supported; ambiguous ancestor/worktree relationships remain unknown.
@@ -116,7 +131,8 @@ Later stages are proposals, not authorization to implement them now.
   network category and port survive normalization; hosts and all other URL components are withheld.
 - Arguments, helper commands, inline env/header values, OAuth IDs/secrets and unknown values
   are discarded from the presentation model. Debug and live-check output are aggregate only.
-- F3 adds MCP; six detail sections, search, four intersecting filters, source jumps/back and refresh.
+- MCP is available through `g` and the compatibility F3 cycle. Six domain detail sections plus
+  shared Evidence, search, four intersecting filters, source jumps/Back and refresh are implemented.
 - Synthetic fixtures, deterministic security/state/rendering tests, PTY checks and `just mcp-check`.
 
 ### MCP coverage and limits
@@ -139,7 +155,8 @@ Later stages are proposals, not authorization to implement them now.
 
 - Shared compact navigation, status and pane primitives; no collector or domain-model changes.
 - Single-row inventories, concise overviews, one accent, terminal-default backgrounds and explicit focus markers.
-- Global Compact/Detailed toggle; full-screen inspectors with Back and preserved search/selection.
+- Introduced a global Compact/Detailed toggle (removed in UX-2A); full-screen inspectors with
+  Back and preserved search/selection remain.
 - Below 100 columns, switchable full-width panes; longer reading columns capped at 92 cells.
 - Shared scrollable help, focused-view action hints, explicit F2 modules/F3 views, Shift+V for keg/source selection.
 - Source searches stay in the inventory; native Back actions cannot leave inventory focus hidden behind an inspector.
@@ -159,13 +176,24 @@ Later stages are proposals, not authorization to implement them now.
   Refresh revalidates identities and discards stale graph-indexed expansion state.
 - Per-destination return positions; context-aware help; repeated MCP coverage moved to Evidence.
 - Existing function/number keys remain secondary; `v` opens Evidence, with no display-mode toggle.
+- Focused Enter/Esc hints distinguish browsing, inspector sections and search editing. Esc is
+  Back, not filter reset; switcher Enter opens a destination directly. `q` quits switcher browsing
+  and stays text during search; Ctrl-C quits from either state.
 - Interaction tests, synthetic walkthroughs and three-size PTY checks. No collector changes.
 - No persistent sidebar: a single switcher keeps the model consistent at all terminal sizes.
 
-## UX-2B — Hierarchical dependency tree (requires separate authorization)
+## UX-2B — Hierarchical dependency tree (implemented)
 
-- Stop after UX-2A. The existing bounded dependency tree remains unchanged.
-- Design the new hierarchy and traversal interactions only under a separate task.
+- Dependencies and Required by open as trees with root/evidence context, branch connectors,
+  collapsed/expanded markers and visible controls. The direct-list alternative remains available.
+- Right expands, then enters the first visible child. Left collapses, then selects the
+  occurrence's parent; top-level Left stays in the tree. Space toggles, Enter inspects, Esc goes Back.
+- Shared packages keep separate branches. Cycles, uncertain directness, transitive records,
+  unavailable kegs and build/test/optional declarations remain labeled non-traversable leaves.
+- Existing graph semantics, keg resolution, bounds and collectors are unchanged. History keeps
+  branch selection, expansion, filters and viewport; refresh discards old graph indices while
+  preserving evidence/view preferences against the refreshed inventory.
+- Synthetic state, rendering and bounds regression tests; three-size PTY navigation checks.
 
 ## Stage 3C2 — MCP security evidence (requires separate authorization)
 
@@ -175,22 +203,24 @@ Later stages are proposals, not authorization to implement them now.
 - Keep local declarations separate from live connectivity, authentication and tool metadata.
 - No server execution, connection checks, remediation or configuration edits are authorized by 3C1.
 
-## Stage 4 — Executables, runtimes, libraries and caches
+## Stage 4 — Executables, runtimes, libraries and caches (planned)
 
 - Add focused collectors incrementally; define identity and deduplication rules.
 - Explain PATH precedence, runtime ownership and overlapping installations.
 - Make costly filesystem scans explicit and bounded. Report cache sizes without deletion.
 
-## Stage 5 — Trust and security evidence
+## Stage 5 — Trust and security evidence (planned)
 
 - Define a threat model and evidence vocabulary before assigning assessments.
 - Separate provenance, permissions, signatures and vulnerability evidence.
 - State freshness, uncertainty and limitations; unknown must never imply safe.
 - Any external advisory/network integration needs an explicit consent and privacy design.
 
-## After UX-2A
+## After UX-2B
 
 Stop here unless another stage is explicitly requested. Keep `just reconcile`,
-`just dependency-check`, `just diagnostic-check`, `just skills-check` and
-`just codex-config-check` and `just mcp-check` as opt-in local checks.
-Graphs and diagnostic reports remain in memory; snapshot checks never run Homebrew.
+`just dependency-check`, `just diagnostic-check`, `just skills-check`,
+`just codex-config-check`, `just mcp-check` and `just live-check` as opt-in local checks.
+Graphs and diagnostic reports remain in memory. Den/raw Homebrew snapshots are loadable
+inputs; snapshot creation/comparison and external-change detection are not implemented.
+Snapshot checks never run Homebrew or collect live Codex data.

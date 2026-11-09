@@ -361,6 +361,14 @@ impl App {
             return;
         }
         match key.code {
+            KeyCode::Right if self.tree_content_focused() => {
+                self.explorer.expand_or_child();
+                self.sync_explorer();
+            }
+            KeyCode::Left if self.tree_content_focused() => {
+                self.explorer.collapse_or_parent();
+                self.sync_explorer();
+            }
             KeyCode::Char(ch @ '1'..='4') if self.is_homebrew() => {
                 self.diagnostics.tab = None;
                 self.explorer.section = match ch {
@@ -386,16 +394,12 @@ impl App {
                 self.explorer.cycle_keg(&self.graph);
                 self.sync_explorer();
             }
-            KeyCode::Char('t')
-                if self.focus == Focus::Details && self.explorer.section != Section::Overview =>
-            {
+            KeyCode::Char('t') if self.relationship_content_focused() => {
                 self.explorer.tree = !self.explorer.tree;
                 self.explorer.clear_navigation();
                 self.sync_explorer();
             }
-            KeyCode::Char(' ')
-                if self.focus == Focus::Details && self.explorer.section != Section::Overview =>
-            {
+            KeyCode::Char(' ') if self.tree_content_focused() => {
                 self.explorer.toggle_expansion();
                 self.sync_explorer();
             }

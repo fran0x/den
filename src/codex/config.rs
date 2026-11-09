@@ -550,6 +550,17 @@ pub fn collect(context: &Context, cancel: &AtomicBool) -> io::Result<Configurati
     })
 }
 impl Configuration {
+    /// Applicable sources could not all be inspected; retained values are provisional.
+    pub fn is_incomplete(&self) -> bool {
+        self.incomplete
+    }
+    pub(crate) fn value_label(&self) -> &'static str {
+        if self.incomplete {
+            "Provisional value"
+        } else {
+            "Locally resolved"
+        }
+    }
     pub fn controls(&self, conditional: bool) -> Controls {
         let mut c = Controls {
             fallback: vec![],
@@ -650,8 +661,9 @@ impl Configuration {
             return LIMITATIONS.into();
         };
         let mut text = format!(
-            "{}\n\nLocally resolved: {}\nSource: {}\n",
+            "{}\n\n{}: {}\nSource: {}\n",
             s.key,
+            self.value_label(),
             s.value,
             s.source.map_or(
                 if documented_default(&s.key).is_some() {

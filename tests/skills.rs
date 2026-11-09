@@ -221,6 +221,121 @@ fn invalid_optional_metadata_does_not_invalidate_skill_frontmatter() {
     assert_eq!(i.skills[0].metadata, Validity::Valid);
     assert_eq!(i.skills[0].optional, Validity::Invalid);
 }
+
+#[test]
+fn mcp_metadata_urls_are_withheld_before_inventory_publication() {
+    for url in [
+        "https://user:URL-REDACTION-CANARY@URL-REDACTION-CANARY.invalid/URL-REDACTION-CANARY?key=URL-REDACTION-CANARY#URL-REDACTION-CANARY",
+        "http://127.0.0.1:8080/URL-REDACTION-CANARY",
+        "https://example.invalid/percent%2Dencoded?key=URL%2DREDACTION%2DCANARY",
+        "file:///private/URL-REDACTION-CANARY",
+        "not a URL: URL-REDACTION-CANARY",
+        "https://example.invalid/URL-REDACTION-CANARY\n\u{1b}[31m",
+        "",
+    ] {
+        let t = Temp::new();
+        t.skill("user/docs", "docs");
+        let metadata = format!(
+            "dependencies:\n  tools:\n    - type: mcp\n      value: docs\n      transport: streamable_http\n      description: Declared only\n      url: {}\n",
+            serde_json::to_string(url).unwrap()
+        );
+        t.write("user/docs/agents/openai.yaml", &metadata);
+        let inventory = t.collect();
+        let skill = &inventory.skills[0];
+        assert_eq!(skill.metadata, Validity::Valid);
+        // Redaction does not introduce URL validation or change metadata eligibility.
+        assert_eq!(skill.optional, Validity::Valid);
+        assert_eq!(skill.mcp.len(), 1);
+        let dependency = &skill.mcp[0];
+        assert_eq!(dependency.value, "docs");
+        assert_eq!(dependency.transport.as_deref(), Some("streamable_http"));
+        assert_eq!(dependency.description.as_deref(), Some("Declared only"));
+        assert_eq!(dependency.url.as_deref(), Some("[URL withheld]"));
+        let debug = format!("{inventory:?}");
+        assert!(!debug.contains("URL-REDACTION-CANARY"));
+        assert!(!debug.contains("URL%2DREDACTION%2DCANARY"));
+        assert!(!debug.contains("https://") && !debug.contains("http://"));
+        let source = skill
+            .files
+            .iter()
+            .find(|f| f.path == Path::new("agents/openai.yaml"))
+            .unwrap();
+        assert!(
+            source
+                .text
+                .as_deref()
+                .unwrap()
+                .contains("Raw optional metadata withheld")
+        );
+        assert_eq!(
+            fs::read_to_string(t.0.join("user/docs/agents/openai.yaml")).unwrap(),
+            metadata
+        );
+    }
+
+    let t = Temp::new();
+    t.skill("user/docs", "docs");
+    t.write(
+        "user/docs/agents/openai.yaml",
+        "dependencies:\n  tools:\n    - type: mcp\n      value: docs\n",
+    );
+    let inventory = t.collect();
+    assert_eq!(inventory.skills[0].optional, Validity::Valid);
+    assert_eq!(inventory.skills[0].mcp[0].url, None);
+}
+
+#[test]
+fn invalid_optional_metadata_does_not_expose_urls_in_source_previews() {
+    for text in [
+        "dependencies:\n  tools:\n    - type: mcp\n      value: docs\n      url: 'https://example.invalid/URL-REDACTION-CANARY\n",
+        "dependencies:\n  tools:\n    - type: mcp\n      value: docs\n      url: [https://example.invalid/URL-REDACTION-CANARY]\n",
+    ] {
+        let t = Temp::new();
+        t.skill("user/docs", "docs");
+        t.write("user/docs/agents/openai.yaml", text);
+        let inventory = t.collect();
+        assert_eq!(inventory.skills[0].metadata, Validity::Valid);
+        assert_eq!(inventory.skills[0].optional, Validity::Invalid);
+        assert!(inventory.skills[0].mcp.is_empty());
+        assert!(!format!("{inventory:?}").contains("URL-REDACTION-CANARY"));
+    }
+}
+
+#[test]
+fn mcp_url_redaction_is_visible_in_evidence_and_metadata_source_preview() {
+    let t = Temp::new();
+    t.skill("user/docs", "docs");
+    t.write("user/docs/agents/openai.yaml", "dependencies:\n  tools:\n    - type: mcp\n      value: docs\n      transport: streamable_http\n      url: https://user:URL-REDACTION-CANARY@example.invalid/private?key=URL-REDACTION-CANARY\n");
+    let mut a = app();
+    a.skills.configure(Config::fixture(&t.0).unwrap());
+    a.skills.finish(Ok(t.collect()));
+    a.skills.requested = false;
+    for (width, height) in [(80, 24), (120, 32), (160, 45)] {
+        key(&mut a, KeyCode::Char('v'));
+        assert!(!draw(&mut a, width, height).contains("URL-REDACTION-CANARY"));
+        key(&mut a, KeyCode::End);
+        let evidence = draw(&mut a, width, height);
+        assert!(evidence.contains("docs") && evidence.contains("streamable_http"));
+        assert!(evidence.contains("[URL withheld]"));
+        assert!(!evidence.contains("URL-REDACTION-CANARY"));
+
+        key(&mut a, KeyCode::Char('3'));
+        a.skills.file = a
+            .skills
+            .selected_skill()
+            .unwrap()
+            .files
+            .iter()
+            .position(|f| f.path == Path::new("agents/openai.yaml"))
+            .unwrap();
+        key(&mut a, KeyCode::Enter);
+        let preview = draw(&mut a, width, height);
+        assert!(a.skills.file_open);
+        assert!(preview.contains("Raw optional metadata withheld"));
+        assert!(!preview.contains("URL-REDACTION-CANARY"));
+    }
+}
+
 #[test]
 fn large_text_binary_data_and_depth_limits_are_explicit() {
     let t = Temp::new();

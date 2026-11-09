@@ -73,6 +73,206 @@ fn all_destinations_are_reachable_without_function_keys() {
         assert!(!s.contains("F2:"));
     }
 }
+
+#[test]
+fn browse_and_inspector_hints_match_enter_and_escape_routing() {
+    for destination in [
+        Destination::Homebrew,
+        Destination::Skills,
+        Destination::Configuration,
+        Destination::Sources,
+        Destination::Instructions,
+        Destination::Mcp,
+    ] {
+        for (width, height) in [(80, 24), (120, 32), (160, 45)] {
+            for focus in [Focus::Inventory, Focus::Details] {
+                let mut a = app();
+                if destination == Destination::Skills {
+                    let config =
+                        den::skills::Config::fixture(Path::new("fixtures/skills")).unwrap();
+                    a.skills
+                        .finish(den::skills::discover(&config, &AtomicBool::new(false)));
+                }
+                a.navigate(destination);
+                if focus == Focus::Details {
+                    key(&mut a, KeyCode::Tab);
+                }
+                assert_eq!(a.active_focus(), focus);
+                let browse = draw(&mut a, width, height);
+                let footer = browse.lines().last().unwrap();
+                assert!(
+                    footer.contains("Enter:inspect") && footer.contains("Esc:Back"),
+                    "{destination:?}, {focus:?}, {width}: {footer}"
+                );
+                assert!(!footer.contains("Enter:source") && !footer.contains("Enter:preview"));
+                key(&mut a, KeyCode::Enter);
+                assert!(matches!(
+                    a.presentation.page,
+                    Page::Inspector {
+                        detail: Detail::Overview,
+                        focus: InspectorFocus::Content,
+                        ..
+                    }
+                ));
+                let overview = draw(&mut a, width, height);
+                assert!(!overview.contains("Enter: inspect"));
+                assert!(overview.lines().last().unwrap().contains("Tab:sections"));
+                key(&mut a, KeyCode::Tab);
+                assert!(
+                    draw(&mut a, width, height)
+                        .lines()
+                        .last()
+                        .unwrap()
+                        .contains("Enter:open")
+                );
+                key(&mut a, KeyCode::Enter);
+                assert!(matches!(
+                    a.presentation.page,
+                    Page::Inspector {
+                        focus: InspectorFocus::Content,
+                        ..
+                    }
+                ));
+                key(&mut a, KeyCode::Esc);
+                assert!(!a.inspecting());
+                assert_eq!(a.destination(), destination);
+                assert_eq!(a.active_focus(), focus);
+            }
+        }
+    }
+}
+
+#[test]
+fn empty_inventory_hints_offer_back_without_resetting_filters() {
+    for destination in [Destination::Homebrew, Destination::Skills] {
+        let mut a = app();
+        a.navigate(destination);
+        key(&mut a, KeyCode::Char('i'));
+        let intent = a.intent_filter;
+        let skill_filter = a.skills.filter;
+        assert!(if destination == Destination::Homebrew {
+            intent.is_some()
+        } else {
+            skill_filter.is_some()
+        });
+        key(&mut a, KeyCode::Char('/'));
+        text(&mut a, "no-such-resource");
+        key(&mut a, KeyCode::Enter);
+        for (width, height) in [(80, 24), (120, 32)] {
+            let inventory = draw(&mut a, width, height);
+            assert!(inventory.contains("No matches") || inventory.contains("No matching skills"));
+            assert!(inventory.contains("Esc:Back"));
+            assert!(!inventory.contains("Esc resets") && !inventory.contains("Esc:reset"));
+            key(&mut a, KeyCode::Enter);
+            let overview = draw(&mut a, width, height);
+            assert!(overview.contains("Esc:Back"));
+            assert!(!overview.contains("Esc resets") && !overview.contains("Esc:reset"));
+            key(&mut a, KeyCode::Esc);
+        }
+        key(&mut a, KeyCode::Esc);
+        assert_eq!(a.intent_filter, intent);
+        assert_eq!(a.skills.filter, skill_filter);
+    }
+}
+
+#[test]
+fn search_hints_distinguish_finishing_edits_from_opening_destinations() {
+    let mut a = app();
+    key(&mut a, KeyCode::Char('/'));
+    let search = draw(&mut a, 80, 24);
+    let footer = search.lines().last().unwrap();
+    assert!(footer.contains("Enter:done") && footer.contains("Esc:done"));
+    assert!(!footer.contains("q:quit"));
+    text(&mut a, "ripgrep");
+    key(&mut a, KeyCode::Enter);
+    assert!(!a.searching && !a.inspecting());
+
+    key(&mut a, KeyCode::Enter);
+    key(&mut a, KeyCode::Char('/'));
+    let search = draw(&mut a, 80, 24);
+    assert!(search.lines().last().unwrap().contains("Enter:done"));
+    text(&mut a, "Dependencies");
+    key(&mut a, KeyCode::Enter);
+    assert!(!a.presentation.menu_searching);
+    assert!(matches!(
+        a.presentation.page,
+        Page::Inspector {
+            detail: Detail::Overview,
+            focus: InspectorFocus::Sections,
+            ..
+        }
+    ));
+    assert!(
+        draw(&mut a, 80, 24)
+            .lines()
+            .last()
+            .unwrap()
+            .contains("Enter:open")
+    );
+    key(&mut a, KeyCode::Enter);
+    assert!(matches!(
+        a.presentation.page,
+        Page::Inspector {
+            detail: Detail::Dependencies,
+            ..
+        }
+    ));
+
+    key(&mut a, KeyCode::Char('g'));
+    key(&mut a, KeyCode::Char('/'));
+    text(&mut a, "mcp");
+    let search = draw(&mut a, 80, 24);
+    let footer = search.lines().last().unwrap();
+    assert!(footer.contains("Enter:open") && footer.contains("Esc:cancel"));
+    assert!(footer.contains("Ctrl-C:quit") && !footer.contains("q:quit"));
+    key(&mut a, KeyCode::Enter);
+    assert!(a.presentation.switcher.is_none());
+    assert_eq!(a.destination(), Destination::Mcp);
+}
+
+#[test]
+fn switcher_q_quits_while_browsing_and_remains_text_during_search() {
+    for inspect in [false, true] {
+        let mut a = app();
+        if inspect {
+            key(&mut a, KeyCode::Enter);
+        }
+        key(&mut a, KeyCode::Char('g'));
+        assert!(
+            draw(&mut a, 80, 24)
+                .lines()
+                .last()
+                .unwrap()
+                .contains("q:quit")
+        );
+        key(&mut a, KeyCode::Char('q'));
+        assert!(a.quit);
+        assert_eq!(a.inspecting(), inspect);
+    }
+
+    let mut a = app();
+    key(&mut a, KeyCode::Char('g'));
+    key(&mut a, KeyCode::Char('/'));
+    key(&mut a, KeyCode::Char('q'));
+    assert_eq!(a.presentation.switcher.as_ref().unwrap().query, "q");
+    assert!(!a.quit);
+    text(&mut a, "-no-such-section");
+    let search = draw(&mut a, 80, 24);
+    assert!(search.contains("No matching sections"));
+    assert!(!search.lines().last().unwrap().contains("q:quit"));
+    key(&mut a, KeyCode::Esc);
+    assert!(a.presentation.switcher.is_none() && !a.quit);
+    key(&mut a, KeyCode::Char('g'));
+    key(&mut a, KeyCode::Char('q'));
+    assert!(a.quit);
+
+    let mut a = app();
+    key(&mut a, KeyCode::Char('g'));
+    key(&mut a, KeyCode::Char('/'));
+    a.handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    assert!(a.quit);
+}
+
 #[test]
 fn switcher_cancel_and_empty_search_preserve_resource_context() {
     let mut a = app();

@@ -139,6 +139,8 @@ impl App {
                     self.diagnostics = diagnostics;
                 } else {
                     self.explorer.section = explorer.section;
+                    self.explorer.tree = explorer.tree;
+                    self.explorer.evidence = explorer.evidence;
                     self.diagnostics.tab = diagnostics.tab;
                 }
                 self.sync_explorer();

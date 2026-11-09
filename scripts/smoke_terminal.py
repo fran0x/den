@@ -172,18 +172,22 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     fake.chmod(0o700)
     run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], b"fri/ripgrep\r\tq", env=isolated_env)
     assert not calls.exists(), "snapshot mode must not execute Homebrew"
-    run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, steps=[
-        (b"Inventory", b"\r/dependencies\r\r"),
-        (b"Dependencies", b"t "),
-        (b"recorded direct runtime", b"\r"),
-        (b"1 Overview", b"\x7f"),
-        (b"Dependencies", b"3"),
-        (b"Required by", b"4"),
-        (b"Dependency paths", b"s"),
-        (b"Current declarations", b"q"),
-    ])
+    for size in [(80, 24), (120, 32), (160, 45)]:
+        run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
+            (b"Inventory", b"\r/dependencies\r\r"),
+            (b"[+] mid", b"\x1b[C"),
+            (b"[-] mid", b"\x1b[C"),
+            (b"dependency recorded version 1", b"\x1b[D"),
+            (b"dependency recorded version 2", b"\x1b[D"),
+            (b"[+] mid", b"\r"),
+            (b"1 Overview", b"\x7f"),
+            (b"[+] mid", b"3"),
+            (b"Required by", b"4"),
+            (b"Dependency paths", b"s"),
+            (b"Current declarations", b"q"),
+        ])
     assert not calls.exists(), "dependency exploration must remain offline"
-    print("PASS: dependency sections, tree, related-package jump/back and evidence switching")
+    print("PASS: dependency trees, expand/child/collapse/parent, inspect/back and evidence at three sizes")
     run_pty([binary, "--brew-snapshot", "fixtures/brew-diagnostics.json"], env=isolated_env, steps=[
         (b"Inventory", b"5"),
         (b"Unresolved", b"\r \x7f\r"),

@@ -18,8 +18,8 @@ pub(super) fn switcher(frame: &mut Frame, app: &mut App) {
             safe_text(&s.query)
         ),
         "Choose a destination; the previous context is retained.",
-        false,
-        "Enter:open Esc:Back",
+        s.searching,
+        "Enter:open Esc:cancel",
     );
     let block = pane(" Sections · / search · arrows select ", true);
     let inner = block.inner(body);
@@ -78,8 +78,18 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
         ),
         app.presentation.notice.as_deref().unwrap_or(&status),
         app.presentation.menu_searching,
-        if focus == InspectorFocus::Sections {
+        if app.presentation.menu_searching {
+            "Enter:done Esc:done"
+        } else if focus == InspectorFocus::Sections {
             "Enter:open Tab:content Esc:Back"
+        } else if app.tree_content_focused()
+            && app
+                .explorer
+                .rows
+                .get(app.explorer.selected)
+                .is_some_and(|row| row.target.is_some())
+        {
+            "Enter:inspect Tab:sections Esc:Back"
         } else {
             "Tab:sections Esc:Back"
         },
@@ -168,7 +178,7 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
 pub(super) fn help(app: &App) -> String {
     let context = match (app.module, app.codex.view) {
         (Module::Homebrew, _) => {
-            "Homebrew\nInspector sections: Overview, Dependencies, Required by, Paths, Diagnostics, Evidence.\nIn relationships: Enter follows a package; Esc restores the original tree and filters.\ns selects recorded/current evidence; V selects a keg; t selects the existing tree view; Space expands.\nDiagnostics: Enter drills down; Space shows full evidence; o shows original output; c runs the read-only check.\nf/i filter package type/intent in the inventory."
+            "Homebrew\nInspector sections: Overview, Dependencies, Required by, Paths, Diagnostics, Evidence.\nDependencies and Required by start as trees: [+] collapsed, [-] expanded, ! cycle.\nRight expands a branch, then enters its first child. Left collapses, then selects the parent.\nAt the top level Left stays in the tree. Space toggles a branch.\nEnter inspects a package; Esc restores the original tree, selection, scroll and filters.\ns selects recorded/current evidence; V selects a keg; t switches tree/direct view.\nTransitive and uncertain records remain labeled leaves; no direct links are inferred.\nDiagnostics: Enter drills down; Space shows full evidence; o shows original output; c runs the read-only check.\nf/i filter package type/intent in the inventory."
         }
         (_, View::Skills) => skills::HELP,
         _ => codex::HELP,

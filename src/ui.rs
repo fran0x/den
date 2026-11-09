@@ -129,21 +129,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         &query,
         &status,
         app.searching,
-        &actions(
-            app.focus,
-            false,
-            if app.diagnostics.tab.is_some() {
-                if app.diagnostics.raw || app.diagnostics.expanded {
-                    "Backspace:up"
-                } else {
-                    "Enter:open"
-                }
-            } else if app.explorer.section != Section::Overview {
-                "Enter:follow"
-            } else {
-                ""
-            },
-        ),
+        actions(app.focus, app.searching),
     );
     let panes = panes(body, app.focus, false);
     if panes[0].width > 0 {
@@ -179,7 +165,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
             } else {
-                "No matches. Esc resets filters.".into()
+                "No matches.\n/:search · f/i:filters · Esc:Back".into()
             })
             .wrap(Wrap { trim: true }),
             inner,
@@ -383,8 +369,10 @@ fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
     let title = format!(
         " Details / {} [{}] ",
         app.explorer.section.label(),
-        if app.explorer.tree {
-            "all / tree"
+        if app.explorer.section == Section::Paths {
+            "paths"
+        } else if app.explorer.tree {
+            "tree / all records"
         } else {
             "direct"
         }
@@ -393,12 +381,17 @@ fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let note = format!(
-        "{}{}",
+        "{}Root: {} · {}",
         if app.explorer.limited {
             "PARTIAL RESULTS: "
         } else {
             ""
         },
+        fit(
+            app.resource().map_or("No package", |r| r.name.as_str()),
+            inner.width.min(28) as usize
+        )
+        .trim_end(),
         safe_text(&app.explorer.note)
     );
     if app.explorer.rows.is_empty() {
@@ -425,22 +418,64 @@ fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         0
     };
-    let header_height = if inner.height >= 4 { 2 } else { 0 };
+    let header = Paragraph::new(if app.explorer.hierarchical() {
+        format!(
+            "{note}\n{}",
+            if app.focus == Focus::Details {
+                "Right:expand/child Left:collapse/parent Space:toggle"
+            } else {
+                "Tree: [+] collapsed · [-] expanded · ! cycle"
+            }
+        )
+    } else {
+        note
+    })
+    .wrap(Wrap { trim: true });
+    let header_height = if inner.height >= 4 {
+        header
+            .line_count(inner.width)
+            .min(4)
+            .min((inner.height / 2) as usize) as u16
+    } else {
+        0
+    };
     let rows = Layout::vertical([
         Constraint::Length(header_height),
         Constraint::Min(1),
         Constraint::Length(footer_height),
     ])
     .split(inner);
-    frame.render_widget(Paragraph::new(note).wrap(Wrap { trim: true }), rows[0]);
+    frame.render_widget(header, rows[0]);
     if app.focus == Focus::Details {
         app.page_size = rows[1].height.max(1) as usize;
     }
+    // Keep the selected package readable even when its ancestor guides exceed the pane.
+    // Derive the horizontal window from selection/width, so resize and Back need no new state.
+    let hidden_levels = if app.explorer.hierarchical() {
+        let visible_levels = (rows[1].width as usize / 9).min(8);
+        app.explorer
+            .rows
+            .get(app.explorer.selected)
+            .map_or(0, |row| row.branch.len().saturating_sub(visible_levels + 1))
+    } else {
+        0
+    };
     let items: Vec<_> = app
         .explorer
         .rows
         .iter()
-        .map(|row| ListItem::new(safe_text(&row.label)))
+        .map(|row| {
+            let omitted = hidden_levels.min(row.branch.len().saturating_sub(1));
+            let label = if omitted > 0 {
+                format!(
+                    "… {}",
+                    row.label.chars().skip(omitted * 3).collect::<String>()
+                )
+            } else {
+                row.label.clone()
+            };
+            ListItem::new(safe_text(&label))
+        })
         .collect();
     let list = List::new(items)
         .highlight_symbol("> ")
@@ -488,7 +523,7 @@ fn overview(app: &App) -> String {
     let edges = app.graph.forward.get(node).map_or(0, Vec::len);
     let reverse = app.graph.reverse.get(node).map_or(0, Vec::len);
     format!(
-        "{}\n\n{}\n\n{} · {}: {}\nInstallation intent: {}\n\nRelationships: {} outgoing / {} incoming evidence records\nUnknown - not assessed for security\n\nEnter: inspect · Tab: choose inspector section\n{}",
+        "{}\n\n{}\n\n{} · {}: {}\nInstallation intent: {}\n\nRelationships: {} outgoing / {} incoming evidence records\nUnknown - not assessed for security\n\n{}",
         r.name,
         if r.description.is_empty() {
             "No description"

@@ -20,19 +20,7 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         &query,
         &state.status(),
         state.searching,
-        &actions(
-            state.focus,
-            false,
-            if state.section == Section::Files {
-                if state.file_open {
-                    "Backspace:files"
-                } else {
-                    "Enter:preview"
-                }
-            } else {
-                ""
-            },
-        ),
+        actions(state.focus, state.searching),
     );
     let panes = panes(body, state.focus, false);
     if panes[0].width > 0 {
@@ -72,7 +60,7 @@ pub(super) fn render(frame: &mut Frame, state: &mut State) {
         );
         if state.visible.is_empty() {
             frame.render_widget(
-                Paragraph::new("No matching skills. Esc resets filters."),
+                Paragraph::new("No matching skills.\n/:search · f/i:filters · Esc:Back"),
                 inner,
             );
         }
@@ -142,7 +130,7 @@ pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, e
             state,
             area,
             " Details ",
-            "No matching skills. /:search · Esc:reset · 5:coverage".into(),
+            "No matching skills.\nEsc:Back · 5:coverage".into(),
         );
         return;
     };
@@ -156,7 +144,7 @@ pub(super) fn render_details(frame: &mut Frame, state: &mut State, area: Rect, e
     let text=match state.section {
         Section::Overview if !evidence => {
             let eligibility=state.selected.and_then(|n|state.visible.get(n)).and_then(|n|state.enablement.get(*n)).map_or("Not evaluated",|e|e.label.as_str());
-            format!("{}\n\n{}\n\n{} · {}\nMetadata: {}\n{} supporting entries · {} findings\n\nEnter: inspect · Tab: choose inspector section",skill.name,skill.description,skill.scope.label(),eligibility,skill.metadata.label(),skill.files.len(),skill.findings.len())
+            format!("{}\n\n{}\n\n{} · {}\nMetadata: {}\n{} supporting entries · {} findings",skill.name,skill.description,skill.scope.label(),eligibility,skill.metadata.label(),skill.files.len(),skill.findings.len())
         },
         Section::Overview=>{
             let mut text=format!("{}\n\nScope: {}\nLocation: {}\nResolved: {}\nDiscovered: yes\nMetadata: {}\nDirectory accessible: {}\nOptional metadata: {}\nDuplicate name: {}\nConfiguration status: {}\nLoaded/invoked: not evaluated\n\nDescription:\n{}\n\n{} files; {} executable files; {} script-directory entries\n\nDeclared MCP dependencies (unresolved; never connected):\n",skill.name,skill.scope.label(),skill.path.display(),skill.resolved.as_ref().map_or("Unresolved".into(),|p|p.display().to_string()),skill.metadata.label(),skill.accessible,skill.optional.label(),skill.duplicate,state.selected.and_then(|n|state.visible.get(n)).and_then(|n|state.enablement.get(*n)).map_or("Not evaluated".into(),|e|format!("{} — {} (e: source)",e.label,e.explanation)),skill.description,skill.files.len(),skill.files.iter().filter(|f|f.executable).count(),skill.files.iter().filter(|f|f.path.starts_with("scripts")).count());

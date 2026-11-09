@@ -187,6 +187,24 @@ impl App {
     pub fn inspecting(&self) -> bool {
         matches!(self.presentation.page, Page::Inspector { .. })
     }
+    pub(crate) fn relationship_content_focused(&self) -> bool {
+        self.module == Module::Homebrew
+            && self.diagnostics.tab.is_none()
+            && matches!(
+                self.explorer.section,
+                Section::Dependencies | Section::RequiredBy
+            )
+            && matches!(
+                self.presentation.page,
+                Page::Inspector {
+                    focus: InspectorFocus::Content,
+                    ..
+                }
+            )
+    }
+    pub(crate) fn tree_content_focused(&self) -> bool {
+        self.relationship_content_focused() && self.explorer.tree
+    }
     pub fn evidence(&self) -> bool {
         matches!(
             self.presentation.page,
@@ -354,7 +372,10 @@ impl App {
             }
             (Module::Homebrew, _) => {
                 choices.extend([ToggleEvidence, NextKeg]);
-                if self.explorer.section != Section::Overview {
+                if matches!(
+                    self.explorer.section,
+                    Section::Dependencies | Section::RequiredBy
+                ) {
                     choices.push(ToggleTree);
                 }
             }
@@ -420,10 +441,11 @@ impl App {
             Detail::TrustedScenario => Some('t'),
             _ => None,
         } {
-            self.handle_key_inner(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE));
             if let Page::Inspector { focus, .. } = &mut self.presentation.page {
                 *focus = InspectorFocus::Content;
             }
+            self.focus_content();
+            self.handle_key_inner(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE));
         } else {
             self.apply_detail(detail);
         }
@@ -730,7 +752,7 @@ impl App {
                 self.navigate(next);
                 return true;
             }
-            KeyCode::Left if self.inspecting() => {
+            KeyCode::Left if self.inspecting() && !self.tree_content_focused() => {
                 self.back();
                 return true;
             }
@@ -860,6 +882,7 @@ impl App {
             }
         } else {
             match key.code {
+                KeyCode::Char('q') => self.quit = true,
                 KeyCode::Char('/') => s.searching = true,
                 KeyCode::Down
                 | KeyCode::Char('j')

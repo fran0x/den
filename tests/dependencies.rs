@@ -43,6 +43,320 @@ fn draw(app: &mut App, width: u16, height: u16) -> String {
 }
 
 #[test]
+fn tree_arrows_expand_enter_collapse_and_select_parents_without_leaving_the_view() {
+    let mut app = app("root-a");
+    assert!(app.explorer.tree);
+    let mid = app
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    app.explorer.selected = mid;
+    let branch = app.explorer.rows[mid].branch.clone();
+    assert!(app.explorer.rows[mid].label.contains("[+]"));
+    key(&mut app, KeyCode::Right);
+    assert_eq!(app.explorer.selected, mid);
+    assert!(app.explorer.rows[mid].label.contains("[-]"));
+    key(&mut app, KeyCode::Right);
+    assert!(
+        app.explorer.rows[app.explorer.selected]
+            .label
+            .contains("leaf")
+    );
+    assert_eq!(
+        &app.explorer.rows[app.explorer.selected].branch[..branch.len()],
+        branch.as_slice()
+    );
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.selected, mid);
+    assert!(app.explorer.expanded.contains(&branch));
+    key(&mut app, KeyCode::Left);
+    assert!(!app.explorer.expanded.contains(&branch));
+    assert!(!app.explorer.rows.iter().any(|r| r.branch.len() > 1));
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.selected, mid);
+    assert_eq!(app.explorer.section, Section::Dependencies);
+    assert!(app.inspecting());
+    assert_eq!(app.resource().unwrap().name, "root-a");
+    key(&mut app, KeyCode::Char(' '));
+    assert!(app.explorer.expanded.contains(&branch));
+}
+
+#[test]
+fn shared_dependency_parent_navigation_uses_the_selected_branch() {
+    let mut app = app("root-a");
+    for name in ["mid", "shared"] {
+        app.explorer.selected = app
+            .explorer
+            .rows
+            .iter()
+            .position(|r| r.label.contains(name))
+            .unwrap();
+        key(&mut app, KeyCode::Right);
+    }
+    let shared = app.explorer.rows[app.explorer.selected].branch.clone();
+    assert_eq!(app.explorer.expanded.len(), 2);
+    assert_eq!(
+        app.explorer
+            .rows
+            .iter()
+            .filter(|r| r.branch.len() == 2 && r.label.contains("leaf"))
+            .count(),
+        2
+    );
+    assert!(!app.explorer.rows.iter().any(|r| r.cycle));
+    key(&mut app, KeyCode::Right);
+    assert!(
+        app.explorer.rows[app.explorer.selected]
+            .branch
+            .starts_with(&shared)
+    );
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.rows[app.explorer.selected].branch, shared);
+    assert!(
+        app.explorer.rows[app.explorer.selected]
+            .label
+            .contains("shared")
+    );
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.expanded.len(), 1);
+    assert!(
+        app.explorer
+            .rows
+            .iter()
+            .any(|r| r.branch.len() == 2 && r.label.contains("leaf"))
+    );
+}
+
+#[test]
+fn tree_keeps_uncertain_records_and_missing_kegs_as_nonexpandable_leaves() {
+    let mut app = app("root-a");
+    let inventory = app.inventory.clone();
+    let graph = app.graph.clone();
+    for label in [
+        "[transitive record]",
+        "[directness unknown]",
+        "[keg unresolved]",
+    ] {
+        let index = app
+            .explorer
+            .rows
+            .iter()
+            .position(|r| r.label.contains(label))
+            .unwrap();
+        app.explorer.selected = index;
+        assert!(!app.explorer.rows[index].expandable);
+        let count = app.explorer.rows.len();
+        key(&mut app, KeyCode::Right);
+        key(&mut app, KeyCode::Char(' '));
+        assert_eq!(app.explorer.selected, index);
+        assert_eq!(app.explorer.rows.len(), count);
+        assert!(app.explorer.expanded.is_empty());
+    }
+    key(&mut app, KeyCode::Char('t'));
+    assert!(!app.explorer.tree);
+    assert!(
+        app.explorer
+            .rows
+            .iter()
+            .all(|r| !r.detail.contains("directness unknown")
+                && !r.detail.contains("transitive runtime"))
+    );
+    key(&mut app, KeyCode::Char('t'));
+    key(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.explorer.evidence, Evidence::Current);
+    for label in ["[optional]", "[build only]", "[test only]"] {
+        let index = app
+            .explorer
+            .rows
+            .iter()
+            .position(|r| r.label.contains(label))
+            .unwrap();
+        app.explorer.selected = index;
+        assert!(!app.explorer.rows[index].expandable);
+        key(&mut app, KeyCode::Right);
+        assert_eq!(app.explorer.selected, index);
+        assert!(app.explorer.expanded.is_empty());
+    }
+    assert_eq!(app.inventory, inventory);
+    assert_eq!(app.graph, graph);
+}
+
+#[test]
+fn reverse_tree_parent_navigation_preserves_exact_keg_linkage() {
+    let mut app = app("leaf");
+    key(&mut app, KeyCode::Char('3'));
+    app.explorer.selected = app
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    let mid = app.explorer.rows[app.explorer.selected].branch.clone();
+    assert!(
+        app.explorer.rows[app.explorer.selected]
+            .detail
+            .contains("source keg 2")
+    );
+    key(&mut app, KeyCode::Right);
+    key(&mut app, KeyCode::Right);
+    assert!(
+        app.explorer.rows[app.explorer.selected]
+            .label
+            .contains("root-a")
+    );
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.rows[app.explorer.selected].branch, mid);
+
+    let mut app = self::app("mid");
+    key(&mut app, KeyCode::Char('3'));
+    let old = app
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("root-old"))
+        .unwrap();
+    assert!(app.explorer.rows[old].label.contains("other target keg"));
+    assert!(!app.explorer.rows[old].expandable);
+    app.explorer.selected = old;
+    key(&mut app, KeyCode::Right);
+    assert!(app.explorer.expanded.is_empty());
+    assert_eq!(
+        app.explorer.installation.as_ref().unwrap().keg.as_deref(),
+        Some("2")
+    );
+}
+
+#[test]
+fn tree_arrows_do_not_override_section_focus_or_dependency_paths() {
+    let mut app = app("root-a");
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::Right);
+    key(&mut app, KeyCode::Char(' '));
+    key(&mut app, KeyCode::Char('t'));
+    assert!(app.explorer.expanded.is_empty());
+    assert!(app.explorer.tree);
+    assert!(matches!(
+        app.presentation.page,
+        den::presentation::Page::Inspector {
+            focus: den::presentation::InspectorFocus::Sections,
+            ..
+        }
+    ));
+    app.open_detail(den::presentation::Detail::ToggleTree);
+    assert!(!app.explorer.tree);
+    key(&mut app, KeyCode::Esc);
+    assert!(app.explorer.tree);
+    key(&mut app, KeyCode::Left);
+    assert!(!app.inspecting());
+
+    let mut app = self::app("leaf");
+    key(&mut app, KeyCode::Char('4'));
+    let tree = app.explorer.tree;
+    key(&mut app, KeyCode::Char('t'));
+    assert_eq!(app.explorer.tree, tree);
+    key(&mut app, KeyCode::Right);
+    assert!(app.explorer.expanded.is_empty());
+    assert_eq!(app.explorer.section, Section::Paths);
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.section, Section::Dependencies);
+}
+
+#[test]
+fn tree_inspect_and_back_restore_branch_selection_filters_and_viewport() {
+    let mut app = app("root-a");
+    app.query = "root-a".into();
+    app.filter = Some(ResourceKind::Formula);
+    app.intent_filter = Some(InstallationIntent::Requested);
+    app.refresh();
+    app.explorer.selected = app
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    key(&mut app, KeyCode::Right);
+    key(&mut app, KeyCode::Right);
+    app.explorer.offset = 1;
+    draw(&mut app, 80, 24);
+    let branch = app.explorer.rows[app.explorer.selected].branch.clone();
+    let expanded = app.explorer.expanded.clone();
+    let offset = app.explorer.offset;
+    let page = app.presentation.page.clone();
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(app.resource().unwrap().name, "leaf");
+    assert!(app.query.is_empty());
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.resource().unwrap().name, "root-a");
+    assert_eq!(app.query, "root-a");
+    assert_eq!(app.filter, Some(ResourceKind::Formula));
+    assert_eq!(app.intent_filter, Some(InstallationIntent::Requested));
+    assert_eq!(app.explorer.rows[app.explorer.selected].branch, branch);
+    assert_eq!(app.explorer.expanded, expanded);
+    assert_eq!(app.explorer.offset, offset);
+    assert_eq!(app.explorer.evidence, Evidence::Recorded);
+    assert_eq!(app.presentation.page, page);
+    assert!(!app.refresh_requested && app.check_requested.is_none());
+}
+
+#[test]
+fn tree_history_after_refresh_restores_preferences_without_stale_expansion_indices() {
+    let mut app = app("root-a");
+    key(&mut app, KeyCode::Char('s'));
+    app.explorer.selected = app
+        .explorer
+        .rows
+        .iter()
+        .position(|r| r.label.contains("mid"))
+        .unwrap();
+    key(&mut app, KeyCode::Right);
+    assert!(!app.explorer.expanded.is_empty());
+    key(&mut app, KeyCode::Enter);
+    key(&mut app, KeyCode::Char('2'));
+    key(&mut app, KeyCode::Char('t'));
+    key(&mut app, KeyCode::Char('s'));
+    assert!(!app.explorer.tree);
+    assert_eq!(app.explorer.evidence, Evidence::Recorded);
+    let mut changed = app.inventory.clone();
+    changed.resources.reverse();
+    app.finish_collection(Ok(changed));
+    key(&mut app, KeyCode::Esc);
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.resource().unwrap().name, "root-a");
+    assert!(app.explorer.tree);
+    assert_eq!(app.explorer.evidence, Evidence::Current);
+    assert!(app.explorer.expanded.is_empty());
+    assert!(app.explorer.rows.iter().all(|r| r.branch.len() == 1));
+    draw(&mut app, 80, 24);
+}
+
+#[test]
+fn tree_rendering_shows_root_connectors_and_focused_controls_at_supported_sizes() {
+    let mut app = app("root-a");
+    key(&mut app, KeyCode::Right);
+    for (width, height) in [(80, 24), (120, 32), (160, 45)] {
+        let tree = draw(&mut app, width, height);
+        for text in [
+            "Root: root-a",
+            "[-] mid",
+            "└─",
+            "Right:expand/child",
+            "Left:collapse/parent",
+            "Space:toggle",
+            "Enter:inspect",
+            "Esc:Back",
+            "q:quit",
+        ] {
+            assert!(tree.contains(text), "missing {text} at {width}");
+        }
+        key(&mut app, KeyCode::Tab);
+        assert!(!draw(&mut app, width, height).contains("Right:expand/child"));
+        key(&mut app, KeyCode::Tab);
+    }
+}
+
+#[test]
 fn provenance_directness_and_build_test_scopes_stay_separate() {
     let inventory = inventory();
     let graph = Graph::build(&inventory);
@@ -346,7 +660,6 @@ fn cycles_terminate_and_shared_dependencies_are_not_cycles() {
         1
     );
     let mut app = app("cycle-a");
-    key(&mut app, KeyCode::Char('t'));
     key(&mut app, KeyCode::Char(' '));
     assert!(app.explorer.rows.iter().any(|r| r.cycle && !r.expandable));
 }
@@ -356,7 +669,6 @@ fn tree_navigation_jump_and_back_restore_filters_and_selected_row() {
     let mut app = app("root-a");
     app.query = "root-a".into();
     app.refresh();
-    key(&mut app, KeyCode::Char('t'));
     let index = app
         .explorer
         .rows
@@ -509,4 +821,35 @@ fn traversal_depth_is_bounded() {
             .paths_to_requested(graph.preferred(MAX_DEPTH + 2), Evidence::Recorded)
             .truncated
     );
+    let mut app = App::new(inventory, "Homebrew snapshot");
+    key(&mut app, KeyCode::Char('2'));
+    for _ in 0..MAX_DEPTH + 3 {
+        key(&mut app, KeyCode::Right);
+        key(&mut app, KeyCode::Right);
+    }
+    assert!(app.explorer.limited);
+    assert!(app.explorer.rows.len() <= MAX_ROWS);
+    assert!(
+        app.explorer
+            .rows
+            .iter()
+            .all(|r| r.branch.len() <= MAX_DEPTH + 1)
+    );
+    assert!(draw(&mut app, 80, 24).contains("PARTIAL RESULTS"));
+    let target = app.explorer.rows[app.explorer.selected]
+        .target
+        .as_ref()
+        .unwrap()
+        .node;
+    let selected_name = app.inventory.resources[target].name.clone();
+    let deep_tree = draw(&mut app, 80, 24);
+    assert!(deep_tree.contains(&selected_name));
+    assert!(deep_tree.contains('…'));
+    let expanded_rows = app.explorer.rows.len();
+    assert!(expanded_rows > 2);
+    key(&mut app, KeyCode::Home);
+    key(&mut app, KeyCode::Left);
+    assert_eq!(app.explorer.rows.len(), 1);
+    key(&mut app, KeyCode::Right);
+    assert_eq!(app.explorer.rows.len(), expanded_rows);
 }
