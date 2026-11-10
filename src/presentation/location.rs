@@ -1,11 +1,6 @@
 //! Navigation snapshots contain view state only, never inventories or worker state.
 use super::*;
-use crate::{
-    diagnostics,
-    explorer::Explorer,
-    inventory::{InstallationIntent, ResourceKind},
-    skills,
-};
+use crate::{diagnostics, explorer::Explorer, inventory::ResourceKind, skills};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -15,8 +10,7 @@ pub(super) enum Location {
         id: Option<String>,
         query: String,
         filter: Option<ResourceKind>,
-        intent: Option<InstallationIntent>,
-        used_by_others: bool,
+        show_all: bool,
         focus: Focus,
         scroll: u16,
         offset: usize,
@@ -51,6 +45,12 @@ pub(super) enum Location {
         mcp: crate::codex::mcp::state::Controls,
     },
 }
+impl Location {
+    /// History index: 0 for Homebrew, 1 for Codex (Skills, Configuration, Instructions, MCP).
+    pub(super) fn area(&self) -> usize {
+        usize::from(!matches!(self, Self::Homebrew { .. }))
+    }
+}
 impl App {
     pub(super) fn location(&self) -> Location {
         let page = self.presentation.page.clone();
@@ -64,8 +64,7 @@ impl App {
                     id: self.resource().map(|r| r.id.clone()),
                     query: self.query.clone(),
                     filter: self.filter,
-                    intent: self.intent_filter,
-                    used_by_others: self.used_by_others,
+                    show_all: self.show_all,
                     focus: self.focus,
                     scroll: self.detail_scroll,
                     offset: self.list_offset,
@@ -120,8 +119,7 @@ impl App {
                 id,
                 query,
                 filter,
-                intent,
-                used_by_others,
+                show_all,
                 focus,
                 scroll,
                 offset,
@@ -132,8 +130,7 @@ impl App {
                 self.module = Module::Homebrew;
                 self.query = query;
                 self.filter = filter;
-                self.intent_filter = intent;
-                self.used_by_others = used_by_others;
+                self.show_all = show_all;
                 self.refresh();
                 self.selected = id
                     .and_then(|id| {
@@ -149,6 +146,7 @@ impl App {
                     self.explorer.section = explorer.section;
                     self.explorer.tree = explorer.tree;
                     self.explorer.evidence = explorer.evidence;
+                    self.explorer.preferred = explorer.preferred;
                     self.diagnostics.tab = diagnostics.tab;
                 }
                 self.sync_explorer();

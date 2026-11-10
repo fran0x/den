@@ -14,9 +14,10 @@ inspectors use `[` / `]` for sections/content; older pane-switching instructions
 Homebrew's passive information now shows both dependency directions, automatically
 opened to two levels with bounded rows, explicit omissions and recorded/current/keg labels.
 It reuses the existing projection and does not change graph, intent or collector semantics.
-Homebrew inventory now exposes intent labels/counts and an independent recorded **Used by
-others** filter. Counts use search/type scope; usage never reclassifies unknown intent or
-establishes that nonmatching packages are unused. All filters survive navigation and refresh.
+Homebrew inventory starts with **Tools** (recorded as requested); `a` shows All. Rows show
+intent and a recorded **required by N** count, which never reclassifies unknown intent or
+establishes that other packages are unused. The view survives navigation and refresh.
+Back history is kept per area, and evidence fallback applies to one package at a time.
 
 ## Stage 0 — Foundation (implemented)
 

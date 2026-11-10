@@ -26,6 +26,9 @@ fn app(name: &str) -> App {
     let inventory = inventory();
     let selected = node(&inventory, name);
     let mut app = App::new(inventory, "Homebrew snapshot");
+    // `selected` indexes visible rows; All keeps them aligned with inventory nodes.
+    app.show_all = true;
+    app.refresh();
     app.selected = Some(selected);
     key(&mut app, KeyCode::Char('2'));
     app
@@ -268,7 +271,7 @@ fn tree_inspect_and_back_restore_branch_selection_filters_and_viewport() {
     let mut app = app("root-a");
     app.query = "root-a".into();
     app.filter = Some(ResourceKind::Formula);
-    app.intent_filter = Some(InstallationIntent::Requested);
+    app.show_all = false;
     app.refresh();
     app.explorer.selected = app
         .explorer
@@ -287,11 +290,12 @@ fn tree_inspect_and_back_restore_branch_selection_filters_and_viewport() {
     key(&mut app, KeyCode::Enter);
     assert_eq!(app.resource().unwrap().name, "leaf");
     assert!(app.query.is_empty());
+    assert!(app.show_all); // leaf is not a tool, so the jump shows all packages.
     key(&mut app, KeyCode::Esc);
     assert_eq!(app.resource().unwrap().name, "root-a");
     assert_eq!(app.query, "root-a");
     assert_eq!(app.filter, Some(ResourceKind::Formula));
-    assert_eq!(app.intent_filter, Some(InstallationIntent::Requested));
+    assert!(!app.show_all);
     assert_eq!(app.explorer.rows[app.explorer.selected].branch, branch);
     assert_eq!(app.explorer.expanded, expanded);
     assert_eq!(app.explorer.offset, offset);

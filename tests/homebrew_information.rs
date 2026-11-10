@@ -24,6 +24,7 @@ fn key(app: &mut App, code: KeyCode) {
 }
 fn browse(name: &str) -> App {
     let mut app = App::new(inventory(), "Homebrew snapshot");
+    app.show_all = true; // Inspect dependencies too, not only tools.
     app.query = name.into();
     app.refresh();
     assert_eq!(app.resource().unwrap().name, name);
@@ -290,7 +291,9 @@ fn selection_refresh_and_evidence_changes_update_passive_trees() {
     let recorded = information(&mut app, 160, 45);
     assert!(recorded.contains("[transitive record]"));
     assert!(!recorded.contains("declared-only"));
+    // As if chosen with `s`: the preference survives refresh and reselection.
     app.explorer.evidence = Evidence::Current;
+    app.explorer.preferred = Evidence::Current;
     let current = information(&mut app, 160, 45);
     assert!(current.contains("Current declarations · not historical"));
     for label in ["declared-only", "[optional]", "[build only]", "[test only]"] {
@@ -344,4 +347,34 @@ fn unavailable_and_empty_evidence_are_distinct_and_hostile_labels_are_sanitized(
     for (w, h) in [(0, 0), (30, 10), (45, 20)] {
         information(&mut app, w, h);
     }
+}
+
+#[test]
+fn evidence_fallback_applies_to_one_package_and_never_sticks() {
+    let i = homebrew::parse(include_bytes!("../fixtures/brew.json")).unwrap();
+    let mut app = App::new(i, "Homebrew snapshot");
+    app.show_all = true;
+    app.refresh();
+    assert_eq!(app.resource().unwrap().name, "ripgrep");
+    assert_eq!(app.explorer.evidence, Evidence::Recorded);
+    let before = information(&mut app, 120, 32);
+    key(&mut app, KeyCode::Char('j')); // pcre2 has no recorded runtime metadata.
+    assert_eq!(app.resource().unwrap().name, "pcre2");
+    assert_eq!(app.explorer.evidence, Evidence::Current);
+    key(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.explorer.evidence, Evidence::Recorded);
+    assert_eq!(information(&mut app, 120, 32), before);
+    // An explicit `s` choice is the user's preference; Back restores the earlier one.
+    key(&mut app, KeyCode::Enter);
+    app.open_detail(den::presentation::Detail::Dependencies);
+    key(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.explorer.preferred, Evidence::Current);
+    assert_eq!(app.explorer.evidence, Evidence::Current);
+    while app.inspecting() {
+        key(&mut app, KeyCode::Esc);
+    }
+    assert_eq!(app.explorer.preferred, Evidence::Recorded);
+    key(&mut app, KeyCode::Char('j'));
+    key(&mut app, KeyCode::Char('k'));
+    assert_eq!(app.explorer.evidence, Evidence::Recorded);
 }

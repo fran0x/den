@@ -44,20 +44,28 @@ Unavailable metadata stays explicit. `PARTIAL` and `…` indicate bounds or clip
 very small panels show both direction labels and require the inspector to read the trees.
 The panel never accepts tree selection or expansion input.
 
-Homebrew inventory rows label **Requested**, **Dependency** or **Unknown** from installation
-records. `i` cycles **All / Explicitly requested / Dependencies / Unknown**. Missing,
-conflicting or mixed keg intent stays Unknown. `u` independently toggles **Used by others**;
-requested and unknown packages can match it too. It uses recorded runtime references
-from another installed package to an installed version, including transitive/unknown-directness
-records. Current declarations, self references and unresolved or missing target versions
-do not qualify. This filter does not follow the inspector's recorded/current or keg selection.
-Absence of matching evidence does not establish that a package is unused or safe to remove.
+The Homebrew inventory starts with **Tools**: packages Homebrew recorded as installed
+on request. `a` switches between **Tools** and **All**; the active view is bracketed
+and shown in the header. Missing, conflicting or mixed keg records stay **Unknown**, so
+those packages appear only in All. Opening a related package that is not a tool shows
+All; Back restores the previous view.
 
-Counts reflect the current search and package type, before intent and usage filtering.
-The three intent counts sum to All; Used by others overlaps those categories and is
-marked partial if graph coverage is bounded. Selected filters are bracketed or marked ON.
-`f` cycles All / Formula / Cask, and filters intersect. During search, `u` is text;
-Ctrl-U still clears the query. Area switching, Back and refresh preserve filters.
+Rows label **Requested**, **Dependency** or **Unknown** and add **required by N**: the
+number of other installed packages with recorded runtime references to an installed
+version, including transitive/unknown-directness records. Current declarations, self
+references and unresolved or missing target versions do not count, and the count does not
+follow the inspector's recorded/current or keg selection. When a row is narrow, a
+non-requested package shows only "required by N". No count does not establish that a
+package is unused or safe to remove; the count is marked partial if the graph is bounded.
+
+Counts reflect the current search and package type. `f` cycles All / Formula / Cask and
+intersects with the view. During search, `a` is text; Ctrl-U still clears the query.
+Area switching, Back and refresh preserve the view and filters.
+
+The passive panel and inspector use recorded runtime evidence by default. A package
+without recorded runtime metadata falls back to current declarations for that package
+only; the next selection starts from recorded evidence again. `s` in an inspector
+changes the preference until Back restores the earlier context.
 
 Tab and Shift+Tab also switch areas from an inspector or search, retaining the query
 and ending search editing. Help and Sections remain modal; close them before switching areas.
@@ -87,8 +95,9 @@ Enter finishes that search, then Enter opens the selected result.
 - **MCP:** Transport, Authentication, Tools/approvals, Configuration source, Findings,
   Evidence and source selection. No server or credential helper is executed.
 
-Each Esc restores one explicit context, including search, filters, selection, focused
-pane and scroll. History holds 64 contexts. Refresh matches stable resource identities;
+Each Esc restores one explicit context in the current area, including search, filters,
+selection, focused pane and scroll. Homebrew and Codex keep separate histories of up to 64
+contexts each; Tab, Shift+Tab and switcher moves between areas never add a Back step. Refresh matches stable resource identities;
 removed resources are clamped, and outdated graph expansion indices are not restored.
 Configuration/Skills/MCP refresh together. Source jumps use the same Back history.
 
@@ -129,7 +138,7 @@ Neither toggles a display mode. In resource views and inspectors, Backspace is a
 for Back when not editing search. F2 is an alias for Tab; F3 cycles the
 current module's views. Configuration Sources is also available directly through `g`.
 
-Inventory `f/i` retain type/intent, scope/validation or MCP filter controls. In Homebrew
+Inventory `f` (and `i` outside Homebrew) retain type, scope/validation or MCP filter controls. In Homebrew
 relationships, tree controls act when content is focused; diagnostic `c/o/Space`
 run the selected read-only check, toggle original output or toggle full findings.
 MCP `V` selects a configuration definition. Configuration `s` switches source/settings

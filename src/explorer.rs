@@ -46,7 +46,10 @@ pub struct Row {
 #[derive(Debug, Clone)]
 pub struct Explorer {
     pub section: Section,
+    /// Evidence shown for the selected package; may fall back to Current for one package.
     pub evidence: Evidence,
+    /// Evidence the user chose with `s`. Every newly selected package starts from it.
+    pub preferred: Evidence,
     pub tree: bool,
     pub installation: Option<Installation>,
     pub rows: Vec<Row>,
@@ -62,6 +65,7 @@ impl Default for Explorer {
         Self {
             section: Section::Overview,
             evidence: Evidence::Recorded,
+            preferred: Evidence::Recorded,
             tree: true,
             installation: None,
             rows: vec![],
@@ -80,6 +84,8 @@ impl Explorer {
     }
     pub fn select(&mut self, graph: &Graph, node: Option<usize>) {
         self.installation = node.map(|node| graph.preferred(node));
+        // A fallback applies to this package only; it never changes the next selection.
+        self.evidence = self.preferred;
         if self.evidence == Evidence::Recorded
             && let Some(state) = &self.installation
             && graph.versions(state.node).len() <= 1

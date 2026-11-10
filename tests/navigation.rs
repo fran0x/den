@@ -13,6 +13,9 @@ fn app() -> App {
         homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap(),
         "Homebrew snapshot",
     );
+    // These tests cover navigation over the full fixture; Tools is covered in homebrew_filters.
+    a.show_all = true;
+    a.refresh();
     let c = codex::Context::fixture(Path::new("fixtures/mcp"), None).unwrap();
     a.codex.configure(c.clone());
     a.codex
@@ -142,11 +145,12 @@ fn tab_preserves_explicit_inspector_context_and_search_queries() {
             ..
         }
     ));
+    // Back stays in Homebrew: Tab never adds a Back step.
+    let before = a.presentation.page.clone();
     key(&mut a, KeyCode::Esc);
-    assert_eq!(a.destination(), Destination::Skills);
-    key(&mut a, KeyCode::Esc);
-    assert_eq!(a.destination(), Destination::Dependencies);
-    assert_eq!(a.explorer.expanded, expanded);
+    assert_eq!(a.module, den::app::Module::Homebrew);
+    assert_ne!(a.presentation.page, before);
+    assert_eq!(a.query, "root-a");
 }
 
 #[test]
@@ -179,9 +183,9 @@ fn area_return_after_refresh_revalidates_identity_and_discards_old_tree_indices(
     assert!(a.explorer.tree);
     assert!(a.explorer.rows.iter().all(|row| row.branch.len() == 1));
     key(&mut a, KeyCode::Esc);
-    assert_eq!(a.destination(), Destination::Skills);
+    assert_eq!(a.module, den::app::Module::Homebrew); // Back never crosses areas.
     key(&mut a, KeyCode::F(2));
-    assert_eq!(a.destination(), Destination::Dependencies);
+    assert_eq!(a.destination(), Destination::Skills);
 }
 
 fn information_text(screen: &str, width: u16) -> String {
@@ -358,11 +362,18 @@ fn empty_inventory_hints_offer_back_without_resetting_filters() {
     for destination in [Destination::Homebrew, Destination::Skills] {
         let mut a = app();
         a.navigate(destination);
-        key(&mut a, KeyCode::Char('i'));
-        let intent = a.intent_filter;
+        key(
+            &mut a,
+            KeyCode::Char(if destination == Destination::Homebrew {
+                'f'
+            } else {
+                'i'
+            }),
+        );
+        let kind = a.filter;
         let skill_filter = a.skills.filter;
         assert!(if destination == Destination::Homebrew {
-            intent.is_some()
+            kind.is_some()
         } else {
             skill_filter.is_some()
         });
@@ -381,7 +392,7 @@ fn empty_inventory_hints_offer_back_without_resetting_filters() {
             key(&mut a, KeyCode::Esc);
         }
         key(&mut a, KeyCode::Esc);
-        assert_eq!(a.intent_filter, intent);
+        assert_eq!(a.filter, kind);
         assert_eq!(a.skills.filter, skill_filter);
     }
 }

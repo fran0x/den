@@ -2,54 +2,36 @@
 use super::*;
 use crate::{explorer::Explorer, graph::Evidence};
 
-/// Facet counts share the search/type scope; usage is independent of intent.
+/// One line: the active view (bracketed), counts for the search/type scope and the keys.
 pub(super) fn filters(frame: &mut Frame, app: &App, area: Rect) -> Rect {
     let counts = app.homebrew_counts();
-    let intents = [
-        (None, "All", counts.all),
+    let (tools, all, key) = if app.show_all {
         (
-            Some(crate::inventory::InstallationIntent::Requested),
-            "Explicitly requested",
-            counts.requested,
-        ),
+            format!("Tools {}", counts.tools),
+            format!("[All {}]", counts.all),
+            "a: tools only",
+        )
+    } else {
         (
-            Some(crate::inventory::InstallationIntent::Dependency),
-            "Dependencies",
-            counts.dependency,
-        ),
-        (
-            Some(crate::inventory::InstallationIntent::Unknown),
-            "Unknown",
-            counts.unknown,
-        ),
-    ];
-    let intent = intents
-        .iter()
-        .map(|(filter, label, count)| {
-            if *filter == app.intent_filter {
-                format!("[{label} {count}]")
-            } else {
-                format!("{label} {count}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" · ");
+            format!("[Tools {}]", counts.tools),
+            format!("All {}", counts.all),
+            "a: show all",
+        )
+    };
     let text = format!(
-        "i: {intent}\nu: Used by others {} [{}] · recorded runtime{}",
-        counts.used_by_others,
-        if app.used_by_others { "ON" } else { "off" },
+        "{tools} · {all} · {key} · f: type{}",
+        // "required by N" comes from the bounded graph; say so when it was cut short.
         if app.graph.truncated {
-            " · partial"
+            " · required-by partial"
         } else {
             ""
         }
     );
-    let paragraph = Paragraph::new(text).wrap(Wrap { trim: true });
-    let height = paragraph
-        .line_count(area.width)
-        .min(area.height.saturating_sub(1) as usize) as u16;
-    let rows = Layout::vertical([Constraint::Length(height), Constraint::Min(1)]).split(area);
-    frame.render_widget(paragraph.style(muted()), rows[0]);
+    let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
+    frame.render_widget(
+        Paragraph::new(fit(&text, area.width as usize)).style(muted()),
+        rows[0],
+    );
     rows[1]
 }
 

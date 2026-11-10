@@ -110,11 +110,17 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         |t| format!("Homebrew / Diagnostics / {}", t.label()),
     );
     let query = format!(
-        " /{}{}   Type:{}  Intent:{}",
+        " /{}{}   {}Type:{}",
         if app.searching { " " } else { " Search: " },
         safe_text(&app.query),
+        if !app.is_homebrew() {
+            ""
+        } else if app.show_all {
+            "View:All  "
+        } else {
+            "View:Tools  "
+        },
         app.filter.map_or("All", |k| k.label()),
-        app.intent_filter.map_or("All", |i| i.label())
     );
     let status = if app.live {
         app.collection_message()
@@ -159,14 +165,7 @@ fn pane(title: &str, focused: bool) -> Block<'static> {
 }
 
 fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
-    let block = pane(
-        if app.is_homebrew() {
-            " Inventory · counts for search/type "
-        } else {
-            " Inventory "
-        },
-        app.focus == Focus::Inventory,
-    );
+    let block = pane(" Inventory ", app.focus == Focus::Inventory);
     let mut inner = block.inner(area);
     frame.render_widget(block, area);
     if app.is_homebrew() {
@@ -181,10 +180,16 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                 app.collection_message()
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
-            } else if app.is_homebrew() {
-                "No matches.\n/:search · f/i/u:filters · Esc:Back".into()
+            } else if app.tools_only()
+                && app.query.is_empty()
+                && app.filter.is_none()
+                && app.homebrew_counts().all > 0
+            {
+                "No packages recorded as requested.\na: show all packages".into()
+            } else if app.tools_only() {
+                "No matching tools.\na: show all · /:search · f:type · Esc:Back".into()
             } else {
-                "No matches.\n/:search · f/i:filters · Esc:Back".into()
+                "No matches.\n/:search · f:type · Esc:Back".into()
             })
             .wrap(Wrap { trim: true }),
             inner,
@@ -208,11 +213,25 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                 ),
                 r.version.as_deref().unwrap_or("Unknown"),
                 &if app.is_homebrew() {
-                    if r.description.is_empty() {
-                        r.intent().label().into()
-                    } else {
-                        format!("{} · {}", r.intent().label(), r.description)
+                    let users = app.graph.recorded_users(index);
+                    let intent = r.intent();
+                    let mut text = intent.label().to_owned();
+                    if users > 0 {
+                        let required = format!("required by {users}");
+                        let full = format!("{text} · {required}");
+                        // When narrow, keep the fact that explains why the package is here.
+                        text = if full.chars().count() <= tail_width(inner.width) {
+                            full
+                        } else if intent == crate::inventory::InstallationIntent::Requested {
+                            text
+                        } else {
+                            required
+                        };
                     }
+                    if !r.description.is_empty() {
+                        text.push_str(&format!(" · {}", r.description));
+                    }
+                    text
                 } else {
                     r.description.clone()
                 },

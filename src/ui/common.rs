@@ -120,7 +120,8 @@ pub(super) fn fit(value: &str, width: usize) -> String {
     out.push_str(&" ".repeat(width.saturating_sub(used + 1)));
     out
 }
-pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<'static> {
+/// Column widths for `columns`: (name, middle, tail).
+fn column_widths(width: u16) -> (usize, usize, usize) {
     let width = width.saturating_sub(2) as usize;
     let name_width = (width * 2 / 5).clamp(8, 28).min(width);
     let remaining = width.saturating_sub(name_width + 1);
@@ -129,6 +130,15 @@ pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<
     } else {
         0
     };
+    let tail = remaining.saturating_sub(if mid_width > 0 { mid_width + 1 } else { 0 });
+    (name_width, mid_width, tail)
+}
+/// Cells available to the last column of `columns` at this width.
+pub(super) fn tail_width(width: u16) -> usize {
+    column_widths(width).2
+}
+pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<'static> {
+    let (name_width, mid_width, tail_width) = column_widths(width);
     Line::from(vec![
         Span::raw(fit(name, name_width)),
         Span::raw(" "),
@@ -140,10 +150,7 @@ pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<
             },
             muted(),
         ),
-        Span::raw(fit(
-            tail,
-            remaining.saturating_sub(if mid_width > 0 { mid_width + 1 } else { 0 }),
-        )),
+        Span::raw(fit(tail, tail_width)),
     ])
 }
 

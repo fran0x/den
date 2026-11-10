@@ -1,4 +1,4 @@
-//! Section → resource → inspector. One bounded history owns all Back navigation.
+//! Section → resource → inspector. Each area owns one bounded Back history.
 mod location;
 use crate::{
     app::{App, Focus, Module},
@@ -59,6 +59,10 @@ impl Destination {
             Self::Instructions => "Codex / Instructions",
             Self::Mcp => "Codex / MCP",
         }
+    }
+    /// History index: 0 for Homebrew, 1 for Codex.
+    fn area(self) -> usize {
+        usize::from(self.label().starts_with("Codex"))
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -156,7 +160,8 @@ impl Switcher {
 pub struct Presentation {
     pub page: Page,
     pub switcher: Option<Switcher>,
-    history: Vec<Location>,
+    /// Back history per area (Homebrew, Codex); switching areas never adds a Back step.
+    history: [Vec<Location>; 2],
     saved: BTreeMap<Destination, Location>,
     areas: [Option<Location>; 2],
     pub(super) revision: u64,
@@ -171,7 +176,6 @@ impl App {
         self.presentation.menu_searching = false;
         self.presentation.notice = None;
         if let Some(location) = self.presentation.areas[1 - current].clone() {
-            self.remember();
             self.restore(location);
         } else {
             self.navigate(if current == 0 {
@@ -264,15 +268,17 @@ impl App {
         self.push_location(self.location());
     }
     fn push_location(&mut self, location: Location) {
-        if self.presentation.history.len() == 64 {
-            self.presentation.history.remove(0);
+        let history = &mut self.presentation.history[location.area()];
+        if history.len() == 64 {
+            history.remove(0);
         }
-        self.presentation.history.push(location);
+        history.push(location);
         self.presentation.revision = self.presentation.revision.wrapping_add(1);
     }
     pub fn back(&mut self) {
         self.presentation.notice = None;
-        if let Some(location) = self.presentation.history.pop() {
+        let area = usize::from(self.module == Module::Skills);
+        if let Some(location) = self.presentation.history[area].pop() {
             self.presentation
                 .saved
                 .insert(self.destination(), self.location());
@@ -299,7 +305,10 @@ impl App {
         self.presentation
             .saved
             .insert(self.destination(), self.location());
-        self.remember();
+        // Like Tab, moving to the other area keeps each area's Back history separate.
+        if destination.area() == usize::from(self.module == Module::Skills) {
+            self.remember();
+        }
         if let Some(location) = self.presentation.saved.get(&destination).cloned() {
             self.restore(location);
             return;

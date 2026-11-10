@@ -9,7 +9,7 @@ Keep changes within the requested scope; later stages in `ROADMAP.md` are propos
 | --- | --- |
 | `src/main.rs`, `src/terminal.rs` | CLI arguments, terminal lifecycle and collection/event loop |
 | `src/app.rs` | Homebrew application state, refresh and diagnostic requests |
-| `src/presentation.rs`, `src/presentation/location.rs` | Shared section/inspector navigation and bounded Back history |
+| `src/presentation.rs`, `src/presentation/location.rs` | Shared section/inspector navigation and bounded per-area Back history |
 | `src/ui.rs`, `src/ui/` | Rendering, layout, focused action hints and contextual help |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
 | `src/homebrew.rs`, `src/homebrew/` | Homebrew normalization, bounded subprocesses and reconciliation tests |

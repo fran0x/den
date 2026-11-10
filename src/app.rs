@@ -28,13 +28,12 @@ pub enum Module {
     Skills,
 }
 
+/// Package counts for the current search and type filter, independent of Tools/All.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct HomebrewCounts {
     pub all: usize,
-    pub requested: usize,
-    pub dependency: usize,
-    pub unknown: usize,
-    pub used_by_others: usize,
+    /// Packages Homebrew recorded as installed on request.
+    pub tools: usize,
 }
 
 pub struct App {
@@ -53,8 +52,8 @@ pub struct App {
     pub source_label: &'static str,
     pub query: String,
     pub filter: Option<ResourceKind>,
-    pub intent_filter: Option<InstallationIntent>,
-    pub used_by_others: bool,
+    /// Homebrew starts with Tools (recorded as requested); `a` shows all packages.
+    pub show_all: bool,
     pub live: bool,
     pub refresh_requested: bool,
     pub collection_status: CollectionStatus,
@@ -93,8 +92,7 @@ impl App {
             source_label,
             query: String::new(),
             filter: None,
-            intent_filter: None,
-            used_by_others: false,
+            show_all: false,
             live: false,
             refresh_requested: false,
             collection_status: CollectionStatus::Snapshot,
@@ -146,11 +144,10 @@ impl App {
             query: String::new(),
         };
         self.diagnostics = View::default();
-        // Related packages may be hidden by the current query. Back restores that context.
+        // Related packages may be hidden by the current query or Tools view. Back restores that context.
         self.query.clear();
         self.filter = None;
-        self.intent_filter = None;
-        self.used_by_others = false;
+        self.show_all |= !self.is_tool(&self.inventory.resources[target.node]);
         self.refresh();
         self.selected = self.visible.iter().position(|&node| node == target.node);
         self.explorer.select(&self.graph, Some(target.node));
@@ -280,23 +277,26 @@ impl App {
         ));
         crate::inventory::matches_query(&self.query, &haystack)
     }
-    /// Counts for the search/type scope, before intent and usage filters.
+    /// A tool is a package Homebrew recorded as installed on request. Missing or
+    /// conflicting records are not guessed, so those packages appear only in All.
+    pub fn is_tool(&self, resource: &Resource) -> bool {
+        resource.intent() == InstallationIntent::Requested
+    }
+    /// True when the Homebrew inventory is limited to Tools.
+    pub fn tools_only(&self) -> bool {
+        !self.show_all && self.is_homebrew()
+    }
+    /// Counts for the search/type scope, independent of Tools/All.
     pub fn homebrew_counts(&self) -> HomebrewCounts {
         let mut counts = HomebrewCounts::default();
-        for (node, resource) in self
+        for resource in self
             .inventory
             .resources
             .iter()
-            .enumerate()
-            .filter(|(_, r)| self.matches_scope(r))
+            .filter(|r| self.matches_scope(r))
         {
             counts.all += 1;
-            match resource.intent() {
-                InstallationIntent::Requested => counts.requested += 1,
-                InstallationIntent::Dependency => counts.dependency += 1,
-                InstallationIntent::Unknown => counts.unknown += 1,
-            }
-            counts.used_by_others += usize::from(self.graph.has_recorded_users(node));
+            counts.tools += usize::from(self.is_tool(resource));
         }
         counts
     }
@@ -309,16 +309,7 @@ impl App {
             .iter()
             .enumerate()
             .filter_map(|(i, r)| {
-                if !self.matches_scope(r) {
-                    return None;
-                }
-                if self
-                    .intent_filter
-                    .is_some_and(|intent| r.intent() != intent)
-                {
-                    return None;
-                }
-                (!self.used_by_others || self.graph.has_recorded_users(i)).then_some(i)
+                (self.matches_scope(r) && (!self.tools_only() || self.is_tool(r))).then_some(i)
             })
             .collect();
         self.selected = previous
@@ -425,6 +416,7 @@ impl App {
                     Evidence::Recorded => Evidence::Current,
                     Evidence::Current => Evidence::Recorded,
                 };
+                self.explorer.preferred = self.explorer.evidence;
                 self.explorer.clear_navigation();
                 self.sync_explorer();
             }
@@ -462,8 +454,7 @@ impl App {
             KeyCode::Esc => {
                 self.query.clear();
                 self.filter = None;
-                self.intent_filter = None;
-                self.used_by_others = false;
+                self.show_all = false;
                 self.refresh();
             }
             KeyCode::Tab | KeyCode::BackTab => {
@@ -489,17 +480,8 @@ impl App {
                 };
                 self.refresh();
             }
-            KeyCode::Char('i') if self.is_homebrew() => {
-                self.intent_filter = match self.intent_filter {
-                    None => Some(InstallationIntent::Requested),
-                    Some(InstallationIntent::Requested) => Some(InstallationIntent::Dependency),
-                    Some(InstallationIntent::Dependency) => Some(InstallationIntent::Unknown),
-                    Some(InstallationIntent::Unknown) => None,
-                };
-                self.refresh();
-            }
-            KeyCode::Char('u') if self.is_homebrew() && self.focus == Focus::Inventory => {
-                self.used_by_others = !self.used_by_others;
+            KeyCode::Char('a') if self.is_homebrew() && self.focus == Focus::Inventory => {
+                self.show_all = !self.show_all;
                 self.refresh();
             }
             KeyCode::Char('r')

@@ -192,22 +192,22 @@ fn brew_snapshots_use_the_same_parser_and_enforce_limits() {
 }
 
 #[test]
-fn search_type_and_intent_filters_compose_without_changing_existing_controls() {
+fn search_type_and_tools_view_compose_without_changing_existing_controls() {
     let mut app = app();
     app.query = "editor widget".into();
     app.refresh();
+    assert!(app.visible.is_empty()); // The widget cask has no request record: not a tool.
+    key(&mut app, KeyCode::Char('a')); // All
     assert_eq!(app.resource().unwrap().id, "brew:cask:example/tools/widget");
     key(&mut app, KeyCode::Char('f')); // Formula
     assert!(app.visible.is_empty());
     key(&mut app, KeyCode::Char('f')); // Cask
     assert_eq!(app.visible.len(), 1);
-    key(&mut app, KeyCode::Char('i')); // Requested
+    key(&mut app, KeyCode::Char('a')); // Tools
     assert!(app.visible.is_empty());
-    key(&mut app, KeyCode::Char('i')); // Dependency
-    key(&mut app, KeyCode::Char('i')); // Unknown
+    key(&mut app, KeyCode::Char('a')); // All
     assert_eq!(app.visible.len(), 1);
     key(&mut app, KeyCode::Char('f')); // All types
-    key(&mut app, KeyCode::Char('i')); // All intents
     key(&mut app, KeyCode::Char('/'));
     app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     key(&mut app, KeyCode::Enter);
@@ -230,7 +230,7 @@ fn refresh_preserves_selection_filters_focus_and_valid_data_after_failure() {
     );
     app.finish_collection(Ok(inventory()));
     app.filter = Some(ResourceKind::Formula);
-    app.intent_filter = Some(Intent::Unknown);
+    app.show_all = true;
     app.query = "widget".into();
     app.refresh();
     key(&mut app, KeyCode::Enter);
@@ -250,7 +250,7 @@ fn refresh_preserves_selection_filters_focus_and_valid_data_after_failure() {
     assert_eq!(app.resource().unwrap().id, selected);
     assert_eq!(app.focus, Focus::Details);
     assert_eq!(app.filter, Some(ResourceKind::Formula));
-    assert_eq!(app.intent_filter, Some(Intent::Unknown));
+    assert!(app.show_all);
     app.begin_collection();
     let before = app.inventory.clone();
     app.finish_collection(Err(CollectionError::Timeout));
@@ -300,6 +300,8 @@ fn snapshots_cannot_request_live_refresh() {
 #[test]
 fn rendering_shows_installed_versions_intent_details_and_sanitizes_metadata() {
     let mut app = app();
+    app.show_all = true;
+    app.refresh();
     let text = draw(&mut app, 140, 40);
     for expected in [
         "ripgrep",

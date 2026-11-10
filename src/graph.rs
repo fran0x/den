@@ -398,12 +398,28 @@ impl Graph {
     /// Positive recorded runtime evidence from another installed package. This
     /// neither establishes installation intent nor proves nonmatching packages unused.
     pub fn has_recorded_users(&self, node: usize) -> bool {
-        self.reverse.get(node).into_iter().flatten().any(|&index| {
-            let edge = &self.edges[index];
-            edge.from != node
-                && edge.provenance.evidence() == Evidence::Recorded
-                && self.target_state(edge).is_some()
-        })
+        self.recorded_users(node) > 0
+    }
+
+    /// Number of distinct other installed packages with a recorded runtime reference
+    /// to an installed version of `node`. Same evidence as `has_recorded_users`.
+    pub fn recorded_users(&self, node: usize) -> usize {
+        let mut users: Vec<usize> = self
+            .reverse
+            .get(node)
+            .into_iter()
+            .flatten()
+            .map(|&index| &self.edges[index])
+            .filter(|edge| {
+                edge.from != node
+                    && edge.provenance.evidence() == Evidence::Recorded
+                    && self.target_state(edge).is_some()
+            })
+            .map(|edge| edge.from)
+            .collect();
+        users.sort_unstable();
+        users.dedup();
+        users.len()
     }
 
     /// Unknown/missing target versions are never silently replaced by a different keg.

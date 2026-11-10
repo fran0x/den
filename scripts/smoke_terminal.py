@@ -175,9 +175,9 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
             (b"Inventory", b"j"),
-            (b"> pcre2", b"\t"),
+            (b"> requested-app", b"\t"),
             (b"Skills inventory", b"\x1b[Z"),
-            (b"> pcre2", b"\r"),
+            (b"> requested-app", b"\r"),
             (b"Inspector / Overview", b"\t"),
             (b"Skills inventory", b"\x1b[Z"),
             (b"Inspector / Overview", b"q"),
@@ -186,19 +186,18 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: Tab/Shift-Tab areas restore selection and explicit inspectors at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
-            (b"[All 7]", b"u"),
-            (b"Used by others 1 [ON]", b"i"),
-            (b"No matches", b"i"),
-            (b"> pcre2", b"\t"),
+            (b"[Tools 2]", b"a"),
+            (b"[All 7]", b"\t"),
             (b"Skills inventory", b"\x1b[Z"),
-            (b"Used by others 1 [ON]", b"u"),
-            (b"Used by others 1 [off]", b"q"),
+            (b"required by 1", b"/zzz\r"),
+            (b"No matches", b"a"),
+            (b"No matching tools", b"q"),
         ])
-    assert not calls.exists(), "intent and usage filtering must remain offline"
-    print("PASS: visible intent counts, separate recorded-used filter, empty matches and area context at three sizes")
+    assert not calls.exists(), "Tools/All view must remain offline"
+    print("PASS: Tools default, a toggles All, required-by rows, empty matches and area context at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
-            (b"Inventory", b"/mid\r"),
+            (b"Inventory", b"a/mid\r"),
             (b"Recorded runtime", b"\x1b[C \x1b[Dq"),
         ])
         text = visible_text(output)

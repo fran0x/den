@@ -45,17 +45,18 @@ information panel alongside it, or below it on narrow terminals.
 Homebrew information includes **Depends on** and **Required by**
 trees, automatically opened up to two levels. Both use the displayed evidence and keg;
 uncertain records stay labeled leaves. `PARTIAL` / `…` marks omitted information.
-Homebrew rows label installation intent. `i` cycles All / Explicitly requested /
-Dependencies / Unknown; `u` independently toggles **Used by others**. Visible counts
-use the current search and type filter, before intent/usage filtering. Usage counts
-overlap intent: recorded runtime references from other packages to an installed version
-qualify, including records with unknown directness. Current declarations, self references
-and unresolved versions do not. Nonmatching packages are not proven unused.
+Homebrew starts with **Tools**: packages Homebrew recorded as installed on request.
+`a` switches between Tools and **All**; `f` cycles All / Formula / Cask. Counts follow
+the current search and type. Packages without a request record appear only in All;
+Unknown intent is never guessed. Rows show intent and **required by N**: other installed
+packages with recorded runtime references to an installed version. Current declarations,
+self references and unresolved versions do not count; no count does not mean unused.
 Enter explicitly inspects the selected resource. `/` edits inventory search;
 Enter or Esc finishes editing and retains the query. The inspector starts at **Overview**.
 `[` selects its section list; `]` returns to content. Arrows and Enter
 open Dependencies, Files, Sources, Evidence or other available details. Esc returns
-to the previous context, preserving selection, filters, scroll and dependency expansion.
+to the previous context in the current area, preserving selection, filters, scroll and
+dependency expansion. Switching areas never adds a Back step.
 
 Dependencies and Required by start as trees: Right expands or enters children;
 Left collapses or selects the parent; Space toggles a branch. Enter inspects a

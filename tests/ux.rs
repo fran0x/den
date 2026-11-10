@@ -6,10 +6,14 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};
 
 fn brew() -> App {
-    App::new(
+    let mut a = App::new(
         homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap(),
         "Homebrew snapshot",
-    )
+    );
+    // These tests cover navigation over the full fixture; Tools is covered in homebrew_filters.
+    a.show_all = true;
+    a.refresh();
+    a
 }
 fn skills() -> App {
     let mut a = brew();
