@@ -431,17 +431,6 @@ impl App {
         self.detail_scroll = 0;
         self.sync_explorer();
     }
-    /// `e`: show the Codex configuration layer that defines the selected row.
-    pub(crate) fn follow_source(&mut self) {
-        if let Some(layer) = self.agents_source() {
-            // The layer is selected in Settings › source files; Esc returns.
-            self.agents_jump_source(layer);
-            self.presentation.page = Page::Browse;
-        } else {
-            self.presentation.notice =
-                Some("No Codex configuration source is available for this row.".into());
-        }
-    }
 }
 
 // Checkpoints cover native drill-down actions without duplicating their implementation.
@@ -594,11 +583,6 @@ impl App {
             }
             KeyCode::Left if self.inspecting() => {
                 self.back();
-                return true;
-            }
-            KeyCode::Char('e') if self.module == Module::Agents => {
-                self.remember();
-                self.follow_source();
                 return true;
             }
             _ => (),

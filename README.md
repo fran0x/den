@@ -76,7 +76,7 @@ There is no inspector anywhere. In Agents the information panel shows everything
 the selection, each tool under its own heading (for a skill: each tool's status, then
 Findings, Instructions, Supporting files, Evidence and coverage; for an MCP server:
 Codex's sources with transport, authentication and tools, then Claude Code's entries).
-PgUp/PgDn scroll it; `e` jumps to a configuration source. Esc goes back within the
+PgUp/PgDn scroll it. Esc goes back within the
 current section; switching areas or sections never adds a Back step. `?` gives contextual help; `r` refreshes the configured source; `q`
 quits. While editing any search, `q` is text and Ctrl-C quits.
 

@@ -759,43 +759,4 @@ impl crate::app::App {
             self.agents_reset_panel();
         }
     }
-    /// The Codex configuration layer that defines the selected row, for `e`.
-    pub(crate) fn agents_source(&self) -> Option<usize> {
-        let sources = self.agent_sources();
-        let row = self.agents.selected_row(&sources)?;
-        let &n = row.codex.first()?;
-        let config = &self.codex.inventory.as_ref()?.configuration;
-        match self.agents.section {
-            Section::Skills => self.skills.enablement.get(n).and_then(|e| e.source),
-            Section::Settings if !self.codex.sources => config
-                .settings
-                .get(n)
-                .and_then(|s| s.source.or_else(|| s.conditional.as_ref().map(|(_, l)| *l))),
-            Section::Mcp => {
-                let server = config.mcp.servers.get(n)?;
-                server
-                    .definitions
-                    .get(self.codex.mcp_source % server.definitions.len().max(1))
-                    .map(|d| d.source)
-            }
-            _ => None,
-        }
-    }
-    /// Show a Codex configuration layer in Settings › source files.
-    pub(crate) fn agents_jump_source(&mut self, layer: usize) {
-        let Some(path) = self
-            .codex
-            .inventory
-            .as_ref()
-            .and_then(|i| i.configuration.layers.get(layer))
-            .map(|l| l.path.display().to_string())
-        else {
-            return;
-        };
-        self.agents.section = Section::Settings;
-        self.codex.sources = true;
-        self.agents.query.clear();
-        self.agents_reset_panel();
-        self.agents_select(&format!("codex-source:{path}"));
-    }
 }

@@ -171,38 +171,6 @@ fn panel_scrolls_with_page_keys_and_keeps_its_place_across_help_and_switches() {
     assert_eq!(a.agents.panel.offset, 0);
 }
 #[test]
-fn mcp_source_jump_returns_with_backspace_or_esc() {
-    for back in [KeyCode::Backspace, KeyCode::Esc] {
-        let mut a = fixture("fixtures/mcp");
-        a.navigate(Destination::Mcp);
-        a.agents.query = "docs".into();
-        let s = draw(&mut a, 160, 45);
-        let row = s.lines().find(|s| s.contains("> docs")).unwrap();
-        assert!(row.contains("Codex only") && row.contains("Ready"));
-        assert!(s.contains("Transport"));
-        key(&mut a, KeyCode::Char('e'));
-        assert_eq!(a.destination(), Destination::Sources);
-        assert!(!a.inspecting());
-        key(&mut a, back);
-        assert_eq!(a.destination(), Destination::Mcp);
-        assert_eq!(a.agents.query, "docs");
-        assert!(!a.inspecting());
-    }
-}
-#[test]
-fn settings_source_back_preserves_panel_scroll_and_selection() {
-    let mut a = skills();
-    a.navigate(Destination::Settings);
-    a.agents.query = "model".into();
-    a.agents.panel.offset = 3;
-    key(&mut a, KeyCode::Char('e'));
-    assert!(a.codex.sources);
-    key(&mut a, KeyCode::Backspace);
-    assert!(!a.codex.sources);
-    assert_eq!(a.agents.query, "model");
-    assert_eq!(a.agents.panel.offset, 3);
-}
-#[test]
 fn long_unicode_names_and_paths_are_truncated_without_controls_or_panics() {
     let mut a = brew();
     a.inventory.resources[0].name = "長い名前".repeat(50);
@@ -324,5 +292,5 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
     }
     let mut a = skills();
     let footer = draw(&mut a, 80, 24).lines().last().unwrap().to_owned();
-    assert!(footer.contains("e:source") && !footer.contains("Enter") && !footer.contains("f/i"));
+    assert!(!footer.contains("e:source") && !footer.contains("Enter") && !footer.contains("f/i"));
 }

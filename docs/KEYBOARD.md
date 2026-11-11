@@ -132,9 +132,8 @@ between the tools.
 - **Plugins:** enabled state and the settings file that decides it, version, marketplace,
   and skills, commands, agents, hooks and MCP servers.
 
-`e` jumps to the Codex configuration file that defines the selected skill rule, setting
-or MCP server; Esc returns to where you were, panel position included. `/` searches and
-`r` refreshes both tools.
+The panel names the file each setting or MCP server comes from. `/` searches and `r`
+refreshes both tools.
 
 ## Cloud › AWS
 

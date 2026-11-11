@@ -11,7 +11,7 @@ Every list has name, Tools (Both / Codex only / Claude only) and Status. Status 
 Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
 Instructions pair AGENTS.md (Codex) and CLAUDE.md (Claude Code) by where they apply: Managed, User, then each project folder from the outermost down.\n\
 Settings match by name and show the value; Hooks and Plugins are Claude Code only.\n\
-Settings: s shows Codex source files; e jumps to the Codex file that defines a skill rule, setting or MCP server, and Esc returns.\n\
+Settings: s shows Codex source files. The panel names the file each setting or MCP server comes from.\n\
 Instructions: t shows Codex's chain as if the project were trusted. MCP: V picks the next Codex source.\n\
 The information panel shows everything about the selection; PgUp/PgDn scroll it. r refreshes both tools.\n\n\
 The panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
@@ -152,9 +152,10 @@ fn view(app: &App) -> View {
         text,
         actions: match section {
             Section::Instructions => "t:if trusted Tab:area Shift+Tab:section",
-            Section::Settings => "s:sources e:source Tab:area Shift+Tab:section",
-            Section::Skills | Section::Mcp => "e:source Tab:area Shift+Tab:section",
-            Section::Hooks | Section::Plugins => "Tab:area Shift+Tab:section",
+            Section::Settings => "s:sources Tab:area Shift+Tab:section",
+            Section::Skills | Section::Mcp | Section::Hooks | Section::Plugins => {
+                "Tab:area Shift+Tab:section"
+            }
         },
     }
 }

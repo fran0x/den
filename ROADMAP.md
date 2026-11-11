@@ -25,7 +25,7 @@ inspector; the information panel is the package view and Diagnostics is a sectio
 inventory has a single filter line, and each section keeps its own Back history. Earlier
 stage notes about `g`, package inspectors and dependency-tree keys are historical.
 Codex and Claude no longer have inspectors either: the information panel stacks every
-former inspector section and scrolls with PgUp/PgDn; `e` jumps to configuration sources. Only Homebrew Diagnostics keeps a report list.
+former inspector section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics keeps a report list.
 
 ## Stage 0 — Foundation (implemented)
 

@@ -733,12 +733,10 @@ fn codex_navigation_sources_back_and_snapshot_isolation() {
         ),
     );
     let mut a = app(&t);
-    // e on a skill that a config rule names shows that Codex file; Back returns.
+    // e no longer jumps to sources.
     key(&mut a, KeyCode::Char('e'));
-    assert_eq!(a.destination(), Destination::Sources);
-    assert!(a.codex.sources);
-    key(&mut a, KeyCode::Backspace);
     assert_eq!(a.destination(), Destination::Skills);
+    assert!(!a.codex.sources);
     key(&mut a, KeyCode::F(3)); // Instructions
     key(&mut a, KeyCode::F(3)); // Settings
     key(&mut a, KeyCode::Char('s'));

@@ -378,18 +378,6 @@ fn sections_restore_search_filters_and_panel_position() {
     assert!(!a.inspecting());
 }
 #[test]
-fn source_jump_escape_restores_server_and_filters() {
-    let mut a = app();
-    switch(&mut a, Destination::Mcp);
-    a.agents.query = "docs".into();
-    key(&mut a, KeyCode::Char('e'));
-    assert_eq!(a.destination(), Destination::Sources);
-    assert!(a.codex.sources);
-    key(&mut a, KeyCode::Esc);
-    assert_eq!(a.destination(), Destination::Mcp);
-    assert_eq!(a.agents.query, "docs");
-}
-#[test]
 fn mcp_panel_stacks_sections_at_every_size_and_stays_private() {
     for (w, h) in [(80, 24), (120, 32), (160, 45)] {
         let mut a = app();

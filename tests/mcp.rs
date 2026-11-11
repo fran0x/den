@@ -582,23 +582,6 @@ fn rows(a: &App) -> Vec<String> {
         .collect()
 }
 #[test]
-fn source_navigation_preserves_server_selection_search_and_filters() {
-    let t = Temp::new();
-    t.user(&format!(
-        "{STDIO}\n[mcp_servers.web]\nurl='https://example.com'"
-    ));
-    let mut a = t.app();
-    a.agents.query = "web".into();
-    a.agents.panel.offset = 2;
-    key(&mut a, KeyCode::Char('e')); // source
-    assert_eq!(a.destination(), Destination::Sources);
-    key(&mut a, KeyCode::Backspace);
-    assert_eq!(a.destination(), Destination::Mcp);
-    assert_eq!(a.agents.query, "web");
-    assert_eq!(a.agents.panel.offset, 2);
-    assert_eq!(rows(&a), ["web"]);
-}
-#[test]
 fn search_and_tools_column_for_codex_only_servers() {
     let t = Temp::new();
     t.trust("trusted", STDIO);
