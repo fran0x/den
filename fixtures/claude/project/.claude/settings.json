@@ -1,0 +1,5 @@
+{
+  "model": "project-model",
+  "permissions": { "allow": ["Bash(just check)"] },
+  "enabledMcpjsonServers": ["docs"]
+}

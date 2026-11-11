@@ -1,0 +1,3 @@
+# Trust is unknown in this isolated fixture; this definition is conditional.
+[mcp_servers.project]
+url = "http://127.0.0.1:7777/mcp"

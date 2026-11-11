@@ -1,0 +1,16 @@
+{
+  "oauthAccount": { "emailAddress": "PRIVATE-ACCOUNT-SENTINEL" },
+  "userID": "PRIVATE-USERID-SENTINEL",
+  "mcpServers": {
+    "user-only": { "command": "/opt/tools/bin/user-server", "env": { "API_KEY": "PRIVATE-MCPENV-SENTINEL" } },
+    "shared-name": { "type": "sse", "url": "https://user.example.invalid/sse" }
+  },
+  "projects": {
+    "project": {
+      "mcpServers": { "local-only": { "command": "python3", "args": ["server.py"] } },
+      "disabledMcpServers": ["local-only"],
+      "hasTrustDialogAccepted": true,
+      "lastSessionId": "PRIVATE-SESSION-SENTINEL"
+    }
+  }
+}

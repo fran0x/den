@@ -1,0 +1,4 @@
+# A confirmed configuration error for drill-down.
+[mcp_servers.invalid]
+command = "npx"
+url = "https://example.com"

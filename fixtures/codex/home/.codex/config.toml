@@ -1,0 +1,8 @@
+model = "gpt-6"
+sandbox_mode = "workspace-write"
+project_doc_fallback_filenames = ["TEAM.md"]
+[features]
+shell_tool = true
+[mcp_servers.synthetic]
+# Must never appear in a rendered configuration view.
+credentials = "PRIVATE-CONFIG-SENTINEL"

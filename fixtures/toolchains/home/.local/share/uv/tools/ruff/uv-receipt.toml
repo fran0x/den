@@ -1,0 +1,3 @@
+[tool]
+requirements = [{ name = "ruff" }]
+entrypoints = [{ name = "ruff", install-path = "/Users/PRIVATE-PATH/.local/bin/ruff", from = "ruff" }]

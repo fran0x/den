@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Rust crates: one weekly pull request, checked by CI and cargo-deny.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  # GitHub Actions are pinned to commits; Dependabot updates the pins and their comments.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

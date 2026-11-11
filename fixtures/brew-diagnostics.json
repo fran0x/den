@@ -1,0 +1,154 @@
+{
+  "formulae": [
+    {
+      "name": "source",
+      "full_name": "source",
+      "tap": "homebrew/core",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": [
+            {
+              "full_name": "absent-recorded",
+              "version": "1",
+              "declared_directly": true
+            },
+            {
+              "full_name": "target",
+              "version": "0",
+              "declared_directly": true
+            },
+            {
+              "full_name": "multi",
+              "declared_directly": false
+            },
+            {
+              "full_name": "clash",
+              "declared_directly": true
+            },
+            {}
+          ]
+        }
+      ],
+      "dependencies": [
+        "absent-current",
+        "declared-only"
+      ],
+      "build_dependencies": [
+        "absent-build"
+      ],
+      "test_dependencies": [
+        "absent-test"
+      ],
+      "optional_dependencies": [
+        "absent-optional"
+      ]
+    },
+    {
+      "name": "target",
+      "full_name": "target",
+      "tap": "homebrew/core",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "2",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "multi",
+      "full_name": "multi",
+      "tap": "homebrew/core",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        },
+        {
+          "version": "2",
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "clash",
+      "full_name": "alpha/tools/clash",
+      "tap": "alpha/tools",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "clash",
+      "full_name": "beta/tools/clash",
+      "tap": "beta/tools",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "declared-only",
+      "full_name": "declared-only",
+      "tap": "homebrew/core",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "leaf",
+      "full_name": "leaf",
+      "tap": "homebrew/core",
+      "desc": "Synthetic diagnostic fixture",
+      "installed": [
+        {
+          "version": "1",
+          "installed_on_request": false,
+          "runtime_dependencies": []
+        }
+      ],
+      "dependencies": []
+    }
+  ],
+  "casks": [
+    {
+      "token": "viewer",
+      "full_token": "viewer",
+      "tap": "homebrew/cask",
+      "name": [
+        "Viewer"
+      ],
+      "installed": "1",
+      "depends_on": {
+        "formula": [
+          "target"
+        ]
+      }
+    }
+  ]
+}

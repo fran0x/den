@@ -1,0 +1,22 @@
+{
+  "model": "user-model",
+  "permissions": {
+    "allow": ["Bash(cargo test:*)", "Read(~/notes/**)"],
+    "deny": ["Read(./.env)"],
+    "defaultMode": "acceptEdits"
+  },
+  "env": { "SYNTHETIC_TOKEN": "PRIVATE-ENV-SENTINEL", "RUST_LOG": "info" },
+  "apiKeyHelper": "/usr/local/bin/key-helper PRIVATE-HELPER-SENTINEL",
+  "statusLine": { "type": "command", "command": "~/.claude/statusline.sh" },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "~/.claude/hooks/guard.sh", "timeout": 5 },
+        { "type": "command", "command": "curl -H token=PRIVATE-HOOK-SENTINEL https://hooks.example.invalid" }
+      ] }
+    ],
+    "Stop": [ { "hooks": [ { "type": "prompt", "prompt": "Check the tests ran." } ] } ]
+  },
+  "enabledPlugins": { "tools@market": true, "ghost@market": true },
+  "syntheticUnknownSetting": "PRIVATE-OTHER-SENTINEL"
+}

@@ -1,0 +1,4 @@
+/target/
+
+# Synthetic fixtures must stay tracked even when a global ignore excludes local settings.
+!fixtures/**/.claude/settings.local.json

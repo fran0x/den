@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "docs": { "command": "npx", "args": ["-y", "docs-server", "--token", "PRIVATE-ARG-SENTINEL"] },
+    "pending": { "type": "http", "url": "https://PRIVATE-URL-SENTINEL.example.invalid/mcp", "headers": { "Authorization": "Bearer PRIVATE-HEADER-SENTINEL" } },
+    "shared-name": { "command": "project-server" }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "formulae": [
+    {
+      "name": "ripgrep", "full_name": "ripgrep", "tap": "homebrew/core",
+      "desc": "Search source trees quickly", "homepage": "https://example.org/ripgrep",
+      "versions": {"stable": "99.0"}, "outdated": true, "pinned": false, "linked_keg": "14.1.1",
+      "installed": [{"version": "14.1.1", "installed_on_request": true, "installed_as_dependency": false,
+        "runtime_dependencies": [{"full_name": "pcre2", "version": "10.44", "revision": 0, "declared_directly": true}]}],
+      "dependencies": ["pcre2"], "build_dependencies": ["rust"], "future_field": {"ignored": true}
+    },
+    {
+      "name": "pcre2", "full_name": "pcre2", "tap": "homebrew/core", "desc": "Regular expression library",
+      "installed": [{"version": "10.44", "installed_on_request": false, "installed_as_dependency": true}],
+      "dependencies": []
+    },
+    {
+      "name": "python@3.12", "full_name": "python@3.12", "tap": "homebrew/core", "desc": null,
+      "linked_keg": null, "versions": {"stable": "3.12.9"},
+      "installed": [
+        {"version": "3.12.7", "installed_on_request": true, "installed_as_dependency": false},
+        {"version": "3.12.8", "installed_on_request": false, "installed_as_dependency": true}
+      ]
+    },
+    {
+      "name": "widget", "full_name": "example/tools/widget", "tap": "example/tools",
+      "installed": [{"version": "1.2", "installed_on_request": false}]
+    },
+    {
+      "name": "legacy", "installed": [{"version": "0.8"}], "unknown_key": "accepted"
+    }
+  ],
+  "casks": [
+    {
+      "token": "widget", "full_token": "example/tools/widget", "tap": "example/tools",
+      "name": ["Widget Studio"], "desc": "A desktop development editor", "homepage": "https://example.org/widget",
+      "version": "9.0", "installed": "8.1", "outdated": true, "auto_updates": true,
+      "depends_on": {"formula": ["pcre2"]}
+    },
+    {
+      "token": "requested-app", "full_token": "requested-app", "tap": "homebrew/cask",
+      "name": ["Requested Application"], "installed": "2.0", "installed_on_request": true,
+      "extra_upstream_field": [1, 2]
+    }
+  ],
+  "future_top_level": true
+}

@@ -1,0 +1,3 @@
+{"Availability":"N/A","Driver":"local","Group":"N/A","Labels":"com.docker.compose.project=web","Links":"N/A","Mountpoint":"/var/lib/docker/volumes/web_data/_data","Name":"web_data","Scope":"local","Size":"N/A","Status":"N/A"}
+{"Availability":"N/A","Driver":"local","Group":"N/A","Labels":"com.docker.compose.project=web","Links":"N/A","Mountpoint":"/var/lib/docker/volumes/web_db/_data","Name":"web_db","Scope":"local","Size":"N/A","Status":"N/A"}
+{"Availability":"N/A","Driver":"local","Group":"N/A","Labels":"","Links":"N/A","Mountpoint":"/var/lib/docker/volumes/x/_data","Name":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","Scope":"local","Size":"N/A","Status":"N/A"}

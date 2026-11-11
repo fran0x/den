@@ -1,0 +1,11 @@
+model = "codex-model"
+
+[mcp_servers.docs]
+command = "npx"
+args = ["-y", "docs-server"]
+
+[mcp_servers.shared-name]
+url = "https://example.invalid/mcp"
+
+[mcp_servers.codex-only]
+command = "codex-tool"
