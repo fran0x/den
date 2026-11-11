@@ -138,7 +138,7 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
         );
         partial |= preview.limited;
         let heading = if reverse { "Required by" } else { "Depends on" };
-        let mut lines = vec![Line::styled(heading, Style::default().bold())];
+        let mut lines = vec![Line::styled(heading, super::heading())];
         if preview.rows.is_empty() {
             let empty = if evidence == Evidence::Recorded
                 && root.keg.is_none()

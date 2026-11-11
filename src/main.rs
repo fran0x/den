@@ -179,6 +179,7 @@ fn run() -> io::Result<()> {
     if start_docker {
         app.module = den::app::Module::Docker;
     }
+    den::ui::set_theme(den::ui::Theme::from_env());
     terminal::run(&mut app)
 }
 

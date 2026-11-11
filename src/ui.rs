@@ -1,4 +1,6 @@
 mod common;
+mod theme;
+pub use theme::{Theme, set_theme};
 mod homebrew;
 mod navigation;
 use common::*;
@@ -140,11 +142,7 @@ fn pane(title: &str, focused: bool) -> Block<'static> {
     Block::new()
         .borders(Borders::TOP)
         .title(format!("{}{}", if focused { ">" } else { " " }, title))
-        .border_style(if focused {
-            Style::default().fg(ACCENT)
-        } else {
-            muted()
-        })
+        .border_style(if focused { accent() } else { muted() })
 }
 
 fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {

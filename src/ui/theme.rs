@@ -1,0 +1,175 @@
+//! Colours by role, so every screen styles accents, secondary text and selection alike.
+//! Catppuccin (Mocha, or Latte on a light terminal) needs 24-bit colour; other terminals
+//! get the 16 ANSI colours, and `NO_COLOR` gets none. Backgrounds stay the terminal's
+//! own except on the selected row; without colour, selection falls back to reverse video.
+
+use std::sync::OnceLock;
+
+use ratatui::style::{Color, Modifier, Style};
+
+/// `None` means "no colour for this role": the style falls back to a text modifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Theme {
+    accent: Option<Color>,
+    muted: Option<Color>,
+    key: Option<Color>,
+    /// Foreground and background of the selected row.
+    selected: Option<(Color, Color)>,
+}
+
+static THEME: OnceLock<Theme> = OnceLock::new();
+
+/// Set the theme once, before the first draw. Later calls are ignored.
+pub fn set_theme(theme: Theme) {
+    let _ = THEME.set(theme);
+}
+
+/// The active theme; Catppuccin Mocha when none was set (tests and fixtures).
+pub(super) fn theme() -> Theme {
+    *THEME.get_or_init(Theme::mocha)
+}
+
+impl Theme {
+    pub fn mocha() -> Self {
+        Self {
+            accent: Some(Color::Rgb(137, 180, 250)),
+            muted: Some(Color::Rgb(127, 132, 156)),
+            key: Some(Color::Rgb(205, 214, 244)),
+            selected: Some((Color::Rgb(205, 214, 244), Color::Rgb(49, 50, 68))),
+        }
+    }
+
+    pub fn latte() -> Self {
+        Self {
+            accent: Some(Color::Rgb(30, 102, 245)),
+            muted: Some(Color::Rgb(140, 143, 161)),
+            key: Some(Color::Rgb(76, 79, 105)),
+            selected: Some((Color::Rgb(76, 79, 105), Color::Rgb(204, 208, 218))),
+        }
+    }
+
+    /// 16-colour terminals: a blue accent; dim and reverse video for the rest.
+    pub fn ansi() -> Self {
+        Self {
+            accent: Some(Color::Blue),
+            muted: None,
+            key: None,
+            selected: None,
+        }
+    }
+
+    /// `NO_COLOR`: bold, dim, underline and reverse video only.
+    pub fn plain() -> Self {
+        Self {
+            accent: None,
+            muted: None,
+            key: None,
+            selected: None,
+        }
+    }
+
+    pub fn from_env() -> Self {
+        let var = |name| std::env::var(name).ok();
+        Self::detect(
+            var("NO_COLOR").as_deref(),
+            var("COLORTERM").as_deref(),
+            var("COLORFGBG").as_deref(),
+        )
+    }
+
+    /// `COLORFGBG` is "fg;bg" (sometimes "fg;default;bg"); ANSI 7 and 9-15 are light.
+    fn detect(no_color: Option<&str>, colorterm: Option<&str>, colorfgbg: Option<&str>) -> Self {
+        if no_color.is_some_and(|v| !v.is_empty()) {
+            return Self::plain();
+        }
+        if !matches!(colorterm, Some("truecolor" | "24bit")) {
+            return Self::ansi();
+        }
+        let light = colorfgbg
+            .and_then(|v| v.rsplit(';').next())
+            .and_then(|bg| bg.parse::<u8>().ok())
+            .is_some_and(|bg| matches!(bg, 7 | 9..=15));
+        if light { Self::latte() } else { Self::mocha() }
+    }
+
+    /// Title, focused pane, headings.
+    pub(super) fn accent(self) -> Style {
+        self.accent
+            .map_or_else(Style::default, |c| Style::default().fg(c))
+    }
+
+    /// Secondary text and hints.
+    pub(super) fn muted(self) -> Style {
+        match self.muted {
+            Some(c) => Style::default().fg(c),
+            None => Style::default().add_modifier(Modifier::DIM),
+        }
+    }
+
+    /// Key names in action hints.
+    pub(super) fn key(self) -> Style {
+        self.key
+            .map_or_else(Style::default, |c| Style::default().fg(c))
+    }
+
+    /// The selected row: a soft background, or reverse video without colour.
+    pub(super) fn selection(self) -> Style {
+        match self.selected {
+            Some((fg, bg)) => Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+            None => Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
+        }
+    }
+
+    /// The active area in the top bar. Bold and underline keep it visible without colour.
+    pub(super) fn active(self) -> Style {
+        let style = self
+            .accent()
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+        match self.selected {
+            Some((_, bg)) => style.bg(bg),
+            None => style,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detection_follows_no_color_truecolor_and_background() {
+        assert_eq!(
+            Theme::detect(Some("1"), Some("truecolor"), None),
+            Theme::plain()
+        );
+        assert_eq!(
+            Theme::detect(Some(""), Some("truecolor"), None),
+            Theme::mocha()
+        );
+        assert_eq!(Theme::detect(None, None, None), Theme::ansi());
+        assert_eq!(Theme::detect(None, Some("256"), None), Theme::ansi());
+        assert_eq!(
+            Theme::detect(None, Some("24bit"), Some("0;15")),
+            Theme::latte()
+        );
+        assert_eq!(
+            Theme::detect(None, Some("truecolor"), Some("15;default;0")),
+            Theme::mocha()
+        );
+        assert_eq!(
+            Theme::detect(None, Some("truecolor"), Some("junk")),
+            Theme::mocha()
+        );
+    }
+
+    #[test]
+    fn selection_is_visible_without_colour() {
+        for theme in [Theme::ansi(), Theme::plain()] {
+            assert!(theme.selection().add_modifier.contains(Modifier::REVERSED));
+            assert!(theme.muted().add_modifier.contains(Modifier::DIM));
+        }
+        assert_eq!(Theme::plain().accent(), Style::default());
+        let active = Theme::plain().active().add_modifier;
+        assert!(active.contains(Modifier::BOLD | Modifier::UNDERLINED));
+    }
+}

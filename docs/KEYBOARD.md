@@ -5,8 +5,12 @@ collectors, recorded dependency semantics and privacy rules are unchanged.
 
 ## Moving around
 
-The top bar shows the three areas. The active area has its own colour (bold and underlined
+The top bar shows the four areas. The active area is highlighted (bold and underlined
 without colour) and is followed by its section, for example `Homebrew › Packages`.
+
+Colours follow the terminal: Catppuccin when it reports 24-bit colour (`COLORTERM=truecolor`),
+Latte on a light background (`COLORFGBG`), the 16 basic colours otherwise and none with
+`NO_COLOR`. The selected row has a soft background, or reverse video without colour.
 
 | Key | Action |
 | --- | --- |

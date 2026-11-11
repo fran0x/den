@@ -1,15 +1,39 @@
 use super::*;
 
-pub(super) const ACCENT: Color = Color::Blue;
+use super::theme::theme;
+
 /// Clipped-panel hints.
 pub(super) const ENLARGE_MORE: &str = "… enlarge the terminal to see more";
-/// The active area in the top bar.
-pub(super) const ACTIVE: Color = Color::Yellow;
 pub(super) fn muted() -> Style {
-    Style::default().add_modifier(Modifier::DIM)
+    theme().muted()
 }
 pub(super) fn selection() -> Style {
-    Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
+    theme().selection()
+}
+pub(super) fn accent() -> Style {
+    theme().accent()
+}
+/// Section headings in panels.
+pub(super) fn heading() -> Style {
+    accent().add_modifier(Modifier::BOLD)
+}
+/// "Tab:area Shift+Tab:section": key names stand out from their muted labels.
+/// Keeps every character, so widths and screen text are unchanged.
+pub(super) fn hints(text: &str) -> Line<'static> {
+    let mut spans = Vec::new();
+    for (i, word) in text.split(' ').enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(" ", muted()));
+        }
+        match word.split_once(':') {
+            Some((key, label)) if !key.is_empty() => {
+                spans.push(Span::styled(key.to_owned(), theme().key()));
+                spans.push(Span::styled(format!(":{label}"), muted()));
+            }
+            _ => spans.push(Span::styled(word.to_owned(), muted())),
+        }
+    }
+    Line::from(spans)
 }
 
 /// Top bar, status line and footer around a body. `view` is "Area / Section" for the
@@ -28,21 +52,14 @@ pub(super) fn chrome(
         Constraint::Length(1),
     ])
     .split(frame.area());
-    let accent = Style::default().fg(ACCENT).bold();
+    let accent = heading();
     let mut title = vec![Span::styled(" DEN ", accent)];
     match view.split_once(" / ") {
         Some((area, section)) if matches!(area, "Homebrew" | "Agents" | "Cloud" | "Docker") => {
             for name in ["Homebrew", "Agents", "Cloud", "Docker"] {
                 title.push(Span::raw(" "));
                 if name == area {
-                    // A distinct colour for the active area; bold and underline keep it
-                    // visible without colour, on the terminal's own background.
-                    title.push(Span::styled(
-                        format!(" {name} "),
-                        Style::default()
-                            .fg(ACTIVE)
-                            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-                    ));
+                    title.push(Span::styled(format!(" {name} "), theme().active()));
                     title.push(Span::styled(format!(" › {section} "), accent));
                 } else {
                     title.push(Span::styled(format!(" {name} "), muted()));
@@ -66,7 +83,7 @@ pub(super) fn chrome(
     } else {
         footer
     };
-    frame.render_widget(Paragraph::new(footer).style(muted()), rows[3]);
+    frame.render_widget(Paragraph::new(hints(&footer)), rows[3]);
     rows[2]
 }
 
@@ -160,7 +177,7 @@ pub(super) fn scrolled(
     let lines: Vec<_> = text
         .lines()
         .map(|line| match line.strip_prefix(HEADING) {
-            Some(heading) => Line::styled(safe_text(heading), Style::default().bold()),
+            Some(text) => Line::styled(safe_text(text), heading()),
             None => Line::from(safe_text(line)),
         })
         .collect();

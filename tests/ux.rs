@@ -267,24 +267,33 @@ fn every_agents_section_panel_page_and_source_keeps_secrets_redacted() {
     }
 }
 #[test]
-fn focus_is_visible_without_color_and_uses_terminal_default_background() {
+fn only_the_selected_row_leaves_the_terminal_default_background() {
+    // Reverse video without colour is covered by the theme's unit tests.
     use ratatui::style::{Color, Modifier};
     let mut a = brew();
     let mut t = Terminal::new(TestBackend::new(120, 32)).unwrap();
     t.draw(|f| ui::render(f, &mut a)).unwrap();
+    let buffer = t.backend().buffer();
+    let width = buffer.area.width as usize;
+    let selected: Vec<_> = buffer
+        .content
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.bg != Color::Reset)
+        .map(|(i, _)| i / width)
+        // The top bar's active area is the one other highlighted span.
+        .filter(|&y| y > 0)
+        .collect();
+    let row = selected.first().copied().expect("a selected row");
+    assert!(selected.iter().all(|&y| y == row));
+    let line: String = (0..width)
+        .map(|x| buffer.content[row * width + x].symbol())
+        .collect();
+    assert!(line.contains("> "), "{line}");
     assert!(
-        t.backend()
-            .buffer()
-            .content
-            .iter()
-            .any(|c| c.modifier.contains(Modifier::REVERSED))
-    );
-    assert!(
-        t.backend()
-            .buffer()
-            .content
-            .iter()
-            .all(|c| c.bg == Color::Reset && c.fg != Color::Cyan)
+        buffer.content[row * width + 2]
+            .modifier
+            .contains(Modifier::BOLD)
     );
     // The inventory is the one focused pane, marked with ">".
     let mut a = skills();
