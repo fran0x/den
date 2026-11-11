@@ -1,198 +1,96 @@
 # Den
 
-A read-only Rust TUI for Homebrew inventory, dependency diagnostics, local Codex
-skills, configuration, instructions and MCP server definitions, and Claude Code skills,
-instructions, settings, MCP servers, hooks and plugins, AWS CLI profiles, Kubernetes
-contexts, Docker containers, images and volumes, and language toolchains. Den runs a fixed set
-of read-only Homebrew commands; it never installs/removes tools, runs inspected skill
-scripts or starts MCP servers.
+[![CI](https://github.com/fran0x/den/actions/workflows/ci.yml/badge.svg)](https://github.com/fran0x/den/actions/workflows/ci.yml)
+
+**A read-only terminal inspector for your developer machine.**
+
+Den shows what is installed and how it is configured: Homebrew packages and their
+dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
+toolchains. It reads; it never installs, removes, logs in or runs what it finds.
+
+## What it shows
+
+| Area | Sections | At a glance |
+| --- | --- | --- |
+| **Homebrew** | Packages · Diagnostics | Tools you asked for, what depends on what, newer versions, missing and leftover packages |
+| **Agents** | Skills · Instructions · Settings · MCP · Hooks · Plugins | Codex and Claude Code compared row by row, with one status vocabulary |
+| **Cloud** | AWS · Kubernetes | AWS profiles and SSO sessions; kubeconfig contexts, how each signs in, and what is broken |
+| **Docker** | Containers · Images · Volumes | State, usage and reclaimable space, refreshed while you watch |
+| **Toolchains** | On PATH · Rust · Packages | Which `node`, `python3` or `cargo` wins and from where; rustup toolchains, `cargo install`, npm, uv, pipx, bun and go globals |
+
+Every row is **Ready**, **Problem** or a plainer state, and the panel beside it explains
+why: a role chain that loops, a context whose cluster is gone, a `java` that is only a
+macOS stub, a system `python3` hiding Homebrew's.
+
+## Read-only by design
+
+- **Fixed commands only.** `brew info`, `missing`, `leaves` and `autoremove --dry-run`;
+  `docker container ls`, `image ls`, `volume ls` and `system df`. Each is bounded in time
+  and output. Everything else is read from files.
+- **Nothing is called.** No AWS API, cluster, `kubectl`, exec plugin, credential helper,
+  MCP server, hook or program found on PATH is ever run.
+- **Secrets stay put.** Credential values, tokens, keys, server hosts and URLs are dropped
+  as they are read or kept only as "set". Untrusted text is sanitized before display.
+- **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
+  recorded", not "safe to remove".
+
+Homebrew itself may refresh its metadata when Den asks it for information. Details:
+[evidence and privacy](docs/EVIDENCE.md).
 
 ## Run
 
-Run from the repository root with stable Rust (edition 2024) on macOS/Linux.
-Live Homebrew needs `brew` on `PATH`; `just` is optional.
+Requires stable Rust (edition 2024) on macOS or Linux. `brew` and `docker` are optional;
+an area whose tool is missing says so.
 
 ```sh
-just run                                  # live Homebrew; Agents loads when opened
-just run --project /path/to/repo --skills  # start in Agents; defer Homebrew
-just run --skills --codex-profile review  # inspect review.config.toml
-just fixtures demo
-just fixtures snapshot                    # Den JSON
-just fixtures brew fixtures/brew.json
-just fixtures skills
-just fixtures codex                       # isolated synthetic configuration
-just fixtures codex fixtures/mcp          # synthetic MCP definitions
-just fixtures claude                      # synthetic Codex + Claude Code side by side
-just fixtures aws                         # synthetic AWS profiles in Cloud
-just fixtures kube                        # synthetic kubeconfig contexts in Cloud
-just fixtures docker                      # saved synthetic Docker listings
-just fixtures toolchains                  # synthetic PATH, Rust and global packages
-just fixtures brew fixtures/brew-dependencies.json # synthetic dependency trees
+cargo run --release              # or: just run
+cargo install --path .           # then: den
 ```
 
-Without `just`, use `cargo run -- --demo`, `cargo run -- --skills` or pass the
-corresponding CLI flags after `cargo run --`. `cargo run -- --help` lists the flags.
-`--project` defaults to the current directory; `--codex-profile review` explicitly
-selects `$CODEX_HOME/review.config.toml` (normally `~/.codex/review.config.toml`).
-No active Codex session/profile is inferred.
+| Flag | Effect |
+| --- | --- |
+| `--project DIR` | Project for Agents (default: the current folder) |
+| `--codex-profile NAME` | Inspect `$CODEX_HOME/NAME.config.toml` |
+| `--skills` | Start in Agents; Homebrew loads when opened |
+| `--help` | All flags, without starting the interface |
 
-Snapshots/demo never collect live Codex data or run Homebrew. Skills fixtures inspect
-only their explicit skill roots; Codex fixtures inspect isolated configuration,
-instructions, skills and MCP definitions. Fixture refresh rereads those roots only.
+## Keys
 
-## Navigation
+| Key | Action |
+| --- | --- |
+| `Tab` / `Shift+Tab` | Next area / next section (each keeps its place) |
+| `↑` `↓` `j` `k` · `Home` `End` | Move through the list |
+| `PgUp` / `PgDn` | Scroll the information panel |
+| `/` | Search; `Enter` or `Esc` keeps the query |
+| `Esc` | Back within the section |
+| `r` | Refresh |
+| `?` | Help for where you are |
+| `q` · `Ctrl-C` | Quit |
 
-The top bar shows **Homebrew**, **Agents**, **Cloud**, **Docker** and **Toolchains**; the active area is
-highlighted and followed by its section. Tab switches area; Shift+Tab switches section
-(Homebrew: Packages / Diagnostics; Agents: Skills / Instructions / Settings / MCP / Hooks /
-Plugins; Cloud: AWS / Kubernetes; Docker: Containers / Images / Volumes; Toolchains: On PATH /
-Rust / Packages).
-Each area and section keeps its place. There is no section switcher.
+The full guide, area by area: [keyboard and behaviour](docs/KEYBOARD.md).
 
-**Agents** shows Codex and Claude Code side by side. Every list has the same columns:
-name, **Tools** (Both, Codex only or Claude only) and **Status**, in one vocabulary for
-both tools: Ready, Off, Needs approval, Problem or Unknown (Instructions: Used, Not used, Problem or Unknown). When both tools have a row
-and agree, one status is shown; otherwise `Codex x · Claude y`. Skills match by folder
-(Claude usually reaches `~/.agents/skills` through symlinks); MCP servers match by name,
-and **Both, differ** marks a name that points to a different kind of server or program;
-instructions pair `AGENTS.md` and `CLAUDE.md` by where they apply; settings match by name
-and show the value. Hooks and Plugins are Claude Code only. The panel keeps each tool's
-own words (Eligible, Pending approval, …) next to the shared status.
+## Try it offline
 
-The inventory keeps focus while browsing. One line above the list shows its view, filters
-and search. Selection updates an information panel beside it, or below it on narrow
-terminals. `/` searches; Enter or Esc finishes editing and keeps the query.
+Synthetic fixtures exercise every area without touching your machine:
 
-Homebrew starts with **Tools**: packages Homebrew recorded as installed on request.
-`a` switches between Tools and **All**; tools are bold and casks are bracketed, for
-example `[firefox]`. Outdated packages show the newer version, `↑ 15.0`, as of your last
-`brew update` (Den never runs it). Counts follow the current search. Packages without a request record appear only in All;
-Unknown intent is never guessed. Rows show intent and **required by N**: other installed
-packages with recorded runtime references to an installed version. Current declarations,
-self references and unresolved versions do not count; no count does not mean unused.
+```sh
+just fixtures demo          # embedded Homebrew inventory
+just fixtures claude        # Codex and Claude Code side by side
+just fixtures aws           # AWS profiles
+just fixtures kube          # Kubernetes contexts
+just fixtures docker        # Docker listings
+just fixtures toolchains    # PATH, Rust and global packages
+```
 
-Packages have no inspector: the information panel is the package view. It shows
-**Depends on** and **Required by** trees, opened automatically to two levels. Uncertain
-records stay labeled leaves; `PARTIAL` / `…` marks omitted information. A package without
-recorded runtime metadata shows current declarations for that package only.
+`just fixtures` lists them all; without `just`, use the matching `--*-fixture DIR` flag.
 
-There is no inspector anywhere. In Agents the information panel shows everything about
-the selection, each tool under its own heading (for a skill: each tool's status, then
-Findings, Instructions, Supporting files, Evidence and coverage; for an MCP server:
-Codex's sources with transport, authentication and tools, then Claude Code's entries).
-PgUp/PgDn scroll it. Esc goes back within the
-current section; switching areas or sections never adds a Back step. `?` gives contextual help; `r` refreshes the configured source; `q`
-quits. While editing any search, `q` is text and Ctrl-C quits.
+## Develop
 
-Claude Code skills come from `~/.claude/skills` and the project's `.claude/skills`.
-Claude Code instructions are `CLAUDE.md` files in reading order:
-managed, user (`~/.claude/CLAUDE.md`), then `CLAUDE.md`, `.claude/CLAUDE.md` and
-`CLAUDE.local.md` from the outermost parent folder down. Previews are redacted; `@imports`
-are counted, not followed; linked files are reported, not read.
+```sh
+just check    # format, Clippy, tests, release build
+just smoke    # offline terminal checks in a real PTY
+```
 
-Claude **Settings** resolves managed > local > project > user files (command-line
-`--settings` is not observed); lists such as `permissions.allow` combine, and unreadable
-files are flagged. **MCP** lists servers from `managed-mcp.json`, `~/.claude.json`, the
-project's `.mcp.json` and enabled plugins, with collisions, approvals and trust; URLs,
-arguments and values are withheld. **Hooks** lists every hook from settings and enabled
-plugins, with commands redacted. **Plugins** lists installed plugins, whether settings
-enable them, and their components. From `~/.claude.json` Den keeps only MCP servers, this
-project's MCP approvals and its trust flag; account and session data are discarded.
-Nothing is run.
-
-**Cloud › AWS** lists profiles from `~/.aws/config` and `~/.aws/credentials` (or
-`AWS_CONFIG_FILE` / `AWS_SHARED_CREDENTIALS_FILE`), then SSO sessions, as Profile · Auth
-(Role, SSO, Process, Static keys, None set) · Status (Ready with the region, or Problem:
-a missing `source_profile` or `sso-session`, a role loop, an SSO profile without account
-or role, a credentials file other users can read). The panel shows region, account ID,
-role ARN, role chain and where each profile is defined; `AWS_PROFILE` marks the active
-one. From the credentials file only profile and key names are kept; values are discarded
-as they are read. SSO start URLs, endpoints, external IDs and `credential_process`
-commands are withheld; SSO and CLI caches are never read; no AWS call is made.
-
-**Cloud › Kubernetes** lists contexts from `KUBECONFIG` (first file wins for each name,
-as in kubectl) or `~/.kube/config`, as Context · Auth (Exec with the program name, auth
-provider, Client cert, Token, Basic auth, None set) · Status (Ready with the namespace, or
-Problem: a missing cluster or user, TLS verification off, plain http, a stored password, a
-removed auth provider, a file other users can read). Tokens, passwords, certificate and key
-data are kept as presence only; server hosts, exec arguments and env values are withheld.
-No cluster, `kubectl` or exec plugin is run.
-
-**Docker** lists containers (state, image, Compose project), images and volumes (which
-containers use them, or Unused; dangling images and anonymous volumes are marked), with
-disk use and reclaimable space from `docker system df`. Den runs only `docker container ls
---all`, `docker image ls`, `docker volume ls` and `docker system df`, through the same
-bounded runner as Homebrew, only while the Docker area is open (every 5 seconds, so
-containers started or stopped elsewhere show up); nothing is started,
-stopped, pulled, inspected or removed. Container commands, environment, labels (except the
-Compose project) and Docker's error messages are not shown; from `~/.docker/config.json`
-only the current context, registry names and credential helper are kept.
-
-**Toolchains** shows which `node`, `python3`, `go`, `java`, `cargo` and other common
-commands win on PATH, who provides each (Homebrew, rustup, uv, nvm, mise, the system, …),
-their versions from install paths and the copies they hide, with problems such as a
-relative PATH entry, a manager folder missing from PATH or a macOS `java` stub without a
-JDK. **Rust** lists rustup toolchains and `cargo install` crates; **Packages** lists `npm
--g`, uv tools and Pythons, pipx, bun and `go install` programs. Everything comes from files;
-nothing found on PATH is run, and newer versions are not checked.
-
-See [keyboard controls](docs/KEYBOARD.md). The [UX-2 walkthroughs](docs/ux2/README.md) are historical.
-
-## Evidence and privacy
-
-Homebrew intent uses installation records; unknown stays unknown. Runtime relationships
-and current declarations stay separate. Diagnostics never establish safe removal.
-Homebrew may fetch metadata.
-
-Codex models supported settings from [local configuration layers](https://learn.chatgpt.com/docs/config-file/config-advanced):
-trusted project, selected profile, user and system files. Untrusted project layers are
-inactive; unknown trust is conditional. Runtime overrides remain unobserved;
-unsupported values and unestablished merge/path semantics remain unresolved. When
-applicable configuration is malformed, unavailable or a selected profile is missing,
-inventory and Overview mark retained values/defaults as **provisional**. Named permission
-profiles (`default_permissions` / `[permissions]`) are not currently modeled.
-
-[Instruction chains](https://learn.chatgpt.com/docs/agent-configuration/agents-md) combine one selected
-file per directory, global-to-project, with byte accounting and best-effort redacted previews.
-
-MCP inspection models a supported subset of the [configuration schema](https://learn.chatgpt.com/docs/config-file/config-reference).
-Stdio/HTTP definitions retain source and trust evidence. Multi-layer merges remain unresolved;
-plugin overrides do not establish an installed server. Policies restrict configured tool names,
-not a discovered tool inventory. Authentication availability is never checked.
-
-TOML uses a display allowlist. Arguments, inline environment/header values, OAuth secrets,
-helper commands and raw endpoint URLs are withheld. MCP debug output is aggregate only;
-configured endpoints show scheme, network category and port. Credential stores and
-sessions are not queried.
-
-Skill-declared MCP URL fields show `[URL withheld]`, retaining presence without URL
-validation or connection checks. Raw `agents/openai.yaml` previews are withheld; normalized
-declarations remain available in Evidence. Instruction-chain previews use best-effort
-redaction. `SKILL.md` and ordinary supporting-text previews are terminal-sanitized,
-but may contain private prose; their contents are not universally secret-redacted.
-
-Reads and traversal are bounded; configuration file symlinks are rejected. MCP limits:
-1,024 definitions, 256 entries per collection field. `url` parses endpoints without DNS.
-System/plugin coverage remains partial; eligible never means connected or invoked.
-See the roadmap for filesystem limits and deliberate modeling gaps.
-
-## Development
-
-`just check` runs formatting, Clippy, tests and release build; `just smoke` checks terminals.
-Bare `just` lists everyday commands: `run`, `build`, `fmt`, `lint`, `test`, `check`
-and `smoke`. `just fixtures` lists offline launchers; `just live` lists opt-in local
-checks. Listing either module does no collection or launching. Recipes run from the
-repository root, including when invoked from a subdirectory.
-The equivalent checks are `cargo fmt --all -- --check`,
-`cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`,
-then `python3 scripts/smoke_terminal.py`. The normal test suite leaves live checks,
-capture regeneration and PTY-only tests ignored; the smoke harness runs the terminal tests.
-Opt-in local checks: `just live reconcile`, `just live dependencies`, `just live diagnostics`,
-`just live skills`, `just live codex`, `just live mcp` (aggregate local evidence).
-`just live terminal` also launches the live TUI and cleanup preview in a PTY; it is opt-in.
-With a separate `CARGO_TARGET_DIR`, pass the release binary explicitly:
-`just smoke /path/to/target/release/den` or `just live terminal /path/to/target/release/den`.
-For documentation-only edits, verify commands and links without collecting live data
-or regenerating captures.
-
-See [ROADMAP.md](ROADMAP.md) and [AGENTS.md](AGENTS.md). UX-2B complete; deeper MCP security auditing is deferred.
+CI runs both on Ubuntu and macOS. Live checks against your own machine are opt-in
+(`just live`). More in [development](docs/DEVELOPMENT.md), [roadmap](ROADMAP.md) and
+[contributor rules](AGENTS.md).

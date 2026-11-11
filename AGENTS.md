@@ -2,7 +2,8 @@
 
 ## Project Structure & Module Organization
 
-Den is a read-only Rust terminal inspector for Homebrew and local Codex evidence.
+Den is a read-only Rust terminal inspector for a developer machine: Homebrew, Codex and
+Claude Code, cloud profiles (AWS, Kubernetes), Docker and language toolchains.
 Keep changes within the requested scope; later stages in `ROADMAP.md` are proposals.
 
 | Location | Responsibility |
@@ -22,7 +23,7 @@ Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing
 modules; do not funnel Codex/Skills models into the original snapshot resource type.
 Browsing keeps input in the inventory and updates a passive information panel.
-Tab switches areas (Homebrew / Agents) and Shift+Tab sections. Agents shows Codex and
+Tab switches areas (Homebrew / Agents / Cloud / Docker / Toolchains) and Shift+Tab sections. Agents shows Codex and
 Claude Code side by side (`src/agents.rs` matches their results into rows; collectors and
 privacy rules stay per tool). There are no inspectors: the Agents information panel stacks
 every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `]`.
