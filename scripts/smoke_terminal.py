@@ -96,7 +96,12 @@ def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None, 
                     continue  # wait for the resized frame before injecting keys
                 search_start = len(output)
                 _, keys_to_send = pending.pop(0)
-                os.write(master, keys_to_send)
+                # A list is sent as separate writes, 2 ms apart (Den waits 50 ms): escape
+                # sequences split the way a busy system or a slow link delivers them.
+                for index, chunk in enumerate(keys_to_send if isinstance(keys_to_send, list) else [keys_to_send]):
+                    if index:
+                        time.sleep(0.002)
+                    os.write(master, chunk)
             if select.select([status_read], [], [], 0)[0]:
                 result = int(os.read(status_read, 32))
                 while select.select([master], [], [], 0)[0]:
@@ -403,6 +408,13 @@ print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "source navigation must never invoke Homebrew"
     print("PASS: MCP search and no-match search remain offline")
+    run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, steps=[
+        # F3 three times with each ESC arriving before the rest of its sequence.
+        (b" skill", [b"\x1b", b"OR", b"\x1b", b"OR", b"\x1b", b"OR"]),
+        (b"0 servers", [b"\x1b", b"[Z"]),
+        ("Agents  › Hooks".encode(), b"q"),
+    ])
+    print("PASS: escape sequences split by the OS still read as F3 and Shift+Tab")
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
         (b" skill", b"\x1bOR\x1bOR\x1bOR"),
         (b"0 servers", b"?"),

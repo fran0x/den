@@ -28,6 +28,7 @@ pub mod graph;
 pub mod homebrew;
 #[doc(hidden)]
 pub mod inventory;
+mod keys;
 #[doc(hidden)]
 pub mod kube;
 #[doc(hidden)]

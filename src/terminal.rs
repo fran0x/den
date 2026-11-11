@@ -230,7 +230,17 @@ pub fn run(app: &mut App) -> io::Result<()> {
             if wait.map_or(Ok(true), event::poll)?
                 && let Event::Key(key) = event::read()?
             {
-                app.handle_key(key);
+                // A bare Esc may be the start of a sequence the OS split (F3, Page Down).
+                let keys = crate::keys::complete(key, || {
+                    if event::poll(crate::keys::ESC_WAIT)? {
+                        event::read().map(Some)
+                    } else {
+                        Ok(None)
+                    }
+                })?;
+                for key in keys {
+                    app.handle_key(key);
+                }
             }
         }
         Ok(())
