@@ -596,12 +596,15 @@ impl Configuration {
             let relevant: Vec<_> = self.rules.iter().filter(|r| self.layers[r.source].activity != Activity::Inactive && r.path.as_ref().is_some_and(|p| s.resolved.as_ref() == Some(p))).collect();
             let ambiguous = self.incomplete || self.rule_layers.iter().filter(|&&i| self.layers[i].activity != Activity::Inactive).count() > 1 || self.rules.iter().any(|r| self.layers[r.source].activity != Activity::Inactive && r.issue.is_some()) || relevant.iter().any(|r| self.layers[r.source].activity == Activity::Conditional) || relevant.iter().map(|r| r.enabled).collect::<BTreeSet<_>>().len() > 1;
             let source = relevant.last().map(|r| r.source);
-            let (label, explanation) = if ambiguous { ("Undetermined", "Conditional trust, incomplete metadata, conflicting entries or unknown array merge semantics") }
-            else if relevant.last().is_some_and(|r| r.enabled == Some(false)) { ("Explicitly disabled", "Applicable path-based configuration disables this discovered skill") }
-            else if relevant.last().is_some_and(|r| r.enabled == Some(true)) { ("Explicitly enabled", "Applicable path-based configuration enables this skill; eligibility still requires valid discovery metadata") }
-            else if s.metadata == skills::Validity::Valid && s.accessible && !s.incomplete && !s.duplicate && matches!(s.scope, skills::Scope::User | skills::Scope::Project | skills::Scope::Admin) { ("Eligible", "Valid discovered skill with no observed disabling rule under the modeled local configuration") }
-            else { ("Undetermined", "Discovery validation or activation of legacy/system-cache sources is not established") };
-            Enablement { label:label.into(), explanation:format!("{explanation}. Runtime overrides/policies and actual invocation are not observed."), source }
+            // Labels name the reason, so "Unknown" never stands alone.
+            let (label, explanation) = if ambiguous { ("Unknown · config unclear", "Config rules depend on project trust, conflict, are incomplete or merge in an unknown way") }
+            else if relevant.last().is_some_and(|r| r.enabled == Some(false)) { ("Disabled in config", "A config rule for this skill's path sets enabled = false") }
+            else if relevant.last().is_some_and(|r| r.enabled == Some(true)) { ("Enabled in config", "A config rule for this skill's path sets enabled = true; the skill still needs a valid SKILL.md") }
+            else if let Some(reason) = s.unknown_reason() { reason }
+            else if s.scope == skills::Scope::System { ("Unknown · bundled copy", "This is Codex's cached copy of a built-in skill; whether Codex loads it from here is not documented") }
+            else if s.scope == skills::Scope::Legacy { ("Unknown · legacy location", "Current Codex documentation does not say this location is read") }
+            else { ("Eligible", "Valid skill in a documented location, and no config rule disables it") };
+            Enablement { label:label.into(), explanation:explanation.into(), source }
         }).collect()
     }
     pub fn unresolved_skills(&self, inventory: &skills::Inventory) -> usize {

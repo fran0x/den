@@ -2,8 +2,10 @@ mod common;
 mod homebrew;
 mod navigation;
 use common::*;
-mod codex;
+mod agents;
+mod cloud;
 mod diagnostics;
+mod docker;
 mod skills;
 use ratatui::{
     Frame,
@@ -15,8 +17,7 @@ use ratatui::{
 
 use crate::{
     app::{App, Focus},
-    explorer::Section,
-    inventory::{HomebrewMetadata, installation_intent, safe_text},
+    inventory::{HomebrewMetadata, safe_text},
 };
 
 pub const HELP: &str = "Den — navigation\n\n\
@@ -68,15 +69,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         );
         return;
     }
-    if app.presentation.switcher.is_some() && !app.help {
-        navigation::switcher(frame, app);
-        return;
-    }
     if app.help {
         let body = chrome(
             frame,
             "Help",
-            "Navigation and evidence · scroll for all controls",
             "Read-only · nothing inspected is executed",
             false,
             "Esc:Back arrows:scroll",
@@ -97,48 +93,35 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     app.focus_inventory();
 
-    if app.module == crate::app::Module::Skills {
-        if app.codex.view == crate::codex::state::View::Skills {
-            skills::render(frame, &mut app.skills);
-        } else {
-            codex::render(frame, &mut app.codex);
-        }
+    if app.module == crate::app::Module::Agents {
+        agents::render(frame, app);
         return;
     }
-    let view = app.diagnostics.tab.map_or_else(
-        || format!("Homebrew / {}", app.explorer.section.label()),
-        |t| format!("Homebrew / Diagnostics / {}", t.label()),
-    );
-    let query = format!(
-        " /{}{}   {}Type:{}",
-        if app.searching { " " } else { " Search: " },
-        safe_text(&app.query),
-        if !app.is_homebrew() {
-            ""
-        } else if app.show_all {
-            "View:All  "
-        } else {
-            "View:Tools  "
-        },
-        app.filter.map_or("All", |k| k.label()),
-    );
+    if app.module == crate::app::Module::Cloud {
+        cloud::render(frame, app);
+        return;
+    }
+    if app.module == crate::app::Module::Docker {
+        docker::render(frame, app);
+        return;
+    }
     let status = if app.live {
         app.collection_message()
     } else {
-        format!(
-            "{}/{} resources · {}",
-            app.visible.len(),
-            app.inventory.resources.len(),
-            app.source_label
-        )
+        app.source_label.to_owned()
     };
     let body = chrome(
         frame,
-        &view,
-        &query,
+        app.destination().label(),
         &status,
         app.searching,
-        actions(app.searching),
+        if app.searching {
+            actions(true)
+        } else if app.is_homebrew() {
+            "a:tools/all Tab:area Shift+Tab:section"
+        } else {
+            "f:type Tab:area"
+        },
     );
     let panes = panes(body);
     if panes[0].width > 0 {
@@ -148,7 +131,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         if app.is_homebrew() {
             homebrew::information(frame, app, panes[1]);
         } else {
-            information(frame, panes[1], overview(app));
+            information(frame, panes[1], overview(app), ENLARGE_MORE);
         }
     }
 }
@@ -166,11 +149,14 @@ fn pane(title: &str, focused: bool) -> Block<'static> {
 
 fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     let block = pane(" Inventory ", app.focus == Focus::Inventory);
-    let mut inner = block.inner(area);
+    let inner = block.inner(area);
     frame.render_widget(block, area);
-    if app.is_homebrew() {
-        inner = homebrew::filters(frame, app, inner);
-    }
+    let view = if app.is_homebrew() {
+        homebrew::view_text(app)
+    } else {
+        format!("Type: {}", app.filter.map_or("All", |k| k.label()))
+    };
+    let inner = filter_line(frame, inner, view, &app.query, app.searching);
     if app.focus == Focus::Inventory {
         app.page_size = inner.height.max(1) as usize;
     }
@@ -180,16 +166,14 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                 app.collection_message()
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
-            } else if app.tools_only()
-                && app.query.is_empty()
-                && app.filter.is_none()
-                && app.homebrew_counts().all > 0
-            {
+            } else if app.tools_only() && app.query.is_empty() && app.homebrew_counts().all > 0 {
                 "No packages recorded as requested.\na: show all packages".into()
             } else if app.tools_only() {
-                "No matching tools.\na: show all · /:search · f:type · Esc:Back".into()
+                "No matching tools.\na: show all · /:search".into()
+            } else if app.is_homebrew() {
+                "No matches.\n/:search".into()
             } else {
-                "No matches.\n/:search · f:type · Esc:Back".into()
+                "No matches.\n/:search · f:type".into()
             })
             .wrap(Wrap { trim: true }),
             inner,
@@ -201,16 +185,8 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|&index| {
             let r = &app.inventory.resources[index];
-            ListItem::new(columns(
-                &format!(
-                    "{}{}",
-                    r.name,
-                    if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
-                        " [Cask]"
-                    } else {
-                        ""
-                    }
-                ),
+            let item = ListItem::new(columns(
+                &r.display_name(),
                 r.version.as_deref().unwrap_or("Unknown"),
                 &if app.is_homebrew() {
                     let users = app.graph.recorded_users(index);
@@ -236,7 +212,13 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                     r.description.clone()
                 },
                 inner.width,
-            ))
+            ));
+            // Tools stand out in bold, so All still shows what was installed on request.
+            if app.is_homebrew() && app.is_tool(r) {
+                item.style(Style::default().add_modifier(Modifier::BOLD))
+            } else {
+                item
+            }
         })
         .collect();
     let list = List::new(items)
@@ -249,297 +231,9 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     app.list_offset = state.offset();
 }
 
+/// The Homebrew page outside the package list is Diagnostics; packages have no inspector.
 fn render_details(frame: &mut Frame, app: &mut App, area: Rect) {
-    if app.diagnostics.tab.is_some() {
-        diagnostics::render(frame, app, area);
-        return;
-    }
-    if app.is_homebrew() && app.explorer.section != Section::Overview {
-        render_relationships(frame, app, area);
-        return;
-    }
-    let title = if app.evidence() {
-        " Evidence "
-    } else if app.is_homebrew() {
-        " Details / 1 Overview "
-    } else {
-        " Details "
-    };
-    let block = pane(title, app.focus == Focus::Details);
-    let inner = block.inner(area);
-    if app.focus == Focus::Details {
-        app.page_size = inner.height.max(1) as usize;
-    }
-    let text = if !app.evidence() {
-        overview(app)
-            .lines()
-            .map(|s| Line::from(safe_text(s)))
-            .collect()
-    } else if let Some(r) = app.resource() {
-        let mut lines = vec![
-            Line::styled(
-                safe_text(&r.name),
-                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-            ),
-            Line::from(format!("Kind: {}", r.kind.label())),
-            Line::from(format!(
-                "{}: {}",
-                if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
-                    "Homebrew-recorded version"
-                } else {
-                    "Installed version(s)"
-                },
-                safe_text(r.version.as_deref().unwrap_or("Unknown"))
-            )),
-            Line::from(format!("ID: {}", safe_text(&r.id))),
-            Line::from(format!(
-                "Path: {}",
-                safe_text(r.path.as_deref().unwrap_or("Unknown"))
-            )),
-            Line::from(""),
-            Line::from("What's installed?"),
-        ];
-        if let Some(metadata) = &r.homebrew {
-            lines.extend(homebrew_details(metadata));
-        }
-        if r.description.is_empty() {
-            lines.push(Line::from("Description: Unknown"));
-        }
-        lines.extend(
-            r.description
-                .split('\n')
-                .map(|line| Line::from(safe_text(line))),
-        );
-        lines.extend([
-            Line::from(""),
-            Line::from("Why is it here?"),
-            Line::from(safe_text(&r.reason)),
-            Line::from(format!("Origin: {}", safe_text(&r.origin))),
-            Line::from(""),
-            Line::from("Can I trust it?"),
-            Line::from("Unknown - not assessed. Snapshot claims are unverified."),
-        ]);
-        lines
-    } else {
-        vec![Line::from("Select a resource to inspect its details.")]
-    };
-    let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
-    app.detail_max = scroll_max(&paragraph, inner);
-    app.detail_scroll = app.detail_scroll.min(app.detail_max);
-    frame.render_widget(block, area);
-    frame.render_widget(paragraph.scroll((app.detail_scroll, 0)), inner);
-}
-
-fn homebrew_details(metadata: &HomebrewMetadata) -> Vec<Line<'static>> {
-    let mut lines = vec![Line::from(format!(
-        "Installation intent: {}",
-        metadata.intent().label()
-    ))];
-    let mut field = |label: &str, value: Option<&str>| {
-        lines.push(Line::from(format!(
-            "{label}: {}",
-            safe_text(value.filter(|s| !s.is_empty()).unwrap_or("Unknown"))
-        )));
-    };
-    match metadata {
-        HomebrewMetadata::Formula {
-            full_name,
-            tap,
-            homepage,
-            linked_keg,
-            installed,
-            dependencies,
-            ..
-        } => {
-            field("Full name", full_name.as_deref());
-            field("Tap", tap.as_deref());
-            field("Homepage", homepage.as_deref());
-            field("Linked keg", linked_keg.as_deref());
-            for keg in installed {
-                lines.push(Line::from(format!(
-                    "Keg {}: {}",
-                    safe_text(&keg.version),
-                    installation_intent(keg.installed_on_request, keg.installed_as_dependency)
-                        .label()
-                )));
-                lines.push(Line::from(format!(
-                    "  on_request: {}; as_dependency: {}",
-                    flag(keg.installed_on_request),
-                    flag(keg.installed_as_dependency)
-                )));
-                lines.push(Line::from(format!(
-                    "  Recorded runtime dependencies: {}",
-                    keg.runtime_dependencies
-                        .as_ref()
-                        .map_or("Unknown".into(), |d| d.len().to_string())
-                )));
-            }
-            lines.push(Line::from(format!(
-                "Declared dependency metadata: {} retained fields (2: explore)",
-                dependencies.len()
-            )));
-        }
-        HomebrewMetadata::Cask {
-            full_token,
-            display_names,
-            tap,
-            homepage,
-            installed_on_request,
-            installed_as_dependency,
-            ..
-        } => {
-            field("Full token", full_token.as_deref());
-            field(
-                "Display name",
-                (!display_names.is_empty())
-                    .then(|| display_names.join(", "))
-                    .as_deref(),
-            );
-            field("Tap", tap.as_deref());
-            field("Homepage", homepage.as_deref());
-            lines.push(Line::from(format!(
-                "on_request: {}; as_dependency: {}",
-                flag(*installed_on_request),
-                flag(*installed_as_dependency)
-            )));
-            lines.push(Line::from(
-                "Casks may self-update; the recorded version may differ from the application.",
-            ));
-        }
-    }
-    lines.push(Line::from(""));
-    lines
-}
-
-fn render_relationships(frame: &mut Frame, app: &mut App, area: Rect) {
-    let title = format!(
-        " Details / {} [{}] ",
-        app.explorer.section.label(),
-        if app.explorer.section == Section::Paths {
-            "paths"
-        } else if app.explorer.tree {
-            "tree / all records"
-        } else {
-            "direct"
-        }
-    );
-    let block = pane(&title, app.focus == Focus::Details);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-    let note = format!(
-        "{}Root: {} · {}",
-        if app.explorer.limited {
-            "PARTIAL RESULTS: "
-        } else {
-            ""
-        },
-        fit(
-            app.resource().map_or("No package", |r| r.name.as_str()),
-            inner.width.min(28) as usize
-        )
-        .trim_end(),
-        safe_text(&app.explorer.note)
-    );
-    if app.explorer.rows.is_empty() {
-        let paragraph = Paragraph::new(note).wrap(Wrap { trim: false });
-        app.detail_max = scroll_max(&paragraph, inner);
-        app.detail_scroll = app.detail_scroll.min(app.detail_max);
-        frame.render_widget(paragraph.scroll((app.detail_scroll, 0)), inner);
-        return;
-    }
-    let detail = app
-        .explorer
-        .rows
-        .get(app.explorer.selected)
-        .map(|r| safe_text(&r.detail))
-        .unwrap_or_default();
-    let footer = Paragraph::new(detail)
-        .wrap(Wrap { trim: false })
-        .style(Style::default().fg(Color::Reset));
-    let footer_height = if inner.height >= 6 {
-        footer
-            .line_count(inner.width)
-            .min(6)
-            .min((inner.height / 2) as usize) as u16
-    } else {
-        0
-    };
-    let header = Paragraph::new(if app.explorer.hierarchical() {
-        format!(
-            "{note}\n{}",
-            if app.focus == Focus::Details {
-                "Right:expand/child Left:collapse/parent Space:toggle"
-            } else {
-                "Tree: [+] collapsed · [-] expanded · ! cycle"
-            }
-        )
-    } else {
-        note
-    })
-    .wrap(Wrap { trim: true });
-    let header_height = if inner.height >= 4 {
-        header
-            .line_count(inner.width)
-            .min(4)
-            .min((inner.height / 2) as usize) as u16
-    } else {
-        0
-    };
-    let rows = Layout::vertical([
-        Constraint::Length(header_height),
-        Constraint::Min(1),
-        Constraint::Length(footer_height),
-    ])
-    .split(inner);
-    frame.render_widget(header, rows[0]);
-    if app.focus == Focus::Details {
-        app.page_size = rows[1].height.max(1) as usize;
-    }
-    // Keep the selected package readable even when its ancestor guides exceed the pane.
-    // Derive the horizontal window from selection/width, so resize and Back need no new state.
-    let hidden_levels = if app.explorer.hierarchical() {
-        let visible_levels = (rows[1].width as usize / 9).min(8);
-        app.explorer
-            .rows
-            .get(app.explorer.selected)
-            .map_or(0, |row| row.branch.len().saturating_sub(visible_levels + 1))
-    } else {
-        0
-    };
-    let items: Vec<_> = app
-        .explorer
-        .rows
-        .iter()
-        .map(|row| {
-            let omitted = hidden_levels.min(row.branch.len().saturating_sub(1));
-            let label = if omitted > 0 {
-                format!(
-                    "… {}",
-                    row.label.chars().skip(omitted * 3).collect::<String>()
-                )
-            } else {
-                row.label.clone()
-            };
-            ListItem::new(safe_text(&label))
-        })
-        .collect();
-    let list = List::new(items)
-        .highlight_symbol("> ")
-        .highlight_style(selection());
-    let mut state = ListState::default()
-        .with_selected(Some(app.explorer.selected))
-        .with_offset(app.explorer.offset);
-    frame.render_stateful_widget(list, rows[1], &mut state);
-    app.explorer.offset = state.offset();
-    frame.render_widget(footer, rows[2]);
-}
-
-fn flag(value: Option<bool>) -> &'static str {
-    match value {
-        Some(true) => "true",
-        Some(false) => "false",
-        None => "Unknown",
-    }
+    diagnostics::render(frame, app, area);
 }
 
 fn scroll_max(paragraph: &Paragraph<'_>, area: Rect) -> u16 {

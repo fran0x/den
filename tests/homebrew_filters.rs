@@ -3,11 +3,10 @@ use den::{
     app::{App, CollectionStatus, Focus, HomebrewCounts},
     graph::Evidence,
     homebrew::{self, CollectionError},
-    inventory::{Inventory, ResourceKind},
-    presentation::Detail,
+    inventory::Inventory,
     ui,
 };
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 
 fn inventory() -> Inventory {
     homebrew::parse(include_bytes!("../fixtures/brew.json")).unwrap()
@@ -38,7 +37,7 @@ fn draw(app: &mut App, w: u16, h: u16) -> String {
 }
 
 #[test]
-fn homebrew_starts_with_tools_and_counts_follow_search_and_type() {
+fn homebrew_starts_with_tools_and_counts_follow_search() {
     let mut a = app();
     assert!(!a.show_all);
     assert_eq!(names(&a), ["ripgrep", "requested-app"]);
@@ -47,13 +46,6 @@ fn homebrew_starts_with_tools_and_counts_follow_search_and_type() {
     assert!(a.show_all);
     assert_eq!(a.visible.len(), 7);
     assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 2 }); // Counts ignore the view.
-    a.filter = Some(ResourceKind::Formula);
-    a.refresh();
-    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 5, tools: 1 });
-    a.filter = Some(ResourceKind::Cask);
-    a.refresh();
-    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 2, tools: 1 });
-    a.filter = None;
     a.query = "widget".into();
     a.refresh();
     assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 2, tools: 0 });
@@ -93,9 +85,9 @@ fn tools_use_request_records_only_and_required_by_is_positive_recorded_evidence(
     let before: Vec<_> = a.inventory.resources.iter().map(|r| r.intent()).collect();
     // Conflicting and mixed records stay Unknown, so they are not tools.
     assert_eq!(names(&a), ["manual", "consumer"]);
-    a.explorer.preferred = Evidence::Current;
+    a.explorer.evidence = Evidence::Current;
     a.refresh();
-    assert_eq!(names(&a), ["manual", "consumer"]); // Inspector evidence does not redefine Tools.
+    assert_eq!(names(&a), ["manual", "consumer"]); // Panel evidence does not redefine Tools.
     key(&mut a, KeyCode::Char('a'));
     let required: Vec<_> = a
         .visible
@@ -141,15 +133,13 @@ fn tools_use_request_records_only_and_required_by_is_positive_recorded_evidence(
 }
 
 #[test]
-fn type_view_and_search_intersect_and_a_stays_text_during_search() {
+fn f_does_not_filter_types_and_a_stays_text_during_search() {
     let mut a = app();
     key(&mut a, KeyCode::Char('f'));
-    assert_eq!(names(&a), ["ripgrep"]);
+    assert_eq!(a.filter, None);
+    assert_eq!(names(&a), ["ripgrep", "requested-app"]);
     key(&mut a, KeyCode::Char('a'));
-    assert_eq!(
-        names(&a),
-        ["ripgrep", "pcre2", "python@3.12", "widget", "legacy"]
-    );
+    assert_eq!(a.visible.len(), 7);
     key(&mut a, KeyCode::Char('/'));
     for c in "pcrea".chars() {
         key(&mut a, KeyCode::Char(c));
@@ -169,26 +159,27 @@ fn type_view_and_search_intersect_and_a_stays_text_during_search() {
 #[test]
 fn view_survives_area_changes_and_back_from_a_hidden_related_package() {
     let mut a = app();
-    key(&mut a, KeyCode::Tab);
-    key(&mut a, KeyCode::Tab);
+    for _ in 0..4 {
+        key(&mut a, KeyCode::Tab); // Agents, Cloud, Docker, back to Homebrew.
+    }
     assert!(!a.show_all);
     assert_eq!(a.resource().unwrap().name, "ripgrep");
-    key(&mut a, KeyCode::Enter);
-    a.open_detail(Detail::Dependencies);
+    key(&mut a, KeyCode::Enter); // Packages have no inspector.
+    assert!(!a.inspecting());
+    // A diagnostic jump to a dependency selects it in Packages, showing all packages.
     let pcre2 = a
-        .explorer
-        .rows
+        .inventory
+        .resources
         .iter()
-        .position(|r| r.label.contains("pcre2"))
+        .position(|r| r.name == "pcre2")
         .unwrap();
-    a.explorer.selected = pcre2;
-    key(&mut a, KeyCode::Enter);
+    a.jump_to(a.graph.preferred(pcre2));
+    assert!(!a.inspecting());
     assert_eq!(a.resource().unwrap().name, "pcre2");
-    assert!(a.show_all); // The dependency is not a tool; the jump shows all packages.
+    assert!(a.show_all);
     key(&mut a, KeyCode::Esc);
     assert_eq!(a.resource().unwrap().name, "ripgrep");
     assert!(!a.show_all);
-    assert_eq!(a.explorer.selected, pcre2);
 }
 
 #[test]
@@ -221,16 +212,13 @@ fn view_counts_and_row_evidence_are_visible_at_supported_sizes() {
     for (w, h) in [(80, 24), (120, 32), (160, 45)] {
         let mut a = app();
         let screen = draw(&mut a, w, h);
-        assert!(screen.contains("View:Tools"), "{w}: {screen}");
-        assert!(
-            screen.contains("[Tools 2] · All 7 · a: show all · f: type"),
-            "{w}: {screen}"
-        );
+        assert!(screen.contains("[Tools 2] · All 7"), "{w}: {screen}");
+        assert!(screen.lines().last().unwrap().contains("a:tools/all"));
         assert_eq!(names(&a), ["ripgrep", "requested-app"]);
         key(&mut a, KeyCode::Char('a'));
         let screen = draw(&mut a, w, h);
-        assert!(screen.contains("View:All"));
-        assert!(screen.contains("Tools 2 · [All 7] · a: tools only"));
+        assert!(screen.contains("Tools 2 · [All 7]"));
+        assert!(!screen.contains("Type:") && !screen.contains("f:type"));
         // Narrow side-by-side rows keep "required by" rather than the intent word.
         let pcre2 = if w == 120 {
             "required by 1"
@@ -257,6 +245,27 @@ fn view_counts_and_row_evidence_are_visible_at_supported_sizes() {
     for (w, h) in [(0, 0), (30, 10), (45, 20)] {
         draw(&mut a, w, h);
     }
+}
+
+#[test]
+fn tools_are_bold_and_casks_are_bracketed() {
+    let mut a = app();
+    key(&mut a, KeyCode::Char('a'));
+    let mut t = Terminal::new(TestBackend::new(120, 32)).unwrap();
+    t.draw(|f| ui::render(f, &mut a)).unwrap();
+    let buffer = t.backend().buffer();
+    let row = |name: &str| {
+        (0..32)
+            .find(|&y| {
+                let line: String = (0..60).map(|x| buffer[(x, y)].symbol()).collect();
+                line.contains(&format!(" {name} "))
+            })
+            .unwrap_or_else(|| panic!("{name} row"))
+    };
+    let bold = |y: u16| buffer[(4, y)].modifier.contains(Modifier::BOLD);
+    // ripgrep and the requested-app cask are tools; pcre2 and the widget cask are not.
+    assert!(bold(row("ripgrep")) && bold(row("[requested-app]")));
+    assert!(!bold(row("pcre2")) && !bold(row("[widget]")));
 }
 
 #[test]

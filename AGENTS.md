@@ -9,7 +9,7 @@ Keep changes within the requested scope; later stages in `ROADMAP.md` are propos
 | --- | --- |
 | `src/main.rs`, `src/terminal.rs` | CLI arguments, terminal lifecycle and collection/event loop |
 | `src/app.rs` | Homebrew application state, refresh and diagnostic requests |
-| `src/presentation.rs`, `src/presentation/location.rs` | Shared section/inspector navigation and bounded per-area Back history |
+| `src/presentation.rs`, `src/presentation/location.rs` | Shared section/inspector navigation and bounded per-section Back history |
 | `src/ui.rs`, `src/ui/` | Rendering, layout, focused action hints and contextual help |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
 | `src/homebrew.rs`, `src/homebrew/` | Homebrew normalization, bounded subprocesses and reconciliation tests |
@@ -21,7 +21,10 @@ Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing
 modules; do not funnel Codex/Skills models into the original snapshot resource type.
 Browsing keeps input in the inventory and updates a passive information panel.
-Tab/Shift+Tab switches top-level areas; explicit inspectors use `[` / `]` for sections/content.
+Tab switches areas (Homebrew / Agents) and Shift+Tab sections. Agents shows Codex and
+Claude Code side by side (`src/agents.rs` matches their results into rows; collectors and
+privacy rules stay per tool). There are no inspectors: the Agents information panel stacks
+every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `]`.
 
 ## Build, Test, and Development Commands
 
@@ -85,8 +88,19 @@ Den stays read-only. Production subprocesses use the existing bounded Homebrew r
 `brew info --json=v2 --installed`, `brew missing`, `brew leaves` and
 `brew autoremove --dry-run`. Keep fixed arguments, time/output limits and cancellation;
 never add removal/repair commands or execute inspected scripts, MCP servers or helpers.
+Docker uses the same runner (`homebrew::run_bounded`) for exactly the four listings in
+`docker::COMMANDS`, only when the Docker area is opened; never add commands that change
+state or read container internals (`inspect`, `logs`, `exec`).
 Homebrew may fetch metadata despite disabled auto-update/analytics. Demo/snapshot modes
 never run Homebrew or discover live Codex data; fixtures stay within their explicit roots.
+
+From `~/.claude.json` keep only `mcpServers` and the selected project's MCP approvals,
+toggles and trust flag; never surface its account or session data. Claude credential
+helpers stay withheld and hooks are never run.
+
+AWS: keep only section and key names from the credentials file, never values; show
+config values only from the allowlist in `src/aws.rs`; never read SSO or CLI caches or
+call AWS. Account IDs and role ARNs are shown in full by decision.
 
 Sanitize every untrusted string before terminal display. Preserve descriptor-relative,
 bounded filesystem reads and configuration/instruction symlink rejection. Do not query

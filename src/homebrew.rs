@@ -2,6 +2,8 @@
 mod process;
 #[cfg(test)]
 mod reconciliation;
+#[cfg(unix)]
+pub(crate) use process::run_bounded;
 pub use process::{Collector, CommandOutput, collect, diagnose};
 
 use crate::inventory::{HomebrewMetadata, InstalledKeg, Inventory, Resource, ResourceKind};

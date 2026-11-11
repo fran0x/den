@@ -33,6 +33,27 @@ fn command() -> std::process::Command {
     command
 }
 
+/// The same bounded runner for other read-only tools (Docker): the caller fixes the
+/// program and arguments; the child gets its own process group, a timeout, output caps
+/// and cancellation, and is killed with its descendants when dropped.
+#[cfg(unix)]
+pub(crate) fn run_bounded(
+    command: &mut std::process::Command,
+    cancel: &AtomicBool,
+    timeout: std::time::Duration,
+    stdout: usize,
+) -> Result<CommandOutput, CollectionError> {
+    unix::capture(
+        command,
+        cancel,
+        unix::Limits {
+            timeout,
+            stdout,
+            stderr: 64 * 1024,
+        },
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandOutput {
     pub code: Option<i32>,

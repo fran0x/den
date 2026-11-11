@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crate::{
     diagnostics::{Check, CheckState, Health, Item, Report, Tab, View},
     explorer::{Explorer, Section},
-    graph::{Evidence, Graph, Installation},
+    graph::{Graph, Installation},
     homebrew::CollectionError,
     inventory::{InstallationIntent, Inventory, Resource, ResourceKind, safe_text},
 };
@@ -25,10 +25,21 @@ pub enum Focus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Module {
     Homebrew,
-    Skills,
+    /// Codex and Claude Code side by side.
+    Agents,
+    /// Cloud tools: AWS profiles.
+    Cloud,
+    /// Docker containers, images and volumes.
+    Docker,
+}
+impl Module {
+    /// Position in the top bar and in Tab order.
+    pub fn index(self) -> usize {
+        self as usize
+    }
 }
 
-/// Package counts for the current search and type filter, independent of Tools/All.
+/// Package counts for the current search, independent of Tools/All.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct HomebrewCounts {
     pub all: usize,
@@ -41,6 +52,10 @@ pub struct App {
     pub module: Module,
     pub skills: crate::skills::state::State,
     pub codex: crate::codex::state::State,
+    pub claude: crate::claude::state::State,
+    pub agents: crate::agents::State,
+    pub aws: crate::aws::state::State,
+    pub docker: crate::docker::state::State,
     pub inventory: Inventory,
     pub graph: Graph,
     pub explorer: Explorer,
@@ -81,6 +96,10 @@ impl App {
             module: Module::Homebrew,
             skills: crate::skills::state::State::default(),
             codex: crate::codex::state::State::default(),
+            claude: crate::claude::state::State::default(),
+            agents: crate::agents::State::default(),
+            aws: crate::aws::state::State::default(),
+            docker: crate::docker::state::State::default(),
             graph,
             health,
             diagnostics: View::default(),
@@ -129,7 +148,6 @@ impl App {
         if self.explorer.installation.as_ref().map(|s| s.node) != node {
             self.explorer.select(&self.graph, node);
         }
-        self.explorer.rebuild(&self.graph, &self.inventory);
     }
 
     pub fn jump_to(&mut self, target: Installation) {
@@ -137,12 +155,8 @@ impl App {
             return;
         }
         self.remember();
-        self.presentation.page = crate::presentation::Page::Inspector {
-            detail: crate::presentation::Detail::Overview,
-            focus: crate::presentation::InspectorFocus::Content,
-            selected: 0,
-            query: String::new(),
-        };
+        // Packages have no inspector: select the package in the list; Back returns.
+        self.presentation.page = crate::presentation::Page::Browse;
         self.diagnostics = View::default();
         // Related packages may be hidden by the current query or Tools view. Back restores that context.
         self.query.clear();
@@ -156,7 +170,7 @@ impl App {
         }
         self.explorer.section = Section::Overview;
         self.detail_scroll = 0;
-        self.focus = Focus::Details;
+        self.focus = Focus::Inventory;
         self.sync_explorer();
     }
 
@@ -286,7 +300,7 @@ impl App {
     pub fn tools_only(&self) -> bool {
         !self.show_all && self.is_homebrew()
     }
-    /// Counts for the search/type scope, independent of Tools/All.
+    /// Counts for the search scope, independent of Tools/All.
     pub fn homebrew_counts(&self) -> HomebrewCounts {
         let mut counts = HomebrewCounts::default();
         for resource in self
@@ -340,23 +354,18 @@ impl App {
         self.finish_navigation(previous);
     }
     pub(crate) fn handle_key_inner(&mut self, key: KeyEvent) {
-        if self.module == Module::Skills {
-            if self.codex.view != crate::codex::state::View::Skills {
-                if self.codex.handle(key) {
-                    self.quit = true;
-                }
-                return;
+        if self.module == Module::Agents {
+            self.agents_key(key);
+            return;
+        }
+        if self.module == Module::Cloud {
+            if self.aws.handle(key) {
+                self.quit = true;
             }
-            if !self.skills.searching
-                && key.code == KeyCode::Char('r')
-                && self.codex.context.is_some()
-            {
-                if !self.codex.running {
-                    self.codex.requested = true;
-                }
-                return;
-            }
-            if self.skills.handle(key) {
+            return;
+        }
+        if self.module == Module::Docker {
+            if self.docker.handle(key) {
                 self.quit = true;
             }
             return;
@@ -390,87 +399,15 @@ impl App {
             return;
         }
         match key.code {
-            KeyCode::Right if self.tree_content_focused() => {
-                self.explorer.expand_or_child();
-                self.sync_explorer();
-            }
-            KeyCode::Left if self.tree_content_focused() => {
-                self.explorer.collapse_or_parent();
-                self.sync_explorer();
-            }
-            KeyCode::Char(ch @ '1'..='4') if self.is_homebrew() => {
-                self.diagnostics.tab = None;
-                self.explorer.section = match ch {
-                    '1' => Section::Overview,
-                    '2' => Section::Dependencies,
-                    '3' => Section::RequiredBy,
-                    _ => Section::Paths,
-                };
-                self.explorer.clear_navigation();
-                self.focus = Focus::Details;
-                self.detail_scroll = 0;
-                self.sync_explorer();
-            }
-            KeyCode::Char('s') if self.focus == Focus::Details && self.is_homebrew() => {
-                self.explorer.evidence = match self.explorer.evidence {
-                    Evidence::Recorded => Evidence::Current,
-                    Evidence::Current => Evidence::Recorded,
-                };
-                self.explorer.preferred = self.explorer.evidence;
-                self.explorer.clear_navigation();
-                self.sync_explorer();
-            }
-            KeyCode::Char('V') if self.focus == Focus::Details && self.is_homebrew() => {
-                self.explorer.cycle_keg(&self.graph);
-                self.sync_explorer();
-            }
-            KeyCode::Char('t') if self.relationship_content_focused() => {
-                self.explorer.tree = !self.explorer.tree;
-                self.explorer.clear_navigation();
-                self.sync_explorer();
-            }
-            KeyCode::Char(' ') if self.tree_content_focused() => {
-                self.explorer.toggle_expansion();
-                self.sync_explorer();
-            }
-            KeyCode::Enter
-                if self.focus == Focus::Details && self.explorer.section != Section::Overview =>
-            {
-                if let Some(target) = self
-                    .explorer
-                    .rows
-                    .get(self.explorer.selected)
-                    .and_then(|r| r.target.clone())
-                {
-                    self.jump_to(target);
-                }
-            }
             KeyCode::Backspace => self.back(),
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('/') => {
                 self.searching = true;
                 self.focus = Focus::Inventory;
             }
-            KeyCode::Esc => {
-                self.query.clear();
-                self.filter = None;
-                self.show_all = false;
-                self.refresh();
-            }
-            KeyCode::Tab | KeyCode::BackTab => {
-                self.focus = match self.focus {
-                    Focus::Inventory => Focus::Details,
-                    Focus::Details => Focus::Inventory,
-                }
-            }
-            KeyCode::Enter | KeyCode::Right => self.focus = Focus::Details,
-            KeyCode::Left => self.focus = Focus::Inventory,
-            KeyCode::Char('f') => {
-                let kinds: &[ResourceKind] = if self.is_homebrew() {
-                    &[ResourceKind::Formula, ResourceKind::Cask]
-                } else {
-                    &ResourceKind::ALL
-                };
+            // Homebrew has no type filter: casks are bracketed in the list instead.
+            KeyCode::Char('f') if !self.is_homebrew() => {
+                let kinds = &ResourceKind::ALL;
                 self.filter = match self.filter {
                     None => Some(kinds[0]),
                     Some(kind) => kinds
@@ -644,10 +581,6 @@ impl App {
             return;
         }
         if self.focus == Focus::Details {
-            if self.explorer.section != Section::Overview && !self.explorer.rows.is_empty() {
-                self.explorer.move_by(delta);
-                return;
-            }
             self.detail_scroll = (self.detail_scroll as usize)
                 .saturating_add_signed(delta)
                 .min(self.detail_max as usize) as u16;

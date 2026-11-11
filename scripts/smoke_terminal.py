@@ -175,20 +175,27 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
             (b"Inventory", b"j"),
-            (b"> requested-app", b"\t"),
-            (b"Skills inventory", b"\x1b[Z"),
-            (b"> requested-app", b"\r"),
-            (b"Inspector / Overview", b"\t"),
-            (b"Skills inventory", b"\x1b[Z"),
-            (b"Inspector / Overview", b"q"),
+            (b"> [requested-app]", b"\t"),
+            ("Agents  › Skills".encode(), b"\t"),
+            ("Cloud  › AWS".encode(), b"\t"),
+            ("Docker  › Containers".encode(), b"\t"),
+            (b"> [requested-app]", b"\x1b[Z"),
+            (b"Diagnostics", b"\t"),
+            ("Agents  › Skills".encode(), b"\t"),
+            ("Cloud  › AWS".encode(), b"\t"),
+            ("Docker  › Containers".encode(), b"\t"),
+            (b"Diagnostics", b"\x1b[Z"),
+            (b"> [requested-app]", b"q"),
         ])
     assert not calls.exists(), "area switching must preserve snapshot isolation"
-    print("PASS: Tab/Shift-Tab areas restore selection and explicit inspectors at three sizes")
+    print("PASS: Tab switches areas and Shift+Tab sections, restoring selection at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
             (b"[Tools 2]", b"a"),
             (b"[All 7]", b"\t"),
-            (b"Skills inventory", b"\x1b[Z"),
+            ("Agents  › Skills".encode(), b"\t"),
+            ("Cloud  › AWS".encode(), b"\t"),
+            ("Docker  › Containers".encode(), b"\t"),
             (b"required by 1", b"/zzz\r"),
             (b"No matches", b"a"),
             (b"No matching tools", b"q"),
@@ -207,111 +214,178 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     assert not calls.exists(), "passive trees must never execute Homebrew"
     print("PASS: passive dependency trees in both directions with evidence/keg context at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
-        run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
-            (b"Inventory", b"\r/dependencies\r\r"),
-            (b"[+] mid", b"\x1b[C"),
-            (b"[-] mid", b"\x1b[C"),
-            (b"dependency recorded version 1", b"\x1b[D"),
-            (b"dependency recorded version 2", b"\x1b[D"),
-            (b"[+] mid", b"\r"),
-            (b"1 Overview", b"\x7f"),
-            (b"[+] mid", b"3"),
-            (b"Required by", b"4"),
-            (b"Dependency paths", b"s"),
-            (b"Current declarations", b"q"),
+        output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
+            (b"[Tools 5]", b"\r\x1b[Cgvz2a"),
+            (b"[All 26]", b"q"),
         ])
-    assert not calls.exists(), "dependency exploration must remain offline"
-    print("PASS: dependency trees, expand/child/collapse/parent, inspect/back and evidence at three sizes")
+        text = visible_text(output)
+        assert "Reports" not in text and "Sections" not in text, "packages must not open an inspector or switcher"
+    assert not calls.exists(), "package browsing must remain offline"
+    print("PASS: packages have no inspector and g opens nothing at three sizes")
     run_pty([binary, "--brew-snapshot", "fixtures/brew-diagnostics.json"], env=isolated_env, steps=[
         (b"Inventory", b"5"),
         (b"Unresolved", b"\r \x7f\r"),
-        (b"1 Overview", b"\x7f6c"),
+        ("› Packages".encode(), b"\x7f6c"),
         (b"Not checked", b"7c8coq"),
     ])
     assert not calls.exists(), "snapshot diagnostics must never execute Homebrew"
     print("PASS: snapshot diagnostic drill-down, jump/back, and live-check isolation")
     run_pty([binary, "--skills-fixture", "fixtures/skills"], env=isolated_env, steps=[
-        (b"4 discovered skills", b"f2"),
-        (b"Alpha instructions", b"3"),
-        (b"3 Files", b"\r"),
-        (b"Instructions", b"\x7f4"),
-        (b"4 Validation", b"5"),
-        (b"Discovery coverage", b"\t"),
-        (b"fixture (Homebrew unavailable)", b"\x1b[Z"),
-        (b"Codex / Skills", b"\x1b/alpha\r1rq"),
+        (b"Findings (", b"\x1b[6~" * 6),
+        (b"Codex discovery coverage", b"\t"),
+        ("Cloud  › AWS".encode(), b"\t"),
+        ("Docker  › Containers".encode(), b"\t"),
+        (b"fixture (Homebrew unavailable)", b"\x1b[Z\t"),
+        ("Agents  › Skills".encode(), b"\x1b/alpha\r1rq"),
     ])
     assert not calls.exists(), "skills fixtures and module switching must never invoke Homebrew"
     run_pty([binary, "--brew-snapshot", "fixtures/brew.json", "--skills"], env=isolated_env, steps=[
-        (b"no filesystem discovery", b"rq"),
+        (b"Codex not collected in this mode", b"rq"),
     ])
     assert not calls.exists(), "snapshot Skills view must remain isolated"
-    print("PASS: Skills fixture navigation, files, findings, coverage, module switching and snapshot isolation")
+    print("PASS: Skills panel, PgDn to coverage, module switching and snapshot isolation")
     output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, steps=[
-        (b"1 discovered skills", b"\x1bOR"),
-        (b"Codex / Configuration", b"/model\r\re"),
-        (b"Raw TOML is never displayed", b"\x7f\x1bOR"),
-        (b"Codex / Instructions", b"/Selected\r\r/preview\r\r"),
-        (b"Synthetic global guidance", b"\x7fr"),
-        (b"Locally resolved", b"q"),
+        (b"1 skill", b"\x1bOR"),
+        (b"Synthetic global guidance", b"\x1bOR"),
+        ("› Settings".encode(), b"/model\re"),
+        (b"Raw TOML is never displayed", b"\x7fr"),
+        (b" settings", b"q"),
     ])
     assert b"PRIVATE-CONFIG-SENTINEL" not in output
     assert b"PRIVATE-INSTRUCTION-SENTINEL" not in output
     assert not calls.exists(), "Codex fixture must never execute Homebrew"
     run_pty([binary, "--demo", "--skills"], env=isolated_env, steps=[
-        (b"no filesystem discovery", b"\x1bORr"),
-        (b"Unavailable in snapshot", b"\x1bORq"),
+        (b"Codex not collected in this mode", b"\x1bORr"),
+        (b"No instruction files found", b"\x1bORq"),
     ])
     assert not calls.exists(), "snapshot configuration must remain isolated"
-    print("PASS: Codex configuration sources, redacted instruction previews, refresh and snapshot isolation")
+    print("PASS: Codex settings sources, redacted instruction previews, refresh and snapshot isolation")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, steps=[
-        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
-        (b"7 MCP servers", b"/docs\r2"),
-        (b"Launcher: npx", b"3"),
-        (b"Section 3: Authentication", b"4"),
-        (b"Allowlist first", b"5e"),
-        (b"Codex / Configuration", b"\x7f6"),
-        (b"Section 6: Findings", b"q"),
+        (b" skill", b"\x1bOR\x1bOR\x1bOR"),
+        (b"7 servers", b"/docs\r"),
+        (b"Launcher: npx", b"\x1b[6~"),
+        (b"PgUp", b"e"),
+        ("› Settings".encode(), b"\x7f"),
+        # Back returns to MCP (unit tests check the restored panel position).
+        ("Agents  › MCP".encode(), b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "MCP inspection must not invoke Homebrew"
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, size=size, steps=[
-            (b"discovered skills", b"/example\r\r"),
-            (b"Inspector / Overview", b"/evidence\r\r"),
-            (b"Inspector / Evidence", b"?"),
+            (b" skill", b"/example\r"),
+            (b"Where: User", b"?"),
             (b"Help", b"\x1b"),
-            (b"Inspector / Evidence", b"\x1b"),
-            (b"Inspector / Overview", b"\x1b"),
-            (b"Skills inventory", b"g"),
-            (b"Sections", b"/configuration\r"),
-            (b"Codex / Configuration", b"g/mcp\r"),
-            (b"Codex / MCP", b"q"),
+            # Help covers the whole screen, so the list title returns only once it closes.
+            (b"> Skills", b"\x1b[Z"),
+            ("› Instructions".encode(), b"\x1b[Z\x1b[Z"),
+            ("› MCP".encode(), b"q"),
         ])
         assert b"PRIVATE-CONFIG-SENTINEL" not in output
         assert b"PRIVATE-INSTRUCTION-SENTINEL" not in output
-    print("PASS: section switcher, inspector Evidence and Esc history at 80x24, 120x32 and 160x45")
+    print("PASS: Shift+Tab sections, panel, help and Esc at 80x24, 120x32 and 160x45")
+    for size in [(80, 24), (120, 32)]:
+        output = run_pty([binary, "--claude-fixture", "fixtures/claude"], env=isolated_env, size=size, steps=[
+            (b"1 in both", b"\x1b[Z"),
+            (b"In reading order", b"j"),
+            (b"Codex: Used", b"\t"),
+            ("Cloud  › AWS".encode(), b"\t"),
+            ("Docker  › Containers".encode(), b"\t"),
+            ("Homebrew  › Packages".encode(), b"\t"),
+            ("Agents  › Instructions".encode(), b"\x1b[Z"),
+            ("Agents  › Settings".encode(), b"\x1b[Z"),
+            (b"1 differ", b"\x1b[Z"),
+            ("Agents  › Hooks".encode(), b"\x1b[Z"),
+            ("Agents  › Plugins".encode(), b"q"),
+        ])
+        assert b"PRIVATE-" not in output
+    assert not calls.exists(), "Claude inspection must not invoke Homebrew"
+    print("PASS: Agents compares Codex and Claude Code: skills, instructions, settings, MCP differs, hooks, plugins; no private values")
+    for size in [(80, 24), (120, 32)]:
+        output = run_pty([binary, "--aws-fixture", "fixtures/aws"], env=isolated_env, size=size, steps=[
+            (b"12 profiles", b"/broken\r"),
+            (b"source_profile 'nowhere'", b"\x15\x1b/\x15\r\x1b[F"),
+            (b"SSO session", b"\t"),
+            ("Docker  › Containers".encode(), b"\t"),
+            ("Homebrew  › Packages".encode(), b"\t\t"),
+            ("Cloud  › AWS".encode(), b"q"),
+        ])
+        assert b"PRIVATE-" not in output
+    assert not calls.exists(), "AWS inspection must not invoke Homebrew"
+    print("PASS: Cloud › AWS profiles, problems, search and Tab; no credential values")
+    for size in [(80, 24), (120, 32)]:
+        output = run_pty([binary, "--docker-fixture", "fixtures/docker"], env=isolated_env, size=size, steps=[
+            (b"3 containers", b"\x1b[Z"),
+            (b"5 images", b"\x1b[Z"),
+            (b"3 volumes", b"/unused\r"),
+            (b"anonymous", b"\t"),
+            ("Homebrew  › Packages".encode(), b"q"),
+        ])
+        assert b"PRIVATE-" not in output
+    assert not calls.exists(), "Docker fixtures must not invoke Homebrew"
+    print("PASS: Docker containers, images, volumes and disk use from fixtures; no private values")
+    with tempfile.TemporaryDirectory(prefix="den-docker-") as docker_dir:
+        fake_docker = Path(docker_dir) / "docker"
+        # Den may run only these four listings; anything else fails the smoke check.
+        fake_docker.write_text(f"#!{sys.executable}\n" + """
+import os, pathlib, sys
+allowed = {
+    ('container', 'ls', '--all', '--no-trunc', '--format', '{{json .}}'): 'containers',
+    ('image', 'ls', '--no-trunc', '--format', '{{json .}}'): 'images',
+    ('volume', 'ls', '--format', '{{json .}}'): 'volumes',
+    ('system', 'df', '--format', '{{json .}}'): 'disk',
+}
+args = tuple(sys.argv[1:])
+log = pathlib.Path(__file__).with_name('docker-calls')
+log.write_text((log.read_text() if log.exists() else '') + ' '.join(args) + '\\n')
+assert args in allowed, args
+assert os.environ.get('DOCKER_CLI_HINTS') == 'false'
+if pathlib.Path(__file__).with_name('down').exists():
+    print('Cannot connect to the Docker daemon PRIVATE-DOCKER-ERROR', file=sys.stderr)
+    sys.exit(1)
+print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
+""")
+        fake_docker.chmod(0o700)
+        docker_env = dict(os.environ, PATH=docker_dir)
+        run_pty([binary], env=docker_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t"),
+            (b"3 containers", b"q"),
+        ])
+        log = (Path(docker_dir) / "docker-calls").read_text().splitlines()
+        assert sorted(log) == sorted([
+            "container ls --all --no-trunc --format {{json .}}",
+            "image ls --no-trunc --format {{json .}}",
+            "volume ls --format {{json .}}",
+            "system df --format {{json .}}",
+        ]), log
+        (Path(docker_dir) / "down").write_text("")
+        output = run_pty([binary], env=docker_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t"),
+            (b"Docker daemon not reachable", b"q"),
+        ])
+        assert b"PRIVATE-DOCKER-ERROR" not in output
+    print("PASS: Docker runs only the four listing commands, only when opened; a stopped daemon is explained")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
-        (b"discovered skills", b"g/mcp\r"),
-        (b"7 MCP servers", b"/docs\r\r/sources\r\r"),
-        (b"Codex / Configuration", b"\x1b"),
-        (b"Codex / MCP", b"\x1b"),
-        (b"MCP inventory", b"/\x15absent\r"),
-        (b"No matching entries", b"q"),
+        (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
+        (b"7 servers", b"/docs\re"),
+        ("› Settings".encode(), b"\x1b"),
+        ("› MCP".encode(), b"/\x15absent\r"),
+        (b"No matches", b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "source navigation must never invoke Homebrew"
-    print("PASS: source inspector Back restores MCP selection; no-match search remains offline")
+    print("PASS: e source jump and Back restore MCP selection; no-match search remains offline")
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
-        (b"discovered skills", b"\x1bOR\x1bOR\x1bOR"),
-        (b"0 MCP servers", b"?"),
+        (b" skill", b"\x1bOR\x1bOR\x1bOR"),
+        (b"0 servers", b"?"),
         (b"Den ", b"?q"),
     ])
     run_pty([binary, "--demo", "--skills"], env=isolated_env, steps=[
-        (b"no filesystem discovery", b"\x1bOR\x1bOR\x1bORr"),
-        (b"Unavailable in snapshot", b"q"),
+        (b"Codex not collected in this mode", b"\x1bOR\x1bOR\x1bORr"),
+        (b"No MCP servers found", b"q"),
     ])
     assert not calls.exists(), "snapshot MCP must not request live data"
-    print("PASS: MCP sections, source jump/back, search, empty/partial isolation, resize and redaction")
+    print("PASS: MCP panel, source jump/back, search, empty/partial isolation, resize and redaction")
     output = run_pty([binary], env=isolated_env, steps=[
         (b"Loading Homebrew", b"?"),
         (b"Help", b"?"),
@@ -354,7 +428,7 @@ else:
         (b"Homebrew found no", b"o"),
         (b"Original Homebrew stdout", b"\x7f6c"),
         (b"Confirmed finding", b"\r"),
-        (b"1 Overview", b"\x7f7co"),
+        ("› Packages".encode(), b"\x7f7co"),
         (b"Homebrew reports 2", b"8c"),
         (b"Check failed", b"or"),
         (b"STALE", b""),
@@ -381,17 +455,16 @@ if "--live" in sys.argv[2:]:
     run_pty([binary], steps=[(b"Loaded ", b"8co"), (b"Original Homebrew stdout", b"q")])
     print("PASS: real Homebrew inventory and on-demand cleanup preview render and exit cleanly")
     run_pty([binary, "--project", str(Path.cwd()), "--skills"], steps=[
-        (b"discovered skills", b"2"),
-        (b"Instructions (data)", b"5"),
-        (b"Discovery coverage", b"q"),
+        (b" skill", b"\x1b[6~" * 40),
+        (b"Codex discovery coverage", b"q"),
     ])
     print("PASS: real Skills discovery, instructions, coverage and terminal restoration")
 
 if "--live" in sys.argv[2:]:
     run_pty([binary, "--skills"], steps=[
-        (b"discovered skills", b"\x1bOR"),
-        (b"Locally resolved", b"\x1bOR"),
-        (b"Codex / Instructions", b"\x1bOR"),
-        (b"MCP servers", b"123456q"),
+        (b" skill", b"\x1bOR"),
+        (b" folder", b"\x1bOR"),
+        (b" settings", b"\x1bOR"),
+        (b" servers", b"\x1b[6~q"),
     ])
     print("PASS: live Codex configuration, instructions and MCP render without server execution")

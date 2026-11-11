@@ -4,7 +4,8 @@ Den is an inspector, not a package manager or administration tool. Each stage sh
 remain read-only, independently demonstrable and covered by fixtures and tests.
 Later stages are proposals, not authorization to implement them now.
 
-The current implementation includes Stages 0–3C1 and UX-2B. Stage descriptions record
+The current implementation includes Stages 0–3C1, UX-2B, Stages 3D1–3D2 (Claude Code
+skills, instructions, settings, MCP, hooks and plugins) UX-3 (one Agents area), Stage 6A (Cloud › AWS profiles) and Stage 6B (Docker). Stage descriptions record
 their delivery history; later UX changes supersede earlier controls. Use the
 [keyboard guide](docs/KEYBOARD.md) for current behavior. In particular, UX-2A removed
 the Compact/Detailed toggle introduced in UX-1.
@@ -17,7 +18,14 @@ It reuses the existing projection and does not change graph, intent or collector
 Homebrew inventory starts with **Tools** (recorded as requested); `a` shows All. Rows show
 intent and a recorded **required by N** count, which never reclassifies unknown intent or
 establishes that other packages are unused. The view survives navigation and refresh.
-Back history is kept per area, and evidence fallback applies to one package at a time.
+Evidence fallback applies to one package at a time.
+The latest refinement replaces the `g` switcher: Tab switches areas, Shift+Tab sections,
+and the top bar highlights the active area and section. Homebrew packages have no
+inspector; the information panel is the package view and Diagnostics is a section. Each
+inventory has a single filter line, and each section keeps its own Back history. Earlier
+stage notes about `g`, package inspectors and dependency-tree keys are historical.
+Codex and Claude no longer have inspectors either: the information panel stacks every
+former inspector section and scrolls with PgUp/PgDn; `e` jumps to configuration sources. Only Homebrew Diagnostics keeps a report list.
 
 ## Stage 0 — Foundation (implemented)
 
@@ -212,6 +220,66 @@ Back history is kept per area, and evidence fallback applies to one package at a
 - Review launcher supply chains, filesystem permissions and environment exposure only within new scope.
 - Keep local declarations separate from live connectivity, authentication and tool metadata.
 - No server execution, connection checks, remediation or configuration edits are authorized by 3C1.
+
+## Stage 3D1 — Claude Code skills and instructions (implemented)
+
+- A third area, Claude, after Homebrew and Codex; Shift+Tab switches Skills / Instructions.
+- Skills reuse the bounded skill collector on `~/.claude/skills` (or `CLAUDE_CONFIG_DIR`) and
+  the project's `.claude/skills`. Skill symlinks resolve; **Also in Codex** compares resolved
+  folders with Codex's collected skills and claims nothing before Codex is collected.
+- Instructions list managed, user, project, `.claude/` and local `CLAUDE.md` files in reading
+  order with sizes, `@import` counts and redacted previews. Linked files are reported, not read.
+- No inspector: Enter shows the item full screen. Isolated `--claude-fixture` / `just fixtures claude`.
+- Not covered: plugin skills, nested subfolder `CLAUDE.md`/skills, and what a session loaded.
+
+## Stage 3D2 — Claude Code settings, MCP, hooks and plugins (implemented)
+
+- Rules from Claude Code's documentation: settings precedence managed > command line > local >
+  project > user, combined lists, MCP name resolution Managed > Local > Project > User > Plugin.
+- Settings: interpreted keys with effective value, source and overrides; combined lists;
+  `env` names only; credential helpers withheld; other keys by name; invalid files flagged.
+- MCP: `managed-mcp.json`, `~/.claude.json` (user and this project's local servers), `.mcp.json`
+  and enabled plugins, with shadowing, approvals, trust, toggles and managed blocking. Classified
+  summaries only. Only MCP state and project trust are kept from `~/.claude.json`.
+- Hooks from settings and enabled plugins, with redacted commands and disable/managed-only effects.
+- Plugins from `installed_plugins.json` and `known_marketplaces.json` with enabled state and components.
+- Not covered: command-line and MDM/registry/server-managed settings, allowedMcpServers/
+  deniedMcpServers, frontmatter hooks, plugin manifest path overrides, and what a session loaded.
+
+## UX-3 — One Agents area (implemented)
+
+- Codex and Claude Code areas merged into **Agents**; Tab switches Homebrew / Agents.
+- Skills match by resolved folder, MCP servers by name (with **differs** when transport or
+  program differ), instructions and settings by folder or name.
+- Every list has name · Tools (Both / Codex only / Claude only) · Status, with one status
+  vocabulary for both tools: Ready, Off, Needs approval, Problem, Unknown (Instructions:
+  Used, Not used). The panel keeps each tool's own words.
+- No filters: the Tools column replaced the tool filter, the Skills status and scope
+  filters and Codex's four MCP filters. `o` (supporting file contents) was removed; files
+  are listed in the panel.
+- Collectors, privacy rules and per-tool semantics are unchanged; `src/agents.rs` only matches.
+
+## Stage 6A — Cloud › AWS profiles (implemented)
+
+- A third area, **Cloud**, with an AWS section: profiles from the config and credentials
+  files (or `AWS_CONFIG_FILE` / `AWS_SHARED_CREDENTIALS_FILE`) and SSO sessions.
+- Auth in SDK order (Role, SSO, Process, Static keys, None set); Ready / Problem status
+  (missing source profile or SSO session, role loops, incomplete SSO, open credentials file).
+- Credentials file: names only, values dropped while parsing. Config: allowlisted values;
+  URLs, external IDs, token files and `credential_process` withheld. No caches, no AWS calls.
+- Next: Kubernetes contexts from `~/.kube/config` as a second Cloud section, with the
+  same allowlist approach; link EKS `exec` entries to AWS profiles.
+
+## Stage 6B — Docker (implemented)
+
+- A fourth area, **Docker**: Containers / Images / Volumes from `docker container ls --all`,
+  `image ls`, `volume ls` and `system df`, run through the bounded Homebrew runner only
+  once the area is opened.
+- Images and volumes say which containers use them; dangling images and anonymous volumes
+  are marked; disk use and reclaimable space come from `system df`.
+- Withheld: container commands, environment, labels other than the Compose project, logs,
+  Docker's error output and saved registry logins.
+- Not covered: Docker contexts other than the current one, networks, build cache entries.
 
 ## Stage 4 — Executables, runtimes, libraries and caches (planned)
 

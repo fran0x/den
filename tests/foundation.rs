@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use den::{
-    app::{App, Focus},
+    app::App,
     inventory::{Inventory, ResourceKind, safe_text},
     source, ui,
 };
@@ -137,28 +137,7 @@ fn empty_inventory_renders_and_navigates() {
     key(&mut app, KeyCode::End);
     key(&mut app, KeyCode::Right);
     key(&mut app, KeyCode::Down);
-    assert!(screen(&draw(&mut app, 80, 24)).contains("0/0 resources"));
-}
-
-#[test]
-fn focus_routes_scroll_and_resize_clamps_it() {
-    let mut app = app();
-    draw(&mut app, 40, 16);
-    key(&mut app, KeyCode::Enter);
-    assert_eq!(app.focus, Focus::Details);
-    draw(&mut app, 40, 16); // focused pane now occupies narrow terminals
-    let selected = app.selected;
-    key(&mut app, KeyCode::End);
-    assert!(app.detail_scroll > 0);
-    assert_eq!(app.selected, selected);
-    draw(&mut app, 160, 60);
-    assert_eq!(app.detail_scroll, 0);
-    key(&mut app, KeyCode::Esc);
-    assert_eq!(app.focus, Focus::Inventory);
-    key(&mut app, KeyCode::Enter);
-    assert_eq!(app.focus, Focus::Details);
-    key(&mut app, KeyCode::Left);
-    assert_eq!(app.focus, Focus::Inventory);
+    assert!(screen(&draw(&mut app, 80, 24)).contains("No matches."));
 }
 
 #[test]

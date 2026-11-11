@@ -1,7 +1,6 @@
 //! Read-only MCP configuration evidence, normalized before raw TOML is discarded.
 //! No MCP client, command runner, environment lookup or credential access exists here.
 mod normalize;
-pub mod state;
 
 use super::config::{Activity, Layer, Scope};
 pub(crate) use normalize::collect;
@@ -14,17 +13,7 @@ pub const MAX_ITEMS: usize = 256;
 /// Exact identities are retained only for matching; never formatted as diagnostics.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Identity(Option<String>, String);
-impl Identity {
-    pub(crate) fn selection_key(&self) -> String {
-        format!(
-            "mcp:{}:{}:{}:{}",
-            self.0.is_some(),
-            self.0.as_ref().map_or(0, |p| p.len()),
-            self.0.as_deref().unwrap_or(""),
-            self.1
-        )
-    }
-}
+impl Identity {}
 impl fmt::Debug for Identity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Identity([withheld])")
@@ -65,6 +54,17 @@ impl Status {
             Self::Conditional => "Conditional",
             Self::Invalid => "Invalid configuration",
             Self::PluginUnresolved => "Unresolved plugin",
+        }
+    }
+    /// For the narrow Codex column in Agents; the panel keeps the full label.
+    pub fn short(self) -> &'static str {
+        match self {
+            Self::Configured => "Inactive",
+            Self::Disabled => "Disabled",
+            Self::Eligible => "Eligible",
+            Self::Conditional => "Conditional",
+            Self::Invalid => "Invalid",
+            Self::PluginUnresolved => "Plugin?",
         }
     }
 }
@@ -314,14 +314,7 @@ impl Server {
             } else if d.activity != Activity::Inactive {
                 text.push_str("Definition retained; cross-layer values not merged\n");
             }
-            match section {
-                0=>text.push_str(&format!("Enabled: {} · Required startup: {}\nExecution context: {}\nAuthentication: {}\n",d.value_or("enabled",d.enabled.map(|v|v.to_string()),"default enabled (modeled)"),d.value_or("required",d.required.map(|v|v.to_string()),"optional (documented default)"),d.environment,d.authentication())),
-                1=>text.push_str(&format!("Transport: {}\nLauncher: {}\nArguments: {} configured; all values withheld\nWorking directory: {}\nEndpoint: {}\nExecution context: {}\nInline environment: {} entries; values withheld\nForwarded names (validated entries only): {}\nStartup timeout: {} seconds\nTool timeout: {} seconds\n",d.transport.label(),d.launcher,d.args.map_or("Unresolved".into(),|n|n.to_string()),d.cwd,d.endpoint.as_ref().map_or("Not established",|e|e.identity.as_str()),d.environment,d.inline_env.map_or("Unresolved".into(),|n|n.to_string()),d.forwarded.iter().map(|e|format!("{} ({})",e.name,e.source)).collect::<Vec<_>>().join(", "),d.value_or("startup_timeout",d.startup_seconds.map(|v|v.to_string()),"10 (default)"),d.value_or("tool_timeout_sec",d.tool_seconds.map(|v|v.to_string()),"60 (default)"))),
-                2=>{text.push_str(&format!("{}\n{}\n",d.authentication(),d.auth_details.join("\n")));text.push_str("Configured bearer/authorization sources precede auth fallback. Explicit bearer tokens and OAuth credentials take precedence over helper Authorization. Availability and the final credential source are unknown. ChatGPT fallback is restricted to the trusted first-party origin by Codex. Helpers are local HTTP only; never run by Den.\n");},
-                3=>{text.push_str(&format!("Allowlist first: {}\nDenylist second: {}\nDefault approval: {}\n",list(&d.tools.allow),list(&d.tools.deny),d.value_or("default_tools_approval_mode",d.tools.approval.map(|a|a.label().into()),"Not explicitly set")));for t in &d.tools.overrides{text.push_str(&format!("{}: approval {}; output token limit {}\n",t.name,t.approval.map_or(if t.approval_present { "Unresolved" } else { "inherits configured default" },|a|a.label()),t.output_token_limit.map_or(if t.limit_present { "Unresolved".into() } else { "not set".into() },|n|n.to_string())));}text.push_str("These are configured restrictions only. Advertised tools and tool metadata are not available. 'writes' depends on server read-only metadata; other unknown policy values are not interpreted.\n");},
-                4=>text.push_str("Enter/e: inspect this server's source; V: next source; Backspace: return. Safe summaries only; raw TOML is never displayed.\n"),
-                _=>for f in &d.findings{text.push_str(&format!("{:?}: {}\n",f.severity,f.message));},
-            }
+            text.push_str(&section_body(d, section));
             text.push('\n');
         }
         for f in &self.findings {
@@ -330,6 +323,90 @@ impl Server {
         text.push_str(&format!("\n{LIMITATIONS}"));
         text
     }
+    /// Everything for the information panel: each source once, with its overview,
+    /// transport, authentication, tools and findings beneath it.
+    pub fn panel(&self, layers: &[Layer]) -> String {
+        let mut text = format!(
+            "## {}\n{}\nConfigured: yes · {}\nTransport: {} · Validation: {}\n{} definitions; selected: {}\n",
+            self.name,
+            self.plugin
+                .as_ref()
+                .map_or("Standalone configuration".into(), |p| format!(
+                    "Plugin override: {p}; actual definition unavailable"
+                )),
+            self.status.label(),
+            self.transport().label(),
+            self.validation(),
+            self.definitions.len(),
+            self.selected
+                .map_or("unresolved or inactive".into(), |i| format!(
+                    "source {}",
+                    i + 1
+                ))
+        );
+        for (n, d) in self.definitions.iter().enumerate() {
+            let Some(layer) = layers.get(d.source) else {
+                continue;
+            };
+            text.push_str(&format!(
+                "\n## Source {}: {:?} · {:?}\n{}\n{}",
+                n + 1,
+                d.scope,
+                d.activity,
+                super::privacy::path(&layer.path),
+                if self.selected == Some(n) {
+                    "Selected local definition\n"
+                } else if d.activity != Activity::Inactive {
+                    "Definition retained; cross-layer values not merged\n"
+                } else {
+                    ""
+                }
+            ));
+            for (section, title) in [
+                (0, ""),
+                (1, "Transport"),
+                (2, "Authentication"),
+                (3, "Tools and approvals"),
+                (5, "Findings"),
+            ] {
+                let body = section_body(d, section);
+                if body.trim().is_empty() {
+                    continue;
+                }
+                if !title.is_empty() {
+                    text.push_str(&format!("\n{title}\n"));
+                }
+                text.push_str(&body);
+            }
+        }
+        if !self.findings.is_empty() {
+            text.push_str("\n## Server findings\n");
+            for f in &self.findings {
+                text.push_str(&format!("{:?}: {}\n", f.severity, f.message));
+            }
+        }
+        text.push_str(&format!(
+            "\n{}\n\n## Limits\n{LIMITATIONS}",
+            section_body_hint()
+        ));
+        text
+    }
+}
+fn section_body_hint() -> &'static str {
+    "e: open this server's source in Configuration · V: next source"
+}
+/// One inspector section's text for one definition (0 Overview … 5 Findings).
+fn section_body(d: &Definition, section: usize) -> String {
+    let mut text = String::new();
+    match section {
+                0=>text.push_str(&format!("Enabled: {} · Required startup: {}\nExecution context: {}\nAuthentication: {}\n",d.value_or("enabled",d.enabled.map(|v|v.to_string()),"default enabled (modeled)"),d.value_or("required",d.required.map(|v|v.to_string()),"optional (documented default)"),d.environment,d.authentication())),
+                1=>text.push_str(&format!("Transport: {}\nLauncher: {}\nArguments: {} configured; all values withheld\nWorking directory: {}\nEndpoint: {}\nExecution context: {}\nInline environment: {} entries; values withheld\nForwarded names (validated entries only): {}\nStartup timeout: {} seconds\nTool timeout: {} seconds\n",d.transport.label(),d.launcher,d.args.map_or("Unresolved".into(),|n|n.to_string()),d.cwd,d.endpoint.as_ref().map_or("Not established",|e|e.identity.as_str()),d.environment,d.inline_env.map_or("Unresolved".into(),|n|n.to_string()),d.forwarded.iter().map(|e|format!("{} ({})",e.name,e.source)).collect::<Vec<_>>().join(", "),d.value_or("startup_timeout",d.startup_seconds.map(|v|v.to_string()),"10 (default)"),d.value_or("tool_timeout_sec",d.tool_seconds.map(|v|v.to_string()),"60 (default)"))),
+                2=>{text.push_str(&format!("{}\n{}\n",d.authentication(),d.auth_details.join("\n")));text.push_str("Configured bearer/authorization sources precede auth fallback. Explicit bearer tokens and OAuth credentials take precedence over helper Authorization. Availability and the final credential source are unknown. ChatGPT fallback is restricted to the trusted first-party origin by Codex. Helpers are local HTTP only; never run by Den.\n");},
+                3=>{text.push_str(&format!("Allowlist first: {}\nDenylist second: {}\nDefault approval: {}\n",list(&d.tools.allow),list(&d.tools.deny),d.value_or("default_tools_approval_mode",d.tools.approval.map(|a|a.label().into()),"Not explicitly set")));for t in &d.tools.overrides{text.push_str(&format!("{}: approval {}; output token limit {}\n",t.name,t.approval.map_or(if t.approval_present { "Unresolved" } else { "inherits configured default" },|a|a.label()),t.output_token_limit.map_or(if t.limit_present { "Unresolved".into() } else { "not set".into() },|n|n.to_string())));}text.push_str("These are configured restrictions only. Advertised tools and tool metadata are not available. 'writes' depends on server read-only metadata; other unknown policy values are not interpreted.\n");},
+                4=>text.push_str("e: open this server's source in Configuration; V: next source. Safe summaries only; raw TOML is never displayed.\n"),
+                _=>for f in &d.findings{text.push_str(&format!("{:?}: {}\n",f.severity,f.message));},
+            }
+    text
 }
 fn list(v: &Option<Vec<String>>) -> String {
     v.as_ref().map_or("not configured".into(), |v| {

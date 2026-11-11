@@ -1,6 +1,10 @@
 use super::*;
 
 pub(super) const ACCENT: Color = Color::Blue;
+/// Clipped-panel hints.
+pub(super) const ENLARGE_MORE: &str = "… enlarge the terminal to see more";
+/// The active area in the top bar.
+pub(super) const ACTIVE: Color = Color::Yellow;
 pub(super) fn muted() -> Style {
     Style::default().add_modifier(Modifier::DIM)
 }
@@ -8,10 +12,11 @@ pub(super) fn selection() -> Style {
     Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
 }
 
+/// Top bar, status line and footer around a body. `view` is "Area / Section" for the
+/// Homebrew, Agents, Cloud and Docker areas: the active area is highlighted and followed by its section.
 pub(super) fn chrome(
     frame: &mut Frame,
     view: &str,
-    query: &str,
     status: &str,
     searching: bool,
     actions: &str,
@@ -19,28 +24,39 @@ pub(super) fn chrome(
     let rows = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
-        Constraint::Length(1),
         Constraint::Min(1),
         Constraint::Length(1),
     ])
     .split(frame.area());
-    let title = if view.starts_with("Homebrew") {
-        format!(" DEN [Homebrew] Codex · Tab:area · {view}")
-    } else if view.starts_with("Codex") {
-        format!(" DEN Homebrew [Codex] · Tab:area · {view}")
-    } else {
-        format!(" DEN / {view}")
-    };
-    frame.render_widget(
-        Paragraph::new(title).style(Style::default().fg(ACCENT).bold()),
-        rows[0],
-    );
-    frame.render_widget(Paragraph::new(safe_text(query)), rows[1]);
-    frame.render_widget(Paragraph::new(safe_text(status)).style(muted()), rows[2]);
+    let accent = Style::default().fg(ACCENT).bold();
+    let mut title = vec![Span::styled(" DEN ", accent)];
+    match view.split_once(" / ") {
+        Some((area, section)) if matches!(area, "Homebrew" | "Agents" | "Cloud" | "Docker") => {
+            for name in ["Homebrew", "Agents", "Cloud", "Docker"] {
+                title.push(Span::raw(" "));
+                if name == area {
+                    // A distinct colour for the active area; bold and underline keep it
+                    // visible without colour, on the terminal's own background.
+                    title.push(Span::styled(
+                        format!(" {name} "),
+                        Style::default()
+                            .fg(ACTIVE)
+                            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                    ));
+                    title.push(Span::styled(format!(" › {section} "), accent));
+                } else {
+                    title.push(Span::styled(format!(" {name} "), muted()));
+                }
+            }
+        }
+        _ => title.push(Span::styled(format!("/ {view}"), accent)),
+    }
+    frame.render_widget(Paragraph::new(Line::from(title)), rows[0]);
+    frame.render_widget(Paragraph::new(safe_text(status)).style(muted()), rows[1]);
     let footer = if searching {
         format!(" Search · {actions}  Ctrl-U:clear  Ctrl-C:quit")
     } else {
-        format!(" {}  g:sections  /:search  ?:help  q:quit", actions)
+        format!(" {actions}  /:search  ?:help  q:quit")
     };
     let footer = if frame.area().width < 65 && !searching {
         format!(
@@ -50,8 +66,41 @@ pub(super) fn chrome(
     } else {
         footer
     };
-    frame.render_widget(Paragraph::new(footer).style(muted()), rows[4]);
-    rows[3]
+    frame.render_widget(Paragraph::new(footer).style(muted()), rows[3]);
+    rows[2]
+}
+
+/// The one line above an inventory: view and filters, then search. Returns the list area.
+pub(super) fn filter_line(
+    frame: &mut Frame,
+    area: Rect,
+    mut text: String,
+    query: &str,
+    searching: bool,
+) -> Rect {
+    if searching || !query.is_empty() {
+        if !text.is_empty() {
+            text.push_str(" · ");
+        }
+        text.push_str(&format!(
+            "Search: {}{}",
+            safe_text(query),
+            if searching { "_" } else { "" }
+        ));
+    }
+    if text.is_empty() || area.height < 2 {
+        return area;
+    }
+    let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
+    frame.render_widget(
+        Paragraph::new(fit(&text, area.width as usize)).style(if searching {
+            Style::default()
+        } else {
+            muted()
+        }),
+        rows[0],
+    );
+    rows[1]
 }
 
 /// Browsing always keeps the inventory and its passive information visible.
@@ -70,7 +119,9 @@ pub(super) fn panes(area: Rect) -> [Rect; 2] {
         reading_area(widths[1]),
     ]
 }
-pub(super) fn information(frame: &mut Frame, area: Rect, text: String) {
+/// The Homebrew panel. `more` is the hint shown when text is clipped; Codex and Claude
+/// use `scrolled` instead.
+pub(super) fn information(frame: &mut Frame, area: Rect, text: String, more: &str) {
     let block = pane(" Information ", false);
     let inner = block.inner(area);
     let lines: Vec<_> = text
@@ -83,7 +134,7 @@ pub(super) fn information(frame: &mut Frame, area: Rect, text: String) {
     frame.render_widget(paragraph, inner);
     if clipped && inner.height > 0 {
         frame.render_widget(
-            Paragraph::new(fit("… Enter:inspect for more", inner.width as usize)).style(muted()),
+            Paragraph::new(fit(more, inner.width as usize)).style(muted()),
             Rect {
                 y: inner.bottom() - 1,
                 height: 1,
@@ -92,9 +143,70 @@ pub(super) fn information(frame: &mut Frame, area: Rect, text: String) {
         );
     }
 }
+/// Lines starting with "## " are section headings: bold, without the marker.
+pub(super) const HEADING: &str = "## ";
+
+/// The information panel for Codex and Claude: every section stacked, scrolled with
+/// PgUp/PgDn. When text is clipped the last row says where you are.
+pub(super) fn scrolled(
+    frame: &mut Frame,
+    area: Rect,
+    text: &str,
+    scroll: &mut crate::presentation::PanelScroll,
+) {
+    let block = pane(" Information ", false);
+    let mut inner = block.inner(area);
+    frame.render_widget(block, area);
+    let lines: Vec<_> = text
+        .lines()
+        .map(|line| match line.strip_prefix(HEADING) {
+            Some(heading) => Line::styled(safe_text(heading), Style::default().bold()),
+            None => Line::from(safe_text(line)),
+        })
+        .collect();
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+    let overflow = paragraph.line_count(inner.width) > inner.height as usize;
+    let hint = if overflow && inner.height > 1 {
+        inner.height -= 1;
+        Some(Rect {
+            y: inner.bottom(),
+            height: 1,
+            ..inner
+        })
+    } else {
+        None
+    };
+    scroll.max = super::scroll_max(&paragraph, inner);
+    scroll.offset = scroll.offset.min(scroll.max);
+    scroll.page = inner.height.saturating_sub(1).max(1);
+    frame.render_widget(paragraph.scroll((scroll.offset, 0)), inner);
+    if let Some(hint) = hint {
+        let text = if scroll.offset == 0 {
+            "… PgDn for more"
+        } else if scroll.offset >= scroll.max {
+            "End · PgUp to go back"
+        } else {
+            "… PgUp/PgDn to scroll"
+        };
+        frame.render_widget(
+            Paragraph::new(fit(text, hint.width as usize)).style(muted()),
+            hint,
+        );
+    }
+}
+
 pub(super) fn reading_area(mut area: Rect) -> Rect {
     area.width = area.width.min(92);
     area
+}
+
+/// "56 B", "2.1 KB".
+pub(super) fn size(bytes: usize) -> String {
+    if bytes < 1024 {
+        format!("{bytes} B")
+    } else {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    }
 }
 
 /// Fit using terminal cell widths (including wide Unicode), never byte truncation.
@@ -159,6 +271,6 @@ pub(super) fn actions(searching: bool) -> &'static str {
     if searching {
         "Enter:done Esc:done"
     } else {
-        "Enter:inspect Tab:area Esc:Back"
+        "Tab:area Shift+Tab:section"
     }
 }

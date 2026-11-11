@@ -2,37 +2,29 @@
 use super::*;
 use crate::{explorer::Explorer, graph::Evidence};
 
-/// One line: the active view (bracketed), counts for the search/type scope and the keys.
-pub(super) fn filters(frame: &mut Frame, app: &App, area: Rect) -> Rect {
+/// The Homebrew filter line: the active view is bracketed; counts follow search.
+pub(super) fn view_text(app: &App) -> String {
     let counts = app.homebrew_counts();
-    let (tools, all, key) = if app.show_all {
+    let (tools, all) = if app.show_all {
         (
             format!("Tools {}", counts.tools),
             format!("[All {}]", counts.all),
-            "a: tools only",
         )
     } else {
         (
             format!("[Tools {}]", counts.tools),
             format!("All {}", counts.all),
-            "a: show all",
         )
     };
-    let text = format!(
-        "{tools} · {all} · {key} · f: type{}",
+    format!(
+        "{tools} · {all}{}",
         // "required by N" comes from the bounded graph; say so when it was cut short.
         if app.graph.truncated {
             " · required-by partial"
         } else {
             ""
         }
-    );
-    let rows = Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).split(area);
-    frame.render_widget(
-        Paragraph::new(fit(&text, area.width as usize)).style(muted()),
-        rows[0],
-    );
-    rows[1]
+    )
 }
 
 pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
@@ -41,6 +33,7 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
             frame,
             area,
             "Select a resource to inspect its details.".into(),
+            ENLARGE_MORE,
         );
         return;
     };
@@ -77,7 +70,7 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
             Paragraph::new(vec![
                 Line::from(fit("Depends on / Required by", inner.width as usize)),
                 Line::from(fit(&context, inner.width as usize)),
-                Line::from("… Enter:inspect for trees"),
+                Line::from("… enlarge the terminal for trees"),
             ]),
             inner,
         );
@@ -175,7 +168,7 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(
         Paragraph::new(fit(
             if partial {
-                "PARTIAL · Enter:inspect for more"
+                "PARTIAL · enlarge the terminal to see more"
             } else if cask {
                 "Casks may self-update · security not assessed"
             } else {

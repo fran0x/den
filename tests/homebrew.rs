@@ -192,22 +192,20 @@ fn brew_snapshots_use_the_same_parser_and_enforce_limits() {
 }
 
 #[test]
-fn search_type_and_tools_view_compose_without_changing_existing_controls() {
+fn search_and_tools_view_compose_without_changing_existing_controls() {
     let mut app = app();
     app.query = "editor widget".into();
     app.refresh();
     assert!(app.visible.is_empty()); // The widget cask has no request record: not a tool.
     key(&mut app, KeyCode::Char('a')); // All
     assert_eq!(app.resource().unwrap().id, "brew:cask:example/tools/widget");
-    key(&mut app, KeyCode::Char('f')); // Formula
-    assert!(app.visible.is_empty());
-    key(&mut app, KeyCode::Char('f')); // Cask
+    key(&mut app, KeyCode::Char('f')); // Homebrew has no type filter.
+    assert_eq!(app.filter, None);
     assert_eq!(app.visible.len(), 1);
     key(&mut app, KeyCode::Char('a')); // Tools
     assert!(app.visible.is_empty());
     key(&mut app, KeyCode::Char('a')); // All
     assert_eq!(app.visible.len(), 1);
-    key(&mut app, KeyCode::Char('f')); // All types
     key(&mut app, KeyCode::Char('/'));
     app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     key(&mut app, KeyCode::Enter);
@@ -229,11 +227,9 @@ fn refresh_preserves_selection_filters_focus_and_valid_data_after_failure() {
         CollectionStatus::Loading { refreshing: false }
     );
     app.finish_collection(Ok(inventory()));
-    app.filter = Some(ResourceKind::Formula);
     app.show_all = true;
     app.query = "widget".into();
     app.refresh();
-    key(&mut app, KeyCode::Enter);
     let selected = app.resource().unwrap().id.clone();
     key(&mut app, KeyCode::Char('r'));
     assert!(app.refresh_requested);
@@ -248,8 +244,7 @@ fn refresh_preserves_selection_filters_focus_and_valid_data_after_failure() {
     refreshed.resources.reverse();
     app.finish_collection(Ok(refreshed));
     assert_eq!(app.resource().unwrap().id, selected);
-    assert_eq!(app.focus, Focus::Details);
-    assert_eq!(app.filter, Some(ResourceKind::Formula));
+    assert_eq!(app.focus, Focus::Inventory);
     assert!(app.show_all);
     app.begin_collection();
     let before = app.inventory.clone();
@@ -311,13 +306,10 @@ fn rendering_shows_installed_versions_intent_details_and_sanitizes_metadata() {
     ] {
         assert!(text.contains(expected), "missing {expected}");
     }
-    app.open_detail(den::presentation::Detail::Evidence);
-    let evidence = draw(&mut app, 140, 40);
-    assert!(evidence.contains("Linked keg: 14.1.1"));
-    assert!(evidence.contains("on_request: true"));
+    assert!(text.contains("Recorded runtime · keg 14.1.1"));
     app.selected = Some(5);
     let text = draw(&mut app, 140, 40);
-    assert!(text.contains("Homebrew-recorded version: 8.1"));
+    assert!(text.contains("Recorded version: 8.1"));
     assert!(text.contains("Casks may self-update"));
     let mut raw: serde_json::Value = serde_json::from_slice(FIXTURE).unwrap();
     raw["formulae"][0]["homepage"] = "evil\u{1b}]52;c;secret\u{7}\u{202e}".into();

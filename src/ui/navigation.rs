@@ -1,47 +1,9 @@
 use super::*;
 use crate::{
     app::Module,
-    codex::state::View,
-    presentation::{Detail, InspectorFocus, Page},
+    presentation::{InspectorFocus, Page},
 };
 
-pub(super) fn switcher(frame: &mut Frame, app: &mut App) {
-    let Some(s) = &app.presentation.switcher else {
-        return;
-    };
-    let body = chrome(
-        frame,
-        "Sections",
-        &format!(
-            " Search{}: {}",
-            if s.searching { "*" } else { "" },
-            safe_text(&s.query)
-        ),
-        "Choose a destination; the previous context is retained.",
-        s.searching,
-        "Enter:open Esc:cancel",
-    );
-    let block = pane(" Sections · / search · arrows select ", true);
-    let inner = block.inner(body);
-    frame.render_widget(block, body);
-    let rows = s.rows();
-    let items: Vec<_> = rows.iter().map(|d| ListItem::new(d.label())).collect();
-    let mut selected = ListState::default()
-        .with_selected((!rows.is_empty()).then_some(s.selected.min(rows.len().saturating_sub(1))));
-    frame.render_stateful_widget(
-        List::new(items)
-            .highlight_symbol("> ")
-            .highlight_style(selection()),
-        inner,
-        &mut selected,
-    );
-    if rows.is_empty() {
-        frame.render_widget(
-            Paragraph::new("No matching sections. Ctrl-U clears search; Esc returns."),
-            inner,
-        );
-    }
-}
 pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
     let Page::Inspector {
         detail,
@@ -53,45 +15,33 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
         return;
     };
     let label = app.destination().label();
-    let status = match (app.module, app.codex.view) {
-        (Module::Homebrew, _) => {
-            if app.live {
-                app.collection_message()
-            } else {
-                app.source_label.into()
-            }
-        }
-        (_, View::Skills) => app.skills.status(),
-        _ => app.codex.status(),
+    // Only Homebrew Diagnostics uses this page; Codex and Claude show a scrolling panel.
+    let status = if app.live {
+        app.collection_message()
+    } else {
+        app.source_label.into()
+    };
+    // The status line names the open section: narrow terminals show one pane at a time.
+    let line = if app.presentation.menu_searching {
+        format!("Find section: {}_", safe_text(&query))
+    } else {
+        format!(
+            "{} · {}",
+            detail.label(),
+            app.presentation.notice.as_deref().unwrap_or(&status)
+        )
     };
     let body = chrome(
         frame,
         label,
-        &format!(
-            " Inspector / {}{}",
-            detail.label(),
-            if app.presentation.menu_searching {
-                format!(" · Find section: {}", safe_text(&query))
-            } else {
-                String::new()
-            }
-        ),
-        app.presentation.notice.as_deref().unwrap_or(&status),
+        &line,
         app.presentation.menu_searching,
         if app.presentation.menu_searching {
             "Enter:done Esc:done"
         } else if focus == InspectorFocus::Sections {
-            "Enter:open ]:content Esc:Back"
-        } else if app.tree_content_focused()
-            && app
-                .explorer
-                .rows
-                .get(app.explorer.selected)
-                .is_some_and(|row| row.target.is_some())
-        {
-            "Enter:inspect [:sections Esc:Back"
+            "Enter:open ]:content Tab:area Shift+Tab:section"
         } else {
-            "[:sections Esc:Back"
+            "[:reports Tab:area Shift+Tab:section"
         },
     );
     let (menu, content) = if body.width >= 100 {
@@ -108,7 +58,7 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
         (Rect::default(), reading_area(body))
     };
     if menu.width > 0 {
-        let block = pane(" Inspector sections ", focus == InspectorFocus::Sections);
+        let block = pane(" Reports ", focus == InspectorFocus::Sections);
         let inner = block.inner(menu);
         frame.render_widget(block, menu);
         let rows = app.detail_rows();
@@ -157,33 +107,20 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
     } else {
         Focus::Inventory
     };
-    match (app.module, app.codex.view) {
-        (Module::Homebrew, _) => {
-            app.focus = rendered_focus;
-            super::render_details(frame, app, content);
-            app.focus = old_focus;
-        }
-        (_, View::Skills) => {
-            app.skills.focus = rendered_focus;
-            skills::render_details(frame, &mut app.skills, content, detail == Detail::Evidence);
-            app.skills.focus = old_focus;
-        }
-        _ => {
-            app.codex.focus_details = rendered_focus == Focus::Details;
-            codex::render_details(frame, &mut app.codex, content, detail == Detail::Evidence);
-            app.codex.focus_details = old_focus == Focus::Details;
-        }
-    }
+    app.focus = rendered_focus;
+    super::render_details(frame, app, content);
+    app.focus = old_focus;
 }
 pub(super) fn help(app: &App) -> String {
-    let context = match (app.module, app.codex.view) {
-        (Module::Homebrew, _) => {
-            "Homebrew\nThe inventory starts with Tools: packages Homebrew recorded as installed on request.\na switches Tools / All; f cycles All/Formula/Cask. Counts follow search and type.\nRows show intent and \"required by N\" (other installed packages with recorded runtime references).\nPackages without a request record appear only in All; Unknown stays Unknown and is never guessed.\nInformation shows passive Depends on / Required by trees, up to two levels; PARTIAL marks omissions.\nInspector sections: Overview, Dependencies, Required by, Paths, Diagnostics, Evidence.\nDependencies and Required by start as trees: [+] collapsed, [-] expanded, ! cycle.\nRight expands a branch, then enters its first child. Left collapses, then selects the parent.\nAt the top level Left stays in the tree. Space toggles a branch.\nEnter inspects a package; Esc restores the original tree, selection, scroll and filters.\ns selects recorded/current evidence; V selects a keg; t switches tree/direct view.\nTransitive and uncertain records remain labeled leaves; no direct links are inferred.\nDiagnostics: Enter drills down; Space shows full evidence; o shows original output; c runs the read-only check.\nCurrent declarations do not count toward \"required by\"; no count does not mean unused.\nView and filters survive Back, area switching and refresh."
+    let context = match app.module {
+        Module::Agents => super::agents::HELP,
+        Module::Cloud => super::cloud::HELP,
+        Module::Docker => super::docker::HELP,
+        Module::Homebrew => {
+            "Homebrew\nPackages start with Tools: packages Homebrew recorded as installed on request.\na switches Tools / All. Tools are bold; casks are [bracketed]. Counts follow search.\nRows show intent and \"required by N\": other installed packages with recorded runtime references.\nPackages without a request record appear only in All; Unknown stays Unknown and is never guessed.\nThe information panel shows Depends on and Required by, up to two levels; PARTIAL marks omissions.\nTransitive and uncertain records stay labeled leaves; no direct links are inferred.\nCurrent declarations do not count toward \"required by\"; no count does not mean unused.\nDiagnostics: [ selects a report (or 5-8); Enter drills down; Space shows full evidence; o shows the original report; c runs the read-only check.\nA package opened from Diagnostics is selected in Packages; Esc returns."
         }
-        (_, View::Skills) => skills::HELP,
-        _ => codex::HELP,
     };
     format!(
-        "Den — Area → Inventory → Information\n\nTab/Shift+Tab switches Homebrew/Codex and restores the last view.\nBrowsing input stays in the inventory; selection updates passive information.\nEnter explicitly opens the full inspector.\ng opens Sections. / searches the switcher; arrows or j/k select; Enter opens; Esc cancels.\n/ searches the resource inventory. Enter finishes search, then Enter inspects the resource.\nThe inspector starts at Overview. [ focuses its section list; arrows/j/k choose; Enter opens.\n[ selects inspector sections; ] selects content. Tab/Shift+Tab switches Homebrew/Codex, restoring each area. / finds an inspector section.\nEsc returns to the previous context in this area, including related resources and evidence.\nSearch, filters, selection, scroll and dependency expansion are restored when available.\nPage keys and Home/End navigate the focused list or text.\n? opens this context-aware help; Esc closes it. q/Ctrl-C quits.\n\n{context}\n\nCompatibility: F2/F3 and numbered sections still work. v opens Evidence; there are no display modes.\n\nRead-only inspection. Overview is concise; Evidence/Coverage retains provenance and modeling limits.\nNo inspected commands, scripts or MCP servers are executed. Withheld configuration values stay withheld.\nEach area keeps up to 64 Back contexts; removed resources are clamped after refresh."
+        "Den — Area › Section › Inventory\n\nTab switches Homebrew / Agents / Cloud / Docker; each area keeps its place.\nShift+Tab switches sections: Homebrew Packages / Diagnostics; Agents Skills / Instructions / Settings / MCP / Hooks / Plugins; Cloud has AWS; Docker Containers / Images / Volumes.\nThe inventory keeps focus; the information panel follows the selection and shows everything about it. There is no inspector: PgUp/PgDn scroll the panel.\n/ searches the inventory. Enter or Esc finishes editing and keeps the query.\nIn Diagnostics, [ selects a report and ] its content.\nEsc goes back within the current section. Switching areas or sections never adds a Back step.\nHome/End move to the first or last row. ? opens this help; Esc closes it. q or Ctrl-C quits.\n\n{context}\n\nShortcuts: F2 = Tab, F3 = Shift+Tab.\n\nRead-only inspection. No inspected commands, scripts or MCP servers are executed. Withheld configuration values stay withheld.\nEach section keeps up to 64 Back contexts; removed resources are clamped after refresh."
     )
 }

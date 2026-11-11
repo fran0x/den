@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
     inventory,
-    skills::{self, Config, Scope, Severity, Validity, state::Section},
+    skills::{self, Config, Scope, Severity, Validity},
     ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
@@ -63,10 +63,30 @@ fn app() -> App {
         },
         "test",
     );
-    app.module = Module::Skills;
+    app.module = Module::Agents;
     app.skills.config = Some(Config::fixture(Path::new("fixtures/skills")).unwrap());
     app.skills.finish(Ok(fixture()));
     app
+}
+/// Names of the skills the Agents area shows.
+fn rows(a: &App) -> Vec<String> {
+    let sources = a.agent_sources();
+    a.agents
+        .rows(&sources)
+        .into_iter()
+        .map(|r| r.name)
+        .collect()
+}
+/// The selected skill's supporting file paths.
+fn files(a: &App) -> Vec<std::path::PathBuf> {
+    let sources = a.agent_sources();
+    let row = a.agents.selected_row(&sources).unwrap();
+    den::agents::skill(&sources, &row)
+        .unwrap()
+        .files
+        .iter()
+        .map(|f| f.path.clone())
+        .collect()
 }
 fn draw(app: &mut App, w: u16, h: u16) -> String {
     let mut t = Terminal::new(TestBackend::new(w, h)).unwrap();
@@ -311,28 +331,23 @@ fn mcp_url_redaction_is_visible_in_evidence_and_metadata_source_preview() {
     a.skills.finish(Ok(t.collect()));
     a.skills.requested = false;
     for (width, height) in [(80, 24), (120, 32), (160, 45)] {
-        key(&mut a, KeyCode::Char('v'));
-        assert!(!draw(&mut a, width, height).contains("URL-REDACTION-CANARY"));
-        key(&mut a, KeyCode::End);
-        let evidence = draw(&mut a, width, height);
+        // Evidence is further down the panel: page to the end.
+        a.agents.panel.offset = 0;
+        let mut evidence = String::new();
+        loop {
+            let screen = draw(&mut a, width, height);
+            assert!(!screen.contains("URL-REDACTION-CANARY"));
+            evidence.push_str(&screen);
+            if a.agents.panel.offset >= a.agents.panel.max {
+                break;
+            }
+            key(&mut a, KeyCode::PageDown);
+        }
         assert!(evidence.contains("docs") && evidence.contains("streamable_http"));
         assert!(evidence.contains("[URL withheld]"));
-        assert!(!evidence.contains("URL-REDACTION-CANARY"));
 
-        key(&mut a, KeyCode::Char('3'));
-        a.skills.file = a
-            .skills
-            .selected_skill()
-            .unwrap()
-            .files
-            .iter()
-            .position(|f| f.path == Path::new("agents/openai.yaml"))
-            .unwrap();
-        key(&mut a, KeyCode::Enter);
-        let preview = draw(&mut a, width, height);
-        assert!(a.skills.file_open);
-        assert!(preview.contains("Raw optional metadata withheld"));
-        assert!(!preview.contains("URL-REDACTION-CANARY"));
+        // Supporting files are listed by name; their contents are not shown.
+        assert!(evidence.contains("agents/openai.yaml"));
     }
 }
 
@@ -520,35 +535,41 @@ fn skills_search_filters_and_module_switch_preserve_homebrew_state() {
         key(&mut a, KeyCode::Char(ch));
     }
     key(&mut a, KeyCode::Enter);
-    assert_eq!(a.skills.visible.len(), 1);
-    key(&mut a, KeyCode::F(2));
+    assert_eq!(rows(&a).len(), 1);
+    key(&mut a, KeyCode::F(2)); // Cloud
+    key(&mut a, KeyCode::F(2)); // Docker
+    key(&mut a, KeyCode::F(2)); // Homebrew
     assert_eq!(a.query, "preserved brew search");
-    key(&mut a, KeyCode::F(2));
-    assert_eq!(a.skills.query, "synthetic evidence");
+    key(&mut a, KeyCode::F(2)); // Agents
+    assert_eq!(a.agents.query, "synthetic evidence");
     key(&mut a, KeyCode::Char('/'));
     a.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     key(&mut a, KeyCode::Enter);
+    // f and i are not Agents keys: nothing is filtered.
+    let all = rows(&a).len();
     key(&mut a, KeyCode::Char('f'));
-    assert_eq!(a.skills.scope, Some(Scope::User));
     key(&mut a, KeyCode::Char('i'));
-    assert_eq!(a.skills.visible.len(), 1);
+    assert_eq!(rows(&a).len(), all);
 }
 #[test]
-fn file_navigation_full_instructions_and_back_are_scrollable_and_sanitized() {
+fn supporting_files_are_listed_and_long_instructions_scroll_and_are_sanitized() {
     let mut a = app();
-    a.skills.scope = Some(Scope::User);
-    a.skills.refresh_visible();
-    key(&mut a, KeyCode::Char('3'));
-    draw(&mut a, 100, 30);
-    key(&mut a, KeyCode::End);
-    let selected = a.skills.file;
-    key(&mut a, KeyCode::Enter);
-    assert!(a.skills.file_open);
-    key(&mut a, KeyCode::Backspace);
-    assert_eq!(a.skills.file, selected);
-    assert!(!a.skills.file_open);
-    key(&mut a, KeyCode::Char('2'));
-    let n = a.skills.visible[0];
+    while files(&a).len() < 2 {
+        key(&mut a, KeyCode::Down);
+    }
+    let first = files(&a)[0].display().to_string();
+    key(&mut a, KeyCode::Char('o')); // Not a key any more.
+    let screen = draw(&mut a, 160, 45);
+    assert!(screen.contains("Supporting files (") && screen.contains(&first));
+    assert!(!screen.contains("file 1 of"));
+    let name = a.agent_row().unwrap().name;
+    let n = a
+        .skills
+        .inventory
+        .skills
+        .iter()
+        .position(|s| s.name == name)
+        .unwrap();
     a.skills.inventory.skills[n].instructions = format!(
         "\x1b]52;bad\x07\u{202e}\n{}\nFINAL LINE",
         "line\n".repeat(100)
@@ -558,28 +579,23 @@ fn file_navigation_full_instructions_and_back_are_scrollable_and_sanitized() {
         assert!(!text.contains('\x1b'));
         assert!(!text.contains('\u{202e}'));
     }
-    draw(&mut a, 50, 20);
-    key(&mut a, KeyCode::End);
-    assert!(draw(&mut a, 50, 20).contains("FINAL LINE"));
+    let mut seen = false;
+    for _ in 0..100 {
+        seen |= draw(&mut a, 50, 20).contains("FINAL LINE");
+        key(&mut a, KeyCode::PageDown);
+    }
+    assert!(seen);
 }
 #[test]
-fn refresh_preserves_skill_filter_selection_file_and_stale_data_on_failure() {
+fn refresh_preserves_skill_selection_and_stale_data_on_failure() {
     let mut a = app();
-    a.skills.scope = Some(Scope::User);
-    a.skills.refresh_visible();
-    a.skills.section = Section::Files;
-    a.skills.file = 1;
-    a.skills.file_open = true;
-    let path = a.skills.selected_skill().unwrap().path.clone();
-    let file = a.skills.selected_skill().unwrap().files[1].path.clone();
-    a.skills.finish(Ok(fixture()));
-    assert_eq!(a.skills.selected_skill().unwrap().path, path);
-    assert_eq!(
-        a.skills.selected_skill().unwrap().files[a.skills.file].path,
-        file
-    );
-    assert!(a.skills.file_open);
-    a.skills.finish(Err(io::Error::other("test")));
+    while files(&a).len() < 2 {
+        key(&mut a, KeyCode::Down);
+    }
+    let row = a.agent_row().unwrap().key;
+    a.finish_skills(Ok(fixture()));
+    assert_eq!(a.agent_row().unwrap().key, row);
+    a.finish_skills(Err(io::Error::other("test")));
     assert_eq!(a.skills.inventory.skills.len(), 4);
     assert!(a.skills.status().contains("STALE"));
 }
@@ -594,24 +610,26 @@ fn snapshots_and_unconfigured_states_never_request_filesystem_collection() {
     );
     key(&mut a, KeyCode::F(2));
     key(&mut a, KeyCode::Char('r'));
-    assert!(!a.skills.requested);
+    assert!(!a.skills.requested && !a.codex.requested && !a.claude.requested);
     assert!(a.skills.config.is_none());
-    assert!(draw(&mut a, 120, 30).contains("no filesystem discovery"));
+    let screen = draw(&mut a, 120, 30);
+    assert!(screen.contains("Codex not collected in this mode"));
+    assert!(screen.contains("Claude Code not configured"));
 }
 #[test]
 fn empty_inventory_coverage_help_and_search_shortcuts_are_consistent() {
     let mut a = app();
     a.skills.finish(Ok(skills::Inventory::default()));
-    for ch in ['1', '2', '3', '4', '5', '?'] {
+    for ch in ['1', '2', '3', '4', '5', 'o', '?'] {
         key(&mut a, KeyCode::Char(ch));
         draw(&mut a, 30, 10);
     }
     key(&mut a, KeyCode::Esc);
+    assert!(!a.inspecting() && !a.help);
+    assert!(draw(&mut a, 120, 32).contains("Codex discovery coverage"));
     key(&mut a, KeyCode::Char('/'));
     key(&mut a, KeyCode::Char('r'));
-    assert!(
-        matches!(&a.presentation.page,den::presentation::Page::Inspector{query,..} if query=="r")
-    );
+    assert_eq!(a.agents.query, "r"); // r is text while searching, not refresh.
     assert!(!a.skills.requested);
 }
 

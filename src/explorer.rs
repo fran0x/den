@@ -1,6 +1,6 @@
 //! Dependency-pane state and bounded tree/path projection; no terminal widgets.
 use crate::{
-    graph::{Evidence, Graph, Installation, MAX_DEPTH, Provenance, Resolution},
+    graph::{Evidence, Graph, Installation, Provenance, Resolution},
     inventory::Inventory,
 };
 use std::collections::HashSet;
@@ -20,7 +20,6 @@ pub enum Section {
     Overview,
     Dependencies,
     RequiredBy,
-    Paths,
 }
 impl Section {
     pub fn label(self) -> &'static str {
@@ -28,7 +27,6 @@ impl Section {
             Self::Overview => "Overview",
             Self::Dependencies => "Dependencies",
             Self::RequiredBy => "Required by",
-            Self::Paths => "Dependency paths",
         }
     }
 }
@@ -46,10 +44,9 @@ pub struct Row {
 #[derive(Debug, Clone)]
 pub struct Explorer {
     pub section: Section,
-    /// Evidence shown for the selected package; may fall back to Current for one package.
+    /// Evidence shown for the selected package: recorded runtime, or current
+    /// declarations for this package only when it has no recorded metadata.
     pub evidence: Evidence,
-    /// Evidence the user chose with `s`. Every newly selected package starts from it.
-    pub preferred: Evidence,
     pub tree: bool,
     pub installation: Option<Installation>,
     pub rows: Vec<Row>,
@@ -65,7 +62,6 @@ impl Default for Explorer {
         Self {
             section: Section::Overview,
             evidence: Evidence::Recorded,
-            preferred: Evidence::Recorded,
             tree: true,
             installation: None,
             rows: vec![],
@@ -79,13 +75,10 @@ impl Default for Explorer {
 }
 
 impl Explorer {
-    pub fn hierarchical(&self) -> bool {
-        self.tree && matches!(self.section, Section::Dependencies | Section::RequiredBy)
-    }
     pub fn select(&mut self, graph: &Graph, node: Option<usize>) {
         self.installation = node.map(|node| graph.preferred(node));
         // A fallback applies to this package only; it never changes the next selection.
-        self.evidence = self.preferred;
+        self.evidence = Evidence::Recorded;
         if self.evidence == Evidence::Recorded
             && let Some(state) = &self.installation
             && graph.versions(state.node).len() <= 1
@@ -100,82 +93,6 @@ impl Explorer {
         self.selected = 0;
         self.offset = 0;
         self.expanded.clear();
-    }
-    pub fn cycle_keg(&mut self, graph: &Graph) {
-        if let Some(state) = &mut self.installation {
-            let versions = graph.versions(state.node);
-            if !versions.is_empty() {
-                let index = state
-                    .keg
-                    .as_ref()
-                    .and_then(|v| versions.iter().position(|k| k == v))
-                    .map_or(0, |i| (i + 1) % versions.len());
-                state.keg = Some(versions[index].clone());
-            }
-        }
-        self.clear_navigation();
-    }
-    pub fn move_by(&mut self, delta: isize) {
-        self.selected = self
-            .selected
-            .saturating_add_signed(delta)
-            .min(self.rows.len().saturating_sub(1));
-    }
-    pub fn toggle_expansion(&mut self) {
-        if self.hierarchical()
-            && let Some(row) = self.rows.get(self.selected)
-            && row.expandable
-            && !self.expanded.remove(&row.branch)
-        {
-            self.expanded.insert(row.branch.clone());
-        }
-    }
-    /// Expand in place first; a second Right enters the first visible child.
-    pub fn expand_or_child(&mut self) {
-        if !self.hierarchical() {
-            return;
-        }
-        let Some(row) = self.rows.get(self.selected).filter(|r| r.expandable) else {
-            return;
-        };
-        if !self.expanded.insert(row.branch.clone())
-            && self.rows.get(self.selected + 1).is_some_and(|child| {
-                child.branch.len() == row.branch.len() + 1 && child.branch.starts_with(&row.branch)
-            })
-        {
-            self.selected += 1;
-        }
-    }
-    /// Collapse in place first; otherwise select this occurrence's parent branch.
-    pub fn collapse_or_parent(&mut self) {
-        if !self.hierarchical() {
-            return;
-        }
-        let Some(row) = self.rows.get(self.selected) else {
-            return;
-        };
-        if row.expandable && self.expanded.remove(&row.branch) {
-            return;
-        }
-        if row.branch.len() > 1
-            && let Some(parent) = self
-                .rows
-                .iter()
-                .position(|candidate| candidate.branch == row.branch[..row.branch.len() - 1])
-        {
-            self.selected = parent;
-        }
-    }
-    pub fn rebuild(&mut self, graph: &Graph, inventory: &Inventory) {
-        self.project(
-            graph,
-            inventory,
-            Projection {
-                rows: MAX_ROWS,
-                depth: MAX_DEPTH,
-                passive: false,
-            },
-        );
     }
     /// A bounded, automatically opened two-level tree; never changes inspector state.
     pub fn preview(
@@ -234,37 +151,7 @@ impl Explorer {
         if self.section == Section::Overview {
             return;
         }
-        if self.section == Section::Paths {
-            let paths = graph.paths_to_requested(root.clone(), self.evidence);
-            self.limited |= paths.truncated;
-            for (number, path) in paths.paths.iter().enumerate() {
-                let first = &graph.edges[path[0]];
-                self.rows.push(Row { label: format!("Path {}: {} (requested)", number + 1, inventory.resources[first.from].name),
-                    detail: "One shortest known path for this requested installation; resolved direct edges only.".into(),
-                    target: Some(Installation { node: first.from, keg: first.source_keg.clone() }), branch: vec![], expandable: false, cycle: false });
-                for &index in path {
-                    if self.rows.len() >= MAX_ROWS {
-                        self.limited = true;
-                        break;
-                    }
-                    let edge = &graph.edges[index];
-                    let mut row = row_for(graph, inventory, &root, index, false, vec![], false);
-                    row.label = format!(
-                        "  {} -> {}",
-                        inventory.resources[edge.from].name, edge.reference
-                    );
-                    self.rows.push(row);
-                }
-                if self.rows.len() >= MAX_ROWS {
-                    self.limited = true;
-                    break;
-                }
-            }
-            if self.rows.is_empty() {
-                self.note.push_str(if graph.is_requested(root.node) { " Selected package is explicitly requested." }
-                    else { " No known path to a requested package in this evidence view. This does not imply unused or safe to remove." });
-            }
-        } else {
+        {
             let reverse = self.section == Section::RequiredBy;
             let edges = graph.adjacent(&root, self.evidence, reverse, self.tree);
             self.append_children(
@@ -427,11 +314,7 @@ fn row_for(
     }
     let (mut label, target) = if reverse {
         (
-            format!(
-                "{} [{}]",
-                inventory.resources[edge.from].name,
-                inventory.resources[edge.from].kind.label()
-            ),
+            inventory.resources[edge.from].display_name(),
             Some(Installation {
                 node: edge.from,
                 keg: edge.source_keg.clone(),
@@ -440,11 +323,7 @@ fn row_for(
     } else {
         match &edge.target {
             Resolution::Installed(node) => (
-                format!(
-                    "{} [{}]",
-                    inventory.resources[*node].name,
-                    edge.kind.label()
-                ),
+                inventory.resources[*node].display_name(),
                 Some(
                     graph
                         .target_state(edge)

@@ -1,8 +1,8 @@
-//! Section → resource → inspector. Each area owns one bounded Back history.
+//! Area → section → resource. Tab switches areas, Shift+Tab sections; each section owns its Back history.
 mod location;
 use crate::{
+    agents::Section as AgentSection,
     app::{App, Focus, Module},
-    codex::state::View,
     diagnostics::Tab,
     explorer::Section,
     inventory::matches_query,
@@ -14,115 +14,110 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Destination {
     Homebrew,
-    Dependencies,
-    RequiredBy,
-    Paths,
     Unresolved,
     Missing,
     Leaves,
     Cleanup,
     Skills,
-    Configuration,
-    Sources,
     Instructions,
+    Settings,
+    /// Settings showing Codex source files (`s`, or `e` from a row).
+    Sources,
     Mcp,
+    Hooks,
+    Plugins,
+    /// Cloud › AWS profiles.
+    Aws,
+    Containers,
+    Images,
+    Volumes,
 }
 impl Destination {
-    pub const ALL: [Self; 13] = [
-        Self::Homebrew,
-        Self::Dependencies,
-        Self::RequiredBy,
-        Self::Paths,
-        Self::Unresolved,
-        Self::Missing,
-        Self::Leaves,
-        Self::Cleanup,
-        Self::Skills,
-        Self::Configuration,
-        Self::Sources,
-        Self::Instructions,
-        Self::Mcp,
-    ];
     pub fn label(self) -> &'static str {
         match self {
             Self::Homebrew => "Homebrew / Packages",
-            Self::Dependencies => "Homebrew / Dependencies",
-            Self::RequiredBy => "Homebrew / Required by",
-            Self::Paths => "Homebrew / Dependency paths",
-            Self::Unresolved => "Homebrew / Diagnostics / Unresolved",
-            Self::Missing => "Homebrew / Diagnostics / Missing",
-            Self::Leaves => "Homebrew / Diagnostics / Leaves",
-            Self::Cleanup => "Homebrew / Diagnostics / Cleanup preview",
-            Self::Skills => "Codex / Skills",
-            Self::Configuration => "Codex / Configuration",
-            Self::Sources => "Codex / Configuration / Sources",
-            Self::Instructions => "Codex / Instructions",
-            Self::Mcp => "Codex / MCP",
+            Self::Unresolved | Self::Missing | Self::Leaves | Self::Cleanup => {
+                "Homebrew / Diagnostics"
+            }
+            Self::Skills => "Agents / Skills",
+            Self::Instructions => "Agents / Instructions",
+            Self::Settings | Self::Sources => "Agents / Settings",
+            Self::Mcp => "Agents / MCP",
+            Self::Hooks => "Agents / Hooks",
+            Self::Plugins => "Agents / Plugins",
+            Self::Aws => "Cloud / AWS",
+            Self::Containers => "Docker / Containers",
+            Self::Images => "Docker / Images",
+            Self::Volumes => "Docker / Volumes",
         }
     }
-    /// History index: 0 for Homebrew, 1 for Codex.
-    fn area(self) -> usize {
-        usize::from(self.label().starts_with("Codex"))
+    /// The Agents section this destination shows, if it is in the Agents area.
+    pub fn agents_section(self) -> Option<AgentSection> {
+        Some(match self {
+            Self::Skills => AgentSection::Skills,
+            Self::Instructions => AgentSection::Instructions,
+            Self::Settings | Self::Sources => AgentSection::Settings,
+            Self::Mcp => AgentSection::Mcp,
+            Self::Hooks => AgentSection::Hooks,
+            Self::Plugins => AgentSection::Plugins,
+            _ => return None,
+        })
+    }
+    fn of_agents(section: AgentSection) -> Self {
+        match section {
+            AgentSection::Skills => Self::Skills,
+            AgentSection::Instructions => Self::Instructions,
+            AgentSection::Settings => Self::Settings,
+            AgentSection::Mcp => Self::Mcp,
+            AgentSection::Hooks => Self::Hooks,
+            AgentSection::Plugins => Self::Plugins,
+        }
+    }
+    /// The top-level section this destination belongs to; Shift+Tab cycles sections.
+    pub fn section(self) -> Self {
+        match self {
+            Self::Missing | Self::Leaves | Self::Cleanup => Self::Unresolved,
+            Self::Sources => Self::Settings,
+            other => other,
+        }
     }
 }
+/// Scroll position of an information panel; PgUp/PgDn move it by `page` lines.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PanelScroll {
+    pub offset: u16,
+    pub max: u16,
+    pub page: u16,
+}
+impl PanelScroll {
+    pub fn by(&mut self, pages: i32) {
+        let step = i32::from(self.page.max(1));
+        self.offset = (i32::from(self.offset) + pages * step).clamp(0, i32::from(self.max)) as u16;
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Detail {
     Overview,
-    Dependencies,
-    RequiredBy,
-    Paths,
     Unresolved,
     Missing,
     Leaves,
     Cleanup,
-    Instructions,
-    Files,
-    Findings,
-    Coverage,
-    Transport,
-    Authentication,
-    Tools,
-    Sources,
-    Preview,
-    Evidence,
-    ToggleEvidence,
-    NextKeg,
-    ToggleTree,
     RunCheck,
     OriginalOutput,
     FullFinding,
-    NextSource,
-    TrustedScenario,
 }
 impl Detail {
     pub fn label(self) -> &'static str {
         match self {
             Self::Overview => "Overview",
-            Self::Dependencies => "Dependencies",
-            Self::RequiredBy => "Required by",
-            Self::Paths => "Dependency paths",
-            Self::Unresolved => "Diagnostics / Unresolved",
-            Self::Missing => "Diagnostics / Missing",
-            Self::Leaves => "Diagnostics / Leaves",
-            Self::Cleanup => "Diagnostics / Cleanup",
-            Self::Instructions => "Instructions",
-            Self::Files => "Supporting files",
-            Self::Findings => "Findings",
-            Self::Coverage => "Coverage",
-            Self::Transport => "Transport",
-            Self::Authentication => "Authentication",
-            Self::Tools => "Tools and approvals",
-            Self::Sources => "Configuration sources",
-            Self::Preview => "Instruction preview",
-            Self::Evidence => "Evidence",
-            Self::ToggleEvidence => "Recorded / current evidence",
-            Self::NextKeg => "Next installed keg",
-            Self::ToggleTree => "Direct / tree view",
+            Self::Unresolved => "Unresolved",
+            Self::Missing => "Missing",
+            Self::Leaves => "Leaves",
+            Self::Cleanup => "Cleanup preview",
             Self::RunCheck => "Run selected Homebrew check",
             Self::OriginalOutput => "Original Homebrew report",
             Self::FullFinding => "Full finding / summary",
-            Self::NextSource => "Next configuration source",
-            Self::TrustedScenario => "Conditional trusted scenario",
         }
     }
 }
@@ -143,182 +138,175 @@ pub enum Page {
     },
 }
 #[derive(Default)]
-pub struct Switcher {
-    pub query: String,
-    pub selected: usize,
-    pub searching: bool,
-}
-impl Switcher {
-    pub fn rows(&self) -> Vec<Destination> {
-        Destination::ALL
-            .into_iter()
-            .filter(|d| matches_query(&self.query, d.label()))
-            .collect()
-    }
-}
-#[derive(Default)]
 pub struct Presentation {
     pub page: Page,
-    pub switcher: Option<Switcher>,
-    /// Back history per area (Homebrew, Codex); switching areas never adds a Back step.
-    history: [Vec<Location>; 2],
+    /// Back history per section. Switching areas or sections never adds a Back step;
+    /// a jump to another section returns with Back from the section it landed in.
+    history: BTreeMap<Destination, Vec<Location>>,
+    /// The latest context, filed under the section the action lands in.
+    pending: Option<Location>,
     saved: BTreeMap<Destination, Location>,
-    areas: [Option<Location>; 2],
+    areas: [Option<Location>; 4],
     pub(super) revision: u64,
     pub menu_searching: bool,
     pub notice: Option<String>,
 }
 impl App {
-    /// Area switching remembers the complete view, including an explicit inspector.
+    /// Area switching remembers the complete view. Tab: Homebrew → Agents → Cloud → Docker.
     pub fn switch_area(&mut self) {
-        let current = usize::from(self.module == Module::Skills);
+        self.commit_history();
+        let current = self.module.index();
         self.presentation.areas[current] = Some(self.location());
         self.presentation.menu_searching = false;
         self.presentation.notice = None;
-        if let Some(location) = self.presentation.areas[1 - current].clone() {
+        let next = (current + 1) % 4;
+        if let Some(location) = self.presentation.areas[next].clone() {
             self.restore(location);
         } else {
-            self.navigate(if current == 0 {
-                Destination::Skills
-            } else {
-                Destination::Homebrew
-            });
+            self.navigate(
+                [
+                    Destination::Homebrew,
+                    Destination::Skills,
+                    Destination::Aws,
+                    Destination::Containers,
+                ][next],
+            );
         }
     }
     pub(crate) fn focus_inventory(&mut self) {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => self.focus = Focus::Inventory,
-            (_, View::Skills) => self.skills.focus = Focus::Inventory,
-            _ => self.codex.focus_details = false,
+        if self.module == Module::Homebrew {
+            self.focus = Focus::Inventory;
         }
     }
+    /// Shift+Tab: Homebrew Packages ↔ Diagnostics; Agents Skills → Instructions → Settings →
+    /// MCP → Hooks → Plugins. Each section restores its last context.
+    pub fn next_section(&mut self) {
+        let next = match self.destination().section() {
+            Destination::Homebrew if self.is_homebrew() => Destination::Unresolved,
+            Destination::Homebrew => return,
+            Destination::Unresolved => Destination::Homebrew,
+            // Cloud has one section so far; Kubernetes would be the next.
+            Destination::Aws => return,
+            Destination::Containers => Destination::Images,
+            Destination::Images => Destination::Volumes,
+            Destination::Volumes => Destination::Containers,
+            d => Destination::of_agents(d.agents_section().unwrap_or_default().next()),
+        };
+        self.searching = false;
+        self.agents.searching = false;
+        self.docker.searching = false;
+        self.presentation.menu_searching = false;
+        self.navigate(next);
+    }
     pub fn destination(&self) -> Destination {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => match self.diagnostics.tab {
+        match self.module {
+            Module::Homebrew => match self.diagnostics.tab {
                 Some(Tab::Unresolved) => Destination::Unresolved,
                 Some(Tab::Missing) => Destination::Missing,
                 Some(Tab::Leaves) => Destination::Leaves,
                 Some(Tab::Cleanup) => Destination::Cleanup,
-                None => match self.explorer.section {
-                    Section::Overview => Destination::Homebrew,
-                    Section::Dependencies => Destination::Dependencies,
-                    Section::RequiredBy => Destination::RequiredBy,
-                    Section::Paths => Destination::Paths,
-                },
+                None => Destination::Homebrew,
             },
-            (_, View::Skills) => Destination::Skills,
-            (_, View::Configuration) if self.codex.sources => Destination::Sources,
-            (_, View::Configuration) => Destination::Configuration,
-            (_, View::Instructions) => Destination::Instructions,
-            (_, View::Mcp) => Destination::Mcp,
+            Module::Agents
+                if self.agents.section == AgentSection::Settings && self.codex.sources =>
+            {
+                Destination::Sources
+            }
+            Module::Agents => Destination::of_agents(self.agents.section),
+            Module::Cloud => Destination::Aws,
+            Module::Docker => match self.docker.section {
+                crate::docker::Section::Containers => Destination::Containers,
+                crate::docker::Section::Images => Destination::Images,
+                crate::docker::Section::Volumes => Destination::Volumes,
+            },
         }
     }
     pub fn inspecting(&self) -> bool {
         matches!(self.presentation.page, Page::Inspector { .. })
     }
-    pub(crate) fn relationship_content_focused(&self) -> bool {
-        self.module == Module::Homebrew
-            && self.diagnostics.tab.is_none()
-            && matches!(
-                self.explorer.section,
-                Section::Dependencies | Section::RequiredBy
-            )
-            && matches!(
-                self.presentation.page,
-                Page::Inspector {
-                    focus: InspectorFocus::Content,
-                    ..
-                }
-            )
-    }
-    pub(crate) fn tree_content_focused(&self) -> bool {
-        self.relationship_content_focused() && self.explorer.tree
-    }
-    pub fn evidence(&self) -> bool {
-        matches!(
-            self.presentation.page,
-            Page::Inspector {
-                detail: Detail::Evidence,
-                ..
-            }
-        )
-    }
     pub fn active_focus(&self) -> Focus {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => self.focus,
-            (_, View::Skills) => self.skills.focus,
-            _ => self.codex.focus(),
+        match self.module {
+            Module::Homebrew => self.focus,
+            Module::Agents | Module::Cloud | Module::Docker => Focus::Inventory,
         }
     }
     pub fn active_searching(&self) -> bool {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => self.searching,
-            (_, View::Skills) => self.skills.searching,
-            _ => self.codex.searching,
+        match self.module {
+            Module::Homebrew => self.searching,
+            Module::Agents => self.agents.searching,
+            Module::Cloud => self.aws.searching,
+            Module::Docker => self.docker.searching,
         }
     }
     fn focus_content(&mut self) {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => self.focus = Focus::Details,
-            (_, View::Skills) => self.skills.focus = Focus::Details,
-            _ => self.codex.focus_details = true,
+        if self.module == Module::Homebrew {
+            self.focus = Focus::Details;
         }
     }
     pub(crate) fn remember(&mut self) {
         self.push_location(self.location());
     }
     fn push_location(&mut self, location: Location) {
-        let history = &mut self.presentation.history[location.area()];
-        if history.len() == 64 {
-            history.remove(0);
-        }
-        history.push(location);
+        self.commit_history();
+        self.presentation.pending = Some(location);
         self.presentation.revision = self.presentation.revision.wrapping_add(1);
+    }
+    /// File the pending context under the section the last action landed in.
+    fn commit_history(&mut self) {
+        if let Some(location) = self.presentation.pending.take() {
+            let history = self
+                .presentation
+                .history
+                .entry(self.destination().section())
+                .or_default();
+            if history.len() == 64 {
+                history.remove(0);
+            }
+            history.push(location);
+        }
     }
     pub fn back(&mut self) {
         self.presentation.notice = None;
-        let area = usize::from(self.module == Module::Skills);
-        if let Some(location) = self.presentation.history[area].pop() {
+        self.commit_history();
+        let section = self.destination().section();
+        if let Some(location) = self
+            .presentation
+            .history
+            .get_mut(&section)
+            .and_then(Vec::pop)
+        {
             self.presentation
                 .saved
                 .insert(self.destination(), self.location());
             self.restore(location);
             self.presentation.revision = self.presentation.revision.wrapping_add(1);
+        } else if self.module == Module::Homebrew && self.diagnostics.tab.is_some() {
+            // Diagnostics is a section, not a drill-in: its first page has nothing behind it.
         } else {
             self.presentation.page = Page::Browse;
-            match self.module {
-                Module::Homebrew => self.focus = Focus::Inventory,
-                Module::Skills if self.codex.view == View::Skills => {
-                    self.skills.focus = Focus::Inventory
-                }
-                _ => self.codex.focus_details = false,
+            if self.module == Module::Homebrew {
+                self.focus = Focus::Inventory;
             }
         }
     }
     pub fn navigate(&mut self, destination: Destination) {
-        self.presentation.switcher = None;
         self.presentation.notice = None;
-        if destination == self.destination() {
+        if destination.section() == self.destination().section() {
             return;
         }
-        self.presentation.areas[usize::from(self.module == Module::Skills)] = Some(self.location());
+        // Switching sections never adds a Back step; each section keeps its own history.
+        self.commit_history();
+        self.presentation.areas[self.module.index()] = Some(self.location());
         self.presentation
             .saved
-            .insert(self.destination(), self.location());
-        // Like Tab, moving to the other area keeps each area's Back history separate.
-        if destination.area() == usize::from(self.module == Module::Skills) {
-            self.remember();
-        }
-        if let Some(location) = self.presentation.saved.get(&destination).cloned() {
+            .insert(self.destination().section(), self.location());
+        if let Some(location) = self.presentation.saved.get(&destination.section()).cloned() {
             self.restore(location);
             return;
         }
         self.presentation.page = Page::Browse;
         match destination {
             Destination::Homebrew
-            | Destination::Dependencies
-            | Destination::RequiredBy
-            | Destination::Paths
             | Destination::Unresolved
             | Destination::Missing
             | Destination::Leaves
@@ -329,9 +317,6 @@ impl App {
                 self.focus = Focus::Inventory;
                 self.detail_scroll = 0;
                 let detail = match destination {
-                    Destination::Dependencies => Detail::Dependencies,
-                    Destination::RequiredBy => Detail::RequiredBy,
-                    Destination::Paths => Detail::Paths,
                     Destination::Unresolved => Detail::Unresolved,
                     Destination::Missing => Detail::Missing,
                     Destination::Leaves => Detail::Leaves,
@@ -342,81 +327,50 @@ impl App {
                     self.apply_detail(detail);
                 }
             }
-            Destination::Skills => {
-                self.module = Module::Skills;
-                self.codex.view = View::Skills;
-                self.skills.focus = Focus::Inventory;
-            }
-            _ => {
-                self.module = Module::Skills;
-                self.codex.view = match destination {
-                    Destination::Instructions => View::Instructions,
-                    Destination::Mcp => View::Mcp,
-                    _ => View::Configuration,
+            Destination::Containers | Destination::Images | Destination::Volumes => {
+                self.module = Module::Docker;
+                let d = &mut self.docker;
+                d.section = match destination {
+                    Destination::Images => crate::docker::Section::Images,
+                    Destination::Volumes => crate::docker::Section::Volumes,
+                    _ => crate::docker::Section::Containers,
                 };
-                self.codex.sources = destination == Destination::Sources;
-                self.codex.query.clear();
-                self.codex.scroll = 0;
-                self.codex.focus_details = false;
-                self.codex.preview = false;
-                self.codex.clamp();
+                d.query.clear();
+                d.panel.offset = 0;
+                d.clamp();
+            }
+            Destination::Aws => {
+                self.module = Module::Cloud;
+                self.aws.query.clear();
+                self.aws.panel.offset = 0;
+                self.aws.clamp();
+            }
+            d => {
+                self.module = Module::Agents;
+                self.agents.section = d.agents_section().unwrap_or_default();
+                self.codex.sources = d == Destination::Sources;
+                self.agents.query.clear();
+                self.agents.panel.offset = 0;
+                self.agents_clamp();
             }
         }
     }
+    /// Only Homebrew Diagnostics has a section list; Codex and Claude use the panel.
     pub fn detail_choices(&self) -> Vec<Detail> {
         use Detail::*;
-        let mut choices = match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => vec![
-                Overview,
-                Dependencies,
-                RequiredBy,
-                Paths,
-                Unresolved,
-                Missing,
-                Leaves,
-                Cleanup,
-                Evidence,
-            ],
-            (_, View::Skills) => vec![
-                Overview,
-                Instructions,
-                Files,
-                Findings,
-                Coverage,
-                Sources,
-                Evidence,
-            ],
-            (_, View::Mcp) => vec![
-                Overview,
-                Transport,
-                Authentication,
-                Tools,
-                Sources,
-                Findings,
-                Evidence,
-            ],
-            (_, View::Instructions) => vec![Overview, Preview, Evidence],
-            _ => vec![Overview, Sources, Evidence],
-        };
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) if self.diagnostics.tab.is_some() => {
-                choices.extend([FullFinding, OriginalOutput]);
-                if self.live && self.diagnostics.tab.and_then(|t| t.check()).is_some() {
-                    choices.push(RunCheck);
-                }
-            }
-            (Module::Homebrew, _) => {
-                choices.extend([ToggleEvidence, NextKeg]);
-                if matches!(
-                    self.explorer.section,
-                    Section::Dependencies | Section::RequiredBy
-                ) {
-                    choices.push(ToggleTree);
-                }
-            }
-            (_, View::Mcp) => choices.push(NextSource),
-            (_, View::Instructions) => choices.push(TrustedScenario),
-            _ => (),
+        if self.module != Module::Homebrew {
+            return vec![];
+        }
+        let mut choices = vec![
+            Unresolved,
+            Missing,
+            Leaves,
+            Cleanup,
+            FullFinding,
+            OriginalOutput,
+        ];
+        if self.live && self.diagnostics.tab.and_then(|t| t.check()).is_some() {
+            choices.push(RunCheck);
         }
         choices
     }
@@ -430,50 +384,13 @@ impl App {
             .filter(|d| matches_query(query, d.label()))
             .collect()
     }
-    pub fn open_inspector(&mut self) {
-        self.remember();
-        self.focus_content();
-        self.presentation.page = Page::Inspector {
-            detail: Detail::Overview,
-            focus: InspectorFocus::Content,
-            selected: 0,
-            query: String::new(),
-        };
-        self.apply_overview();
-    }
-    fn apply_overview(&mut self) {
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => {
-                self.diagnostics.tab = None;
-                self.explorer.section = Section::Overview;
-                self.detail_scroll = 0;
-            }
-            (_, View::Skills) => {
-                self.skills.section = crate::skills::state::Section::Overview;
-                self.skills.scroll = 0;
-            }
-            (_, View::Mcp) => {
-                self.codex.mcp.section = 0;
-                self.codex.scroll = 0;
-            }
-            _ => {
-                self.codex.preview = false;
-                self.codex.scroll = 0;
-            }
-        }
-    }
     pub fn open_detail(&mut self, detail: Detail) {
         self.remember();
         self.presentation.notice = None;
         if let Some(key) = match detail {
-            Detail::ToggleEvidence => Some('s'),
-            Detail::NextKeg => Some('V'),
-            Detail::ToggleTree => Some('t'),
             Detail::RunCheck => Some('c'),
             Detail::OriginalOutput => Some('o'),
             Detail::FullFinding => Some(' '),
-            Detail::NextSource => Some('V'),
-            Detail::TrustedScenario => Some('t'),
             _ => None,
         } {
             if let Page::Inspector { focus, .. } = &mut self.presentation.page {
@@ -499,90 +416,30 @@ impl App {
             selected,
             query: String::new(),
         };
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => {
-                self.diagnostics.tab = match detail {
-                    Unresolved => Some(Tab::Unresolved),
-                    Missing => Some(Tab::Missing),
-                    Leaves => Some(Tab::Leaves),
-                    Cleanup => Some(Tab::Cleanup),
-                    _ => None,
-                };
-                self.diagnostics.group = None;
-                self.diagnostics.selected = 0;
-                self.diagnostics.scroll = 0;
-                self.diagnostics.raw = false;
-                self.diagnostics.expanded = false;
-                self.explorer.section = match detail {
-                    Dependencies => Section::Dependencies,
-                    RequiredBy => Section::RequiredBy,
-                    Paths => Section::Paths,
-                    _ => Section::Overview,
-                };
-                self.detail_scroll = 0;
-                self.sync_explorer();
-            }
-            (_, View::Skills) => {
-                self.skills.section = match detail {
-                    Instructions => crate::skills::state::Section::Instructions,
-                    Files => crate::skills::state::Section::Files,
-                    Findings => crate::skills::state::Section::Findings,
-                    Coverage => crate::skills::state::Section::Coverage,
-                    _ => crate::skills::state::Section::Overview,
-                };
-                self.skills.scroll = 0;
-                self.skills.file_open = false;
-                if detail == Sources {
-                    self.follow_source();
-                }
-            }
-            (_, View::Mcp) => {
-                self.codex.mcp.section = match detail {
-                    Transport => 1,
-                    Authentication => 2,
-                    Tools => 3,
-                    Sources => 4,
-                    Findings => 5,
-                    _ => 0,
-                };
-                self.codex.scroll = 0;
-                if detail == Sources {
-                    self.follow_source();
-                }
-            }
-            (_, View::Instructions) => {
-                self.codex.preview = detail == Preview;
-                self.codex.scroll = 0;
-            }
-            _ => {
-                self.codex.scroll = 0;
-                if detail == Sources {
-                    self.follow_source();
-                }
-            }
-        }
-    }
-    pub(crate) fn follow_source(&mut self) {
-        let source = if self.codex.view == View::Skills {
-            self.skills
-                .selected
-                .and_then(|n| self.skills.visible.get(n))
-                .and_then(|n| self.skills.enablement.get(*n))
-                .and_then(|e| e.source)
-        } else {
-            self.codex.selected_source()
+        self.diagnostics.tab = match detail {
+            Unresolved => Some(Tab::Unresolved),
+            Missing => Some(Tab::Missing),
+            Leaves => Some(Tab::Leaves),
+            Cleanup => Some(Tab::Cleanup),
+            _ => None,
         };
-        if let Some(source) = source {
-            self.codex.jump_source(source);
-            self.presentation.page = Page::Inspector {
-                detail: Detail::Evidence,
-                focus: InspectorFocus::Content,
-                selected: 0,
-                query: String::new(),
-            };
+        self.diagnostics.group = None;
+        self.diagnostics.selected = 0;
+        self.diagnostics.scroll = 0;
+        self.diagnostics.raw = false;
+        self.diagnostics.expanded = false;
+        self.detail_scroll = 0;
+        self.sync_explorer();
+    }
+    /// `e`: show the Codex configuration layer that defines the selected row.
+    pub(crate) fn follow_source(&mut self) {
+        if let Some(layer) = self.agents_source() {
+            // The layer is selected in Settings › source files; Esc returns.
+            self.agents_jump_source(layer);
+            self.presentation.page = Page::Browse;
         } else {
             self.presentation.notice =
-                Some("No configuration source is available for this resource.".into());
+                Some("No Codex configuration source is available for this row.".into());
         }
     }
 }
@@ -595,10 +452,6 @@ struct Route {
     group: Option<usize>,
     report: bool,
     finding: bool,
-    skill_section: crate::skills::state::Section,
-    file_open: bool,
-    mcp_section: usize,
-    preview: bool,
     page: Page,
 }
 pub(crate) struct Checkpoint {
@@ -614,15 +467,13 @@ impl App {
             group: self.diagnostics.group,
             report: self.diagnostics.raw,
             finding: self.diagnostics.expanded,
-            skill_section: self.skills.section,
-            file_open: self.skills.file_open,
-            mcp_section: self.codex.mcp.section,
-            preview: self.codex.preview,
             page: self.presentation.page.clone(),
         }
     }
     pub(crate) fn navigation_checkpoint(&self, key: KeyEvent) -> Option<Checkpoint> {
-        (!self.active_searching()
+        // Only Homebrew Diagnostics opens a report page; Codex and Claude use the panel.
+        (self.module == Module::Homebrew
+            && !self.active_searching()
             && matches!(
                 key.code,
                 KeyCode::Enter | KeyCode::Char('1'..='8' | 'o' | 's') | KeyCode::Char(' ')
@@ -655,36 +506,12 @@ impl App {
         }
     }
     fn native_detail(&self) -> Detail {
-        use Detail::*;
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => match self.destination() {
-                Destination::Dependencies => Dependencies,
-                Destination::RequiredBy => RequiredBy,
-                Destination::Paths => Paths,
-                Destination::Unresolved => Unresolved,
-                Destination::Missing => Missing,
-                Destination::Leaves => Leaves,
-                Destination::Cleanup => Cleanup,
-                _ => Overview,
-            },
-            (_, View::Skills) => match self.skills.section {
-                crate::skills::state::Section::Overview => Overview,
-                crate::skills::state::Section::Instructions => Instructions,
-                crate::skills::state::Section::Files => Files,
-                crate::skills::state::Section::Findings => Findings,
-                crate::skills::state::Section::Coverage => Coverage,
-            },
-            (_, View::Mcp) => [
-                Overview,
-                Transport,
-                Authentication,
-                Tools,
-                Sources,
-                Findings,
-            ][self.codex.mcp.section.min(5)],
-            (_, View::Instructions) if self.codex.preview => Preview,
-            (_, View::Configuration) if self.codex.sources => Evidence,
-            _ => Overview,
+        match self.destination() {
+            Destination::Unresolved => Detail::Unresolved,
+            Destination::Missing => Detail::Missing,
+            Destination::Leaves => Detail::Leaves,
+            Destination::Cleanup => Detail::Cleanup,
+            _ => Detail::Overview,
         }
     }
     pub(crate) fn presentation_key(&mut self, key: KeyEvent) -> bool {
@@ -708,9 +535,6 @@ impl App {
             };
             return true;
         }
-        if self.presentation.switcher.is_some() {
-            return self.switcher_key(key);
-        }
         if key.code == KeyCode::F(1)
             || (!self.active_searching()
                 && !self.presentation.menu_searching
@@ -720,8 +544,12 @@ impl App {
             self.help_scroll = 0;
             return true;
         }
-        if matches!(key.code, KeyCode::Tab | KeyCode::BackTab | KeyCode::F(2)) {
+        if matches!(key.code, KeyCode::Tab | KeyCode::F(2)) {
             self.switch_area();
+            return true;
+        }
+        if matches!(key.code, KeyCode::BackTab | KeyCode::F(3)) {
+            self.next_section();
             return true;
         }
         if self.active_searching() {
@@ -757,10 +585,6 @@ impl App {
                 self.remember();
                 return false;
             }
-            KeyCode::Char('g') => {
-                self.presentation.switcher = Some(Switcher::default());
-                return true;
-            }
             KeyCode::Esc | KeyCode::Backspace => {
                 self.back();
                 return true;
@@ -768,43 +592,11 @@ impl App {
             KeyCode::Left | KeyCode::Right if !self.inspecting() => {
                 return true;
             }
-            KeyCode::F(3) => {
-                let next = match self.destination() {
-                    Destination::Homebrew => Destination::Dependencies,
-                    Destination::Dependencies => Destination::RequiredBy,
-                    Destination::RequiredBy => Destination::Paths,
-                    Destination::Paths => Destination::Unresolved,
-                    Destination::Unresolved => Destination::Missing,
-                    Destination::Missing => Destination::Leaves,
-                    Destination::Leaves => Destination::Cleanup,
-                    Destination::Cleanup => Destination::Homebrew,
-                    Destination::Skills => Destination::Configuration,
-                    Destination::Configuration | Destination::Sources => Destination::Instructions,
-                    Destination::Instructions => Destination::Mcp,
-                    Destination::Mcp => Destination::Skills,
-                };
-                self.navigate(next);
-                return true;
-            }
-            KeyCode::Left if self.inspecting() && !self.tree_content_focused() => {
+            KeyCode::Left if self.inspecting() => {
                 self.back();
                 return true;
             }
-            KeyCode::Char('v') => {
-                self.open_detail(Detail::Evidence);
-                return true;
-            }
-            KeyCode::Char('z') => {
-                if !self.inspecting() {
-                    self.open_inspector();
-                }
-                return true;
-            }
-            KeyCode::Enter if !self.inspecting() => {
-                self.open_inspector();
-                return true;
-            }
-            KeyCode::Char('e') if self.module == Module::Skills => {
+            KeyCode::Char('e') if self.module == Module::Agents => {
                 self.remember();
                 self.follow_source();
                 return true;
@@ -868,66 +660,6 @@ impl App {
             }
         }
         false
-    }
-    fn switcher_key(&mut self, key: KeyEvent) -> bool {
-        if key.code == KeyCode::Esc {
-            self.presentation.switcher = None;
-            return true;
-        }
-        if key.code == KeyCode::Enter {
-            let destination = self
-                .presentation
-                .switcher
-                .as_ref()
-                .and_then(|s| s.rows().get(s.selected).copied());
-            if let Some(d) = destination {
-                self.navigate(d);
-            }
-            return true;
-        }
-        if key.code == KeyCode::Char('?')
-            && self
-                .presentation
-                .switcher
-                .as_ref()
-                .is_some_and(|s| !s.searching)
-        {
-            self.help = true;
-            self.help_scroll = 0;
-            return true;
-        }
-        let Some(s) = &mut self.presentation.switcher else {
-            return true;
-        };
-        if s.searching {
-            if matches!(
-                key.code,
-                KeyCode::Up
-                    | KeyCode::Down
-                    | KeyCode::PageUp
-                    | KeyCode::PageDown
-                    | KeyCode::Home
-                    | KeyCode::End
-            ) {
-                s.selected = move_selection(s.selected, s.rows().len(), key.code);
-            } else {
-                edit_query(&mut s.query, key);
-                s.selected = 0;
-            }
-        } else {
-            match key.code {
-                KeyCode::Char('q') => self.quit = true,
-                KeyCode::Char('/') => s.searching = true,
-                KeyCode::Down
-                | KeyCode::Char('j')
-                | KeyCode::Up
-                | KeyCode::Char('k')
-                | KeyCode::Home
-                | KeyCode::End => s.selected = move_selection(s.selected, s.rows().len(), key.code),
-                _ => (),
-            }
-        }
-        true
     }
 }
 fn move_selection(n: usize, len: usize, key: KeyCode) -> usize {

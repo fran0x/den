@@ -26,3 +26,15 @@ skills path="fixtures/skills":
 # Browse isolated synthetic Codex configuration, skills, instructions and MCP.
 codex path="fixtures/codex":
     cargo run -- --codex-fixture "$1"
+
+# Browse isolated synthetic Codex and Claude Code side by side in Agents.
+claude path="fixtures/claude":
+    cargo run -- --claude-fixture "$1"
+
+# Browse isolated synthetic AWS profiles in Cloud › AWS.
+aws path="fixtures/aws":
+    cargo run -- --aws-fixture "$1"
+
+# Browse saved synthetic Docker listings without running docker.
+docker path="fixtures/docker":
+    cargo run -- --docker-fixture "$1"

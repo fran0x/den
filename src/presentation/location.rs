@@ -1,7 +1,6 @@
 //! Navigation snapshots contain view state only, never inventories or worker state.
 use super::*;
-use crate::{diagnostics, explorer::Explorer, inventory::ResourceKind, skills};
-use std::path::PathBuf;
+use crate::{diagnostics, explorer::Explorer, inventory::ResourceKind};
 
 #[derive(Clone)]
 pub(super) enum Location {
@@ -18,44 +17,70 @@ pub(super) enum Location {
         diagnostics: diagnostics::View,
         epoch: u64,
     },
-    Skills {
-        page: Page,
-        identity: Option<(skills::Scope, PathBuf)>,
+    /// Agents view state. Codex's source-files toggle, if-trusted scenario and MCP source
+    /// choice live in the Codex state, so they are saved here too.
+    Docker {
+        section: crate::docker::Section,
+        key: Option<String>,
+        selected: [usize; 3],
         query: String,
-        scope: Option<skills::Scope>,
-        filter: Option<skills::state::Filter>,
-        focus: Focus,
-        section: skills::state::Section,
-        file: usize,
-        file_path: Option<PathBuf>,
-        file_open: bool,
         scroll: u16,
     },
-    Codex {
-        page: Page,
-        view: View,
-        identity: Option<String>,
+    Cloud {
+        key: Option<String>,
+        selected: usize,
         query: String,
-        selected: [usize; 4],
         scroll: u16,
-        focus: bool,
+    },
+    Agents {
+        section: crate::agents::Section,
+        key: Option<String>,
+        selected: [usize; 6],
+        query: String,
+        scroll: u16,
         sources: bool,
-        preview: bool,
         conditional: bool,
-        mcp: crate::codex::mcp::state::Controls,
+        mcp_source: usize,
     },
 }
 impl Location {
-    /// History index: 0 for Homebrew, 1 for Codex (Skills, Configuration, Instructions, MCP).
-    pub(super) fn area(&self) -> usize {
-        usize::from(!matches!(self, Self::Homebrew { .. }))
+    fn module(&self) -> Module {
+        match self {
+            Self::Homebrew { .. } => Module::Homebrew,
+            Self::Agents { .. } => Module::Agents,
+            Self::Cloud { .. } => Module::Cloud,
+            Self::Docker { .. } => Module::Docker,
+        }
     }
 }
 impl App {
     pub(super) fn location(&self) -> Location {
         let page = self.presentation.page.clone();
-        match (self.module, self.codex.view) {
-            (Module::Homebrew, _) => {
+        match self.module {
+            Module::Docker => Location::Docker {
+                section: self.docker.section,
+                key: self.docker.selected_row().map(|r| r.key.clone()),
+                selected: self.docker.selected,
+                query: self.docker.query.clone(),
+                scroll: self.docker.panel.offset,
+            },
+            Module::Cloud => Location::Cloud {
+                key: self.aws.selected_row().map(|r| r.key.clone()),
+                selected: self.aws.selected,
+                query: self.aws.query.clone(),
+                scroll: self.aws.panel.offset,
+            },
+            Module::Agents => Location::Agents {
+                section: self.agents.section,
+                key: self.agent_row().map(|r| r.key),
+                selected: self.agents.selected,
+                query: self.agents.query.clone(),
+                scroll: self.agents.panel.offset,
+                sources: self.codex.sources,
+                conditional: self.codex.conditional,
+                mcp_source: self.codex.mcp_source,
+            },
+            Module::Homebrew => {
                 let mut explorer = self.explorer.clone();
                 explorer.rows.clear();
                 explorer.note.clear();
@@ -73,47 +98,77 @@ impl App {
                     epoch: self.inventory_epoch,
                 }
             }
-            (_, View::Skills) => Location::Skills {
-                page,
-                identity: self
-                    .skills
-                    .selected_skill()
-                    .map(|s| (s.scope, s.path.clone())),
-                query: self.skills.query.clone(),
-                scope: self.skills.scope,
-                filter: self.skills.filter,
-                focus: self.skills.focus,
-                section: self.skills.section,
-                file: self.skills.file,
-                file_path: self
-                    .skills
-                    .selected_skill()
-                    .and_then(|s| s.files.get(self.skills.file))
-                    .map(|f| f.path.clone()),
-                file_open: self.skills.file_open,
-                scroll: self.skills.scroll,
-            },
-            _ => Location::Codex {
-                page,
-                view: self.codex.view,
-                identity: self.codex.selected_identity(),
-                query: self.codex.query.clone(),
-                selected: self.codex.selected,
-                scroll: self.codex.scroll,
-                focus: self.codex.focus_details,
-                sources: self.codex.sources,
-                preview: self.codex.preview,
-                conditional: self.codex.conditional,
-                mcp: self.codex.mcp.clone(),
-            },
         }
     }
     pub(super) fn restore(&mut self, location: Location) {
-        if matches!(&location, Location::Homebrew { .. }) != (self.module == Module::Homebrew) {
-            self.presentation.areas[usize::from(self.module == Module::Skills)] =
-                Some(self.location());
+        if location.module() != self.module {
+            self.presentation.areas[self.module.index()] = Some(self.location());
         }
         match location {
+            Location::Docker {
+                section,
+                key,
+                selected,
+                query,
+                scroll,
+            } => {
+                self.module = Module::Docker;
+                let d = &mut self.docker;
+                d.section = section;
+                d.selected = selected;
+                d.query = query;
+                d.searching = false;
+                if let Some(key) = key {
+                    d.select_key(&key);
+                }
+                d.clamp();
+                d.panel.offset = scroll;
+                self.presentation.page = Page::Browse;
+            }
+            Location::Cloud {
+                key,
+                selected,
+                query,
+                scroll,
+            } => {
+                self.module = Module::Cloud;
+                let a = &mut self.aws;
+                a.selected = selected;
+                a.query = query;
+                a.searching = false;
+                if let Some(key) = key {
+                    a.select_key(&key);
+                }
+                a.clamp();
+                a.panel.offset = scroll;
+                self.presentation.page = Page::Browse;
+            }
+            Location::Agents {
+                section,
+                key,
+                selected,
+                query,
+                scroll,
+                sources,
+                conditional,
+                mcp_source,
+            } => {
+                self.module = Module::Agents;
+                self.codex.sources = sources;
+                self.codex.conditional = conditional;
+                self.codex.mcp_source = mcp_source;
+                let a = &mut self.agents;
+                a.section = section;
+                a.selected = selected;
+                a.query = query;
+                a.searching = false;
+                if let Some(key) = key {
+                    self.agents_select(&key);
+                }
+                self.agents_clamp();
+                self.agents.panel.offset = scroll;
+                self.presentation.page = Page::Browse;
+            }
             Location::Homebrew {
                 page,
                 id,
@@ -146,7 +201,6 @@ impl App {
                     self.explorer.section = explorer.section;
                     self.explorer.tree = explorer.tree;
                     self.explorer.evidence = explorer.evidence;
-                    self.explorer.preferred = explorer.preferred;
                     self.diagnostics.tab = diagnostics.tab;
                 }
                 self.sync_explorer();
@@ -154,87 +208,6 @@ impl App {
                 self.detail_scroll = scroll;
                 self.list_offset = offset.min(self.visible.len().saturating_sub(1));
                 self.searching = false;
-                self.presentation.page = page;
-            }
-            Location::Skills {
-                page,
-                identity,
-                query,
-                scope,
-                filter,
-                focus,
-                section,
-                file,
-                file_path,
-                file_open,
-                scroll,
-            } => {
-                self.module = Module::Skills;
-                self.codex.view = View::Skills;
-                let s = &mut self.skills;
-                s.query = query;
-                s.scope = scope;
-                s.filter = filter;
-                s.refresh_visible();
-                s.selected = identity
-                    .and_then(|id| {
-                        s.visible.iter().position(|&n| {
-                            (
-                                s.inventory.skills[n].scope,
-                                s.inventory.skills[n].path.clone(),
-                            ) == id
-                        })
-                    })
-                    .or(s.selected);
-                s.file = file_path
-                    .and_then(|p| {
-                        s.selected_skill()
-                            .and_then(|s| s.files.iter().position(|f| f.path == p))
-                    })
-                    .unwrap_or(file)
-                    .min(
-                        s.selected_skill()
-                            .map_or(0, |s| s.files.len().saturating_sub(1)),
-                    );
-                s.section = section;
-                s.file_open = file_open;
-                s.focus = focus;
-                s.scroll = scroll;
-                s.searching = false;
-                self.presentation.page = page;
-            }
-            Location::Codex {
-                page,
-                view,
-                identity,
-                query,
-                selected,
-                scroll,
-                focus,
-                sources,
-                preview,
-                conditional,
-                mcp,
-            } => {
-                self.module = Module::Skills;
-                let s = &mut self.codex;
-                s.view = view;
-                s.query = query;
-                s.selected = selected;
-                s.sources = sources;
-                s.preview = preview;
-                s.conditional = conditional;
-                s.mcp = mcp;
-                if let Some(id) = identity
-                    && let Some(n) = s.rows().iter().position(|(n, _)| s.identity(*n) == id)
-                {
-                    let slot = s.slot();
-                    s.selected[slot] = n;
-                }
-                s.clamp();
-                s.scroll = scroll;
-                s.focus_details = focus;
-                s.searching = false;
                 self.presentation.page = page;
             }
         }

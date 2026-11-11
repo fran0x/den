@@ -35,8 +35,20 @@ impl Scope {
             Self::User => "User",
             Self::Project => "Project",
             Self::Admin => "Admin",
-            Self::System => "System cache",
-            Self::Legacy => "Legacy candidate",
+            Self::System => "Bundled",
+            Self::Legacy => "Legacy",
+        }
+    }
+    /// One plain sentence on where the skill lives and what that means.
+    pub fn meaning(self) -> &'static str {
+        match self {
+            Self::User => "Your skills folder (~/.agents/skills)",
+            Self::Project => "This project's .agents/skills folder",
+            Self::Admin => "The admin-managed skills folder",
+            Self::System => {
+                "Codex's cached copy of a skill it ships with (~/.codex/skills/.system); not proof Codex loads it"
+            }
+            Self::Legacy => "An older location (~/.codex/skills); current Codex may not read it",
         }
     }
 }
@@ -100,6 +112,30 @@ pub struct Skill {
     pub optional: Validity,
 }
 impl Skill {
+    /// Why Den cannot call this skill usable from its own files alone, shared by the
+    /// Codex and Claude areas: (status label, explanation).
+    pub fn unknown_reason(&self) -> Option<(&'static str, &'static str)> {
+        Some(if self.metadata == Validity::Invalid {
+            (
+                "Unknown · invalid SKILL.md",
+                "SKILL.md frontmatter is invalid, so the agent may skip this skill",
+            )
+        } else if self.metadata == Validity::NotEvaluated {
+            ("Unknown · not checked", "SKILL.md was not checked")
+        } else if !self.accessible || self.incomplete {
+            (
+                "Unknown · unreadable",
+                "The skill folder could not be fully read",
+            )
+        } else if self.duplicate {
+            (
+                "Unknown · duplicate name",
+                "Another skill has the same name; which one the agent uses is not known",
+            )
+        } else {
+            return None;
+        })
+    }
     pub fn finding(&mut self, severity: Severity, message: impl Into<String>) {
         self.findings.push(Finding {
             severity,

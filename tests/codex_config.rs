@@ -5,9 +5,10 @@ use den::{
         self, Context,
         config::{self, Activity, Trust},
         instructions::Status,
-        state::View,
     },
-    inventory, ui,
+    inventory,
+    presentation::Destination,
+    ui,
 };
 use std::{
     fs,
@@ -80,13 +81,26 @@ fn app(t: &Temp) -> App {
         },
         "test",
     );
-    a.module = Module::Skills;
+    a.module = Module::Agents;
     a.codex.configure(t.context());
     a.codex.finish(Ok(t.collect()), &mut a.skills);
     a.codex.requested = false;
     a
 }
 
+/// Names of the rows the Agents area shows in its current section.
+fn rows(a: &App) -> Vec<String> {
+    let sources = a.agent_sources();
+    a.agents
+        .rows(&sources)
+        .into_iter()
+        .map(|r| r.name)
+        .collect()
+}
+fn search(a: &mut App, query: &str) {
+    a.agents.query = query.into();
+    a.agents_clamp();
+}
 fn draw(a: &mut App, width: u16, height: u16) -> String {
     use ratatui::{Terminal, backend::TestBackend};
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -129,7 +143,7 @@ fn incomplete_configuration_is_provisional_in_inventory_and_overview() {
             );
             a.codex.requested = false;
         }
-        a.navigate(den::presentation::Destination::Configuration);
+        a.navigate(den::presentation::Destination::Settings);
         let c = &a.codex.inventory.as_ref().unwrap().configuration;
         assert_eq!(value(c, "sandbox_mode"), "read-only");
         assert_eq!(value(c, "project_doc_max_bytes"), "32768");
@@ -146,46 +160,49 @@ fn incomplete_configuration_is_provisional_in_inventory_and_overview() {
             c.setting_text(setting)
                 .contains("Provisional value: read-only")
         );
-        assert!(
-            a.codex
-                .rows()
-                .iter()
-                .all(|(_, label)| label.contains("[provisional]"))
-        );
+        {
+            let sources = a.agent_sources();
+            let section = den::agents::Section::Settings;
+            assert!(
+                sources
+                    .rows(section)
+                    .iter()
+                    .filter(|r| !r.codex.is_empty())
+                    .all(|r| sources.cells(section, r).1.starts_with("Provisional · "))
+            );
+        }
         for (width, height) in [(80, 24), (120, 32), (160, 45)] {
             for setting in ["sandbox_mode", "project_doc_max_bytes"] {
-                a.codex.query = setting.into();
-                a.codex.clamp();
-                let inventory = draw(&mut a, width, height);
+                search(&mut a, setting);
+                let screen = draw(&mut a, width, height);
                 assert!(
-                    inventory
+                    screen
                         .lines()
-                        .nth(2)
+                        .nth(1)
                         .unwrap()
                         .contains("INCOMPLETE configuration"),
                     "{failure}, {width}"
                 );
                 assert!(
-                    inventory
+                    screen
                         .lines()
-                        .find(|line| line.contains(&format!("{setting}:")))
+                        // The search narrows the list to this setting; it is the selected row.
+                        .find(|line| line.starts_with("> ") && !line.contains('─'))
                         .unwrap()
-                        .contains("[provisional]"),
+                        .contains("Provi"),
                     "{failure}, {width}, {setting}"
                 );
-                key(&mut a, KeyCode::Enter);
-                let overview = draw(&mut a, width, height);
+                // The panel shows the value; there is no inspector.
                 assert!(
-                    overview.contains("Provisional value:"),
+                    screen.contains("Provisional value:"),
                     "{failure}, {width}, {setting}"
                 );
                 assert!(
-                    overview.contains("Configuration incomplete"),
+                    screen.contains("Configuration incomplete"),
                     "{failure}, {width}, {setting}"
                 );
-                assert!(!overview.contains("Locally resolved:"));
-                assert!(!overview.contains("PRIVATE-INCOMPLETE-SENTINEL"));
-                key(&mut a, KeyCode::Esc);
+                assert!(!screen.contains("Locally resolved:"));
+                assert!(!screen.contains("PRIVATE-INCOMPLETE-SENTINEL"));
             }
         }
     }
@@ -212,9 +229,8 @@ fn complete_and_inactive_configuration_keep_normal_presentation() {
             t.write("project/.codex/config.toml", project);
         }
         let mut a = app(&t);
-        a.navigate(den::presentation::Destination::Configuration);
-        a.codex.query = "sandbox_mode".into();
-        a.codex.clamp();
+        a.navigate(den::presentation::Destination::Settings);
+        search(&mut a, "sandbox_mode");
         assert_eq!(
             value(
                 &a.codex.inventory.as_ref().unwrap().configuration,
@@ -222,15 +238,12 @@ fn complete_and_inactive_configuration_keep_normal_presentation() {
             ),
             expected
         );
-        assert!(!a.codex.rows()[0].1.contains("[provisional]"));
         for (width, height) in [(80, 24), (120, 32)] {
-            assert!(!draw(&mut a, width, height).contains("INCOMPLETE configuration"));
-            key(&mut a, KeyCode::Enter);
-            let overview = draw(&mut a, width, height);
-            assert!(overview.contains(&format!("Locally resolved: {expected}")));
-            assert!(!overview.contains("Provisional value:"));
-            assert!(!overview.contains("Configuration incomplete"));
-            key(&mut a, KeyCode::Esc);
+            let screen = draw(&mut a, width, height);
+            assert!(!screen.contains("INCOMPLETE configuration"));
+            assert!(!screen.contains("Provisional ·"));
+            assert!(screen.contains(&format!("Locally resolved: {expected}")));
+            assert!(!screen.contains("Configuration incomplete"));
         }
     }
 }
@@ -241,28 +254,26 @@ fn configuration_refresh_updates_provisional_presentation() {
     t.trust("trusted", "sandbox_mode='read-only'");
     t.write("project/.codex/config.toml", "sandbox_mode=[invalid");
     let mut a = app(&t);
-    a.navigate(den::presentation::Destination::Configuration);
-    a.codex.query = "sandbox_mode".into();
-    a.codex.clamp();
-    key(&mut a, KeyCode::Enter);
+    a.navigate(den::presentation::Destination::Settings);
+    search(&mut a, "sandbox_mode");
     assert!(draw(&mut a, 80, 24).contains("Provisional value: read-only"));
 
     t.write(
         "project/.codex/config.toml",
         "sandbox_mode='workspace-write'",
     );
-    a.codex.finish(Ok(t.collect()), &mut a.skills);
+    a.finish_codex(Ok(t.collect()));
     let repaired = draw(&mut a, 80, 24);
     assert!(repaired.contains("Locally resolved: workspace-write"));
     assert!(!repaired.contains("INCOMPLETE configuration"));
-    assert_eq!(a.codex.query, "sandbox_mode");
+    assert_eq!(a.agents.query, "sandbox_mode");
 
     t.write("project/.codex/config.toml", "sandbox_mode=[invalid");
-    a.codex.finish(Ok(t.collect()), &mut a.skills);
+    a.finish_codex(Ok(t.collect()));
     let incomplete = draw(&mut a, 80, 24);
     assert!(incomplete.contains("Provisional value: read-only"));
     assert!(incomplete.contains("INCOMPLETE configuration"));
-    assert_eq!(a.codex.query, "sandbox_mode");
+    assert_eq!(a.agents.query, "sandbox_mode");
 }
 
 #[test]
@@ -573,7 +584,7 @@ fn skill_enabled_disabled_and_discovered_states_remain_distinct() {
         ),
     );
     let i = t.collect();
-    assert_eq!(i.enablement[0].label, "Explicitly disabled");
+    assert_eq!(i.enablement[0].label, "Disabled in config");
     assert_eq!(i.enablement[0].source, Some(1));
     t.write(
         "home/.codex/config.toml",
@@ -582,7 +593,7 @@ fn skill_enabled_disabled_and_discovered_states_remain_distinct() {
             path.join("SKILL.md").display()
         ),
     );
-    assert_eq!(t.collect().enablement[0].label, "Explicitly enabled");
+    assert_eq!(t.collect().enablement[0].label, "Enabled in config");
     t.write("home/.codex/config.toml", "");
     assert_eq!(t.collect().enablement[0].label, "Eligible");
 }
@@ -590,7 +601,7 @@ fn skill_enabled_disabled_and_discovered_states_remain_distinct() {
 fn unobserved_system_cache_activation_is_not_eligibility() {
     let t = Temp::new();
     t.skill("home/.codex/skills/.system/example");
-    assert_eq!(t.collect().enablement[0].label, "Undetermined");
+    assert_eq!(t.collect().enablement[0].label, "Unknown · bundled copy");
 }
 #[test]
 fn relative_project_skill_paths_use_containing_codex_directory() {
@@ -601,7 +612,7 @@ fn relative_project_skill_paths_use_containing_codex_directory() {
         "project/.codex/config.toml",
         "[[skills.config]]\npath='../.agents/skills/example'\nenabled=false",
     );
-    assert_eq!(t.collect().enablement[0].label, "Explicitly disabled");
+    assert_eq!(t.collect().enablement[0].label, "Disabled in config");
 }
 #[test]
 fn unknown_relative_global_paths_are_not_guessed() {
@@ -612,7 +623,7 @@ fn unknown_relative_global_paths_are_not_guessed() {
         "[[skills.config]]\npath='../.agents/skills/example'\nenabled=false",
     );
     let i = t.collect();
-    assert_eq!(i.enablement[0].label, "Undetermined");
+    assert_eq!(i.enablement[0].label, "Unknown · config unclear");
     assert_eq!(i.configuration.unresolved_skills(&i.skills), 1);
 }
 #[test]
@@ -623,13 +634,13 @@ fn unknown_trust_and_cross_layer_skill_arrays_do_not_infer_merge() {
         "project/.codex/config.toml",
         "[[skills.config]]\npath='../.agents/skills/example'\nenabled=false",
     );
-    assert_eq!(t.collect().enablement[0].label, "Undetermined");
+    assert_eq!(t.collect().enablement[0].label, "Unknown · config unclear");
     let path = t.0.join("project/.agents/skills/example");
     t.trust(
         "trusted",
         &format!("[[skills.config]]\npath='{}'\nenabled=true", path.display()),
     );
-    assert_eq!(t.collect().enablement[0].label, "Undetermined");
+    assert_eq!(t.collect().enablement[0].label, "Unknown · config unclear");
 }
 #[test]
 fn unmatched_skill_reference_is_reported_without_inventing_skill() {
@@ -661,7 +672,7 @@ fn skill_symlink_correlation_uses_canonical_identity() {
             t.0.join("shared/example").display()
         ),
     );
-    assert_eq!(t.collect().enablement[0].label, "Explicitly disabled");
+    assert_eq!(t.collect().enablement[0].label, "Disabled in config");
 }
 #[cfg(unix)]
 #[test]
@@ -700,15 +711,15 @@ fn refresh_failure_retains_matching_configuration_and_skills() {
     t.write("home/.codex/config.toml", "model='gpt-6'");
     let mut a = app(&t);
     let count = a.skills.inventory.skills.len();
-    a.codex
-        .finish(Err(std::io::Error::other("PRIVATE")), &mut a.skills);
+    a.finish_codex(Err(std::io::Error::other("PRIVATE")));
     assert_eq!(a.skills.inventory.skills.len(), count);
     assert_eq!(
         value(&a.codex.inventory.as_ref().unwrap().configuration, "model"),
         "gpt-6"
     );
-    assert!(a.codex.status().contains("stale"));
-    assert!(!a.codex.status().contains("PRIVATE"));
+    let error = a.codex.error.clone().unwrap();
+    assert!(error.contains("stale") && !error.contains("PRIVATE"));
+    assert!(draw(&mut a, 120, 32).contains("stale"));
 }
 #[test]
 fn codex_navigation_sources_back_and_snapshot_isolation() {
@@ -722,18 +733,19 @@ fn codex_navigation_sources_back_and_snapshot_isolation() {
         ),
     );
     let mut a = app(&t);
+    // e on a skill that a config rule names shows that Codex file; Back returns.
     key(&mut a, KeyCode::Char('e'));
-    assert_eq!(a.codex.view, View::Configuration);
+    assert_eq!(a.destination(), Destination::Sources);
     assert!(a.codex.sources);
     key(&mut a, KeyCode::Backspace);
-    assert_eq!(a.codex.view, View::Skills);
-    key(&mut a, KeyCode::F(3));
+    assert_eq!(a.destination(), Destination::Skills);
+    key(&mut a, KeyCode::F(3)); // Instructions
+    key(&mut a, KeyCode::F(3)); // Settings
     key(&mut a, KeyCode::Char('s'));
-    key(&mut a, KeyCode::Enter); // open inspector
-    key(&mut a, KeyCode::Enter); // inspect source
-    assert!(a.codex.sources);
+    key(&mut a, KeyCode::Enter); // Enter opens nothing.
+    assert!(a.codex.sources && !a.inspecting());
     key(&mut a, KeyCode::F(3));
-    assert_eq!(a.codex.view, View::Instructions);
+    assert_eq!(a.destination(), Destination::Mcp);
     let mut snapshot = App::new(
         inventory::Inventory {
             schema_version: 1,
@@ -746,7 +758,7 @@ fn codex_navigation_sources_back_and_snapshot_isolation() {
     key(&mut snapshot, KeyCode::Char('r'));
     assert!(snapshot.codex.context.is_none());
     assert!(!snapshot.codex.requested);
-    assert!(snapshot.codex.status().contains("Unavailable"));
+    assert!(draw(&mut snapshot, 120, 32).contains("Codex not collected in this mode"));
 }
 #[test]
 fn narrow_and_wide_rendering_never_displays_raw_toml_secrets() {
@@ -756,9 +768,8 @@ fn narrow_and_wide_rendering_never_displays_raw_toml_secrets() {
         "model='gpt-6'\npassword='PRIVATE-SENTINEL'",
     );
     let mut a = app(&t);
-    a.codex.view = View::Configuration;
-    a.codex.sources = true;
-    a.codex.selected[1] = 1;
+    a.navigate(Destination::Sources);
+    a.agents.selected[2] = 1;
     for (w, h) in [(120, 35), (40, 16), (20, 5)] {
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(w, h)).unwrap();
@@ -778,12 +789,11 @@ fn refresh_preserves_skill_selection_and_filters() {
     let t = Temp::new();
     t.skill("home/.agents/skills/example");
     let mut a = app(&t);
-    a.skills.query = "example".into();
-    a.skills.refresh_visible();
-    let selected = a.skills.selected_skill().unwrap().path.clone();
-    a.codex.finish(Ok(t.collect()), &mut a.skills);
-    assert_eq!(a.skills.query, "example");
-    assert_eq!(a.skills.selected_skill().unwrap().path, selected);
+    search(&mut a, "example");
+    let selected = a.agent_row().unwrap().key;
+    a.finish_codex(Ok(t.collect()));
+    assert_eq!(a.agents.query, "example");
+    assert_eq!(a.agent_row().unwrap().key, selected);
 }
 #[test]
 fn cancellation_stops_discovery() {
@@ -863,14 +873,17 @@ fn live_codex_configuration() {
         i.instructions.included_bytes
     );
     for label in [
-        "Explicitly enabled",
-        "Explicitly disabled",
+        "Enabled in config",
+        "Disabled in config",
         "Eligible",
-        "Undetermined",
+        "Unknown",
     ] {
         println!(
             "{label}: {}",
-            i.enablement.iter().filter(|e| e.label == label).count()
+            i.enablement
+                .iter()
+                .filter(|e| e.label.starts_with(label))
+                .count()
         );
     }
     println!(
@@ -896,15 +909,16 @@ fn defaults_have_documented_provenance_and_view_searches_are_preserved() {
         .contains("Documented default")
     );
     let mut a = app(&t);
+    key(&mut a, KeyCode::F(3)); // Instructions
+    a.agents.query = "max_bytes".into();
+    key(&mut a, KeyCode::F(3)); // Settings: its own, empty search.
+    assert!(a.agents.query.is_empty());
+    for _ in 0..4 {
+        key(&mut a, KeyCode::F(3)); // MCP, Hooks, Plugins, Skills
+    }
+    assert_eq!(a.destination(), Destination::Skills);
     key(&mut a, KeyCode::F(3));
-    a.codex.query = "max_bytes".into();
-    key(&mut a, KeyCode::F(3));
-    assert!(a.codex.query.is_empty());
-    key(&mut a, KeyCode::F(3));
-    assert_eq!(a.codex.view, View::Mcp);
-    key(&mut a, KeyCode::F(3));
-    key(&mut a, KeyCode::F(3));
-    assert_eq!(a.codex.query, "max_bytes");
+    assert_eq!(a.agents.query, "max_bytes");
 }
 
 #[test]
@@ -932,12 +946,12 @@ fn conflicting_rules_and_invalid_enabled_values_are_undetermined() {
     t.skill("home/.agents/skills/example");
     let p = t.0.join("home/.agents/skills/example");
     t.write("home/.codex/config.toml",&format!("[[skills.config]]\npath='{}'\nenabled=true\n[[skills.config]]\npath='{}'\nenabled=false",p.display(),p.display()));
-    assert_eq!(t.collect().enablement[0].label, "Undetermined");
+    assert_eq!(t.collect().enablement[0].label, "Unknown · config unclear");
     t.write(
         "home/.codex/config.toml",
         &format!("[[skills.config]]\npath='{}'\nenabled='false'", p.display()),
     );
-    assert_eq!(t.collect().enablement[0].label, "Undetermined");
+    assert_eq!(t.collect().enablement[0].label, "Unknown · config unclear");
 }
 #[test]
 fn parser_nesting_is_bounded_and_deceptive_model_values_are_withheld() {
@@ -955,18 +969,15 @@ fn refreshing_configuration_keeps_selected_setting_by_identity() {
     let t = Temp::new();
     t.write("home/.codex/config.toml", "sandbox_mode='workspace-write'");
     let mut a = app(&t);
-    a.codex.view = View::Configuration;
-    a.codex.selected[0] = 0;
+    a.navigate(Destination::Settings);
+    a.agents_select("codex-setting:sandbox_mode");
     t.write(
         "home/.codex/config.toml",
         "model='gpt-6'\nsandbox_mode='workspace-write'",
     );
-    a.codex.finish(Ok(t.collect()), &mut a.skills);
-    assert!(
-        a.codex.rows()[a.codex.selected[0]]
-            .1
-            .starts_with("sandbox_mode")
-    );
+    a.finish_codex(Ok(t.collect()));
+    assert_eq!(a.agent_row().unwrap().name, "sandbox_mode");
+    assert!(rows(&a).contains(&"model".to_owned()));
 }
 
 #[test]

@@ -30,6 +30,9 @@ pub fn run(app: &mut App) -> io::Result<()> {
         let mut collector: Option<Collector> = None;
         let mut skills: Option<crate::skills::Collector> = None;
         let mut codex: Option<crate::codex::Collector> = None;
+        let mut claude: Option<crate::claude::Collector> = None;
+        let mut aws: Option<crate::aws::Collector> = None;
+        let mut docker: Option<crate::docker::Collector> = None;
         let mut diagnostic: Option<(Check, u64, Collector<CommandOutput>)> = None;
         while !app.quit {
             if app.module == crate::app::Module::Homebrew
@@ -63,7 +66,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.finish_check(*check, result, *epoch);
                 diagnostic = None;
             }
-            if app.module == crate::app::Module::Skills
+            // Opening Agents collects Codex and Claude Code; each has its own worker.
+            if app.module == crate::app::Module::Agents
                 && app.codex.requested
                 && codex.is_none()
                 && let Some(context) = app.codex.context.clone()
@@ -75,15 +79,70 @@ pub fn run(app: &mut App) -> io::Result<()> {
                     crate::codex::discover(&context, cancel)
                 }) {
                     Ok(worker) => codex = Some(worker.detach_on_drop()),
-                    Err(error) => app.codex.finish(Err(error), &mut app.skills),
+                    Err(error) => app.finish_codex(Err(error)),
                 }
             }
             if let Some(result) = codex.as_ref().and_then(crate::codex::Collector::poll) {
-                app.codex.finish(result, &mut app.skills);
+                app.finish_codex(result);
                 app.skills.running = false;
                 codex = None;
             }
-            if app.module == crate::app::Module::Skills
+            if app.module == crate::app::Module::Agents
+                && app.claude.requested
+                && claude.is_none()
+                && let Some(context) = app.claude.context.clone()
+            {
+                app.claude.requested = false;
+                app.claude.running = true;
+                match crate::claude::Collector::start_with(move |cancel| {
+                    crate::claude::discover(&context, cancel)
+                }) {
+                    Ok(worker) => claude = Some(worker.detach_on_drop()),
+                    Err(error) => app.finish_claude(Err(error)),
+                }
+            }
+            if app.module == crate::app::Module::Cloud
+                && app.aws.requested
+                && aws.is_none()
+                && let Some(context) = app.aws.context.clone()
+            {
+                app.aws.requested = false;
+                app.aws.running = true;
+                match crate::aws::Collector::start_with(move |cancel| {
+                    crate::aws::discover(&context, cancel)
+                }) {
+                    Ok(worker) => aws = Some(worker.detach_on_drop()),
+                    Err(error) => app.aws.finish(Err(error)),
+                }
+            }
+            // Docker is collected only when its area is open: it runs the docker CLI.
+            if app.module == crate::app::Module::Docker
+                && app.docker.requested
+                && docker.is_none()
+                && let Some(context) = app.docker.context.clone()
+            {
+                app.docker.requested = false;
+                app.docker.running = true;
+                match crate::docker::Collector::start_with(move |cancel| {
+                    crate::docker::discover(&context, cancel)
+                }) {
+                    Ok(worker) => docker = Some(worker),
+                    Err(error) => app.docker.finish(Err(error)),
+                }
+            }
+            if let Some(result) = docker.as_ref().and_then(crate::docker::Collector::poll) {
+                app.docker.finish(result);
+                docker = None;
+            }
+            if let Some(result) = aws.as_ref().and_then(crate::aws::Collector::poll) {
+                app.aws.finish(result);
+                aws = None;
+            }
+            if let Some(result) = claude.as_ref().and_then(crate::claude::Collector::poll) {
+                app.finish_claude(result);
+                claude = None;
+            }
+            if app.module == crate::app::Module::Agents
                 && app.codex.context.is_none()
                 && app.skills.requested
                 && skills.is_none()
@@ -95,11 +154,11 @@ pub fn run(app: &mut App) -> io::Result<()> {
                     crate::skills::discover(&config, cancel)
                 }) {
                     Ok(worker) => skills = Some(worker.detach_on_drop()),
-                    Err(error) => app.skills.finish(Err(error)),
+                    Err(error) => app.finish_skills(Err(error)),
                 }
             }
             if let Some(result) = skills.as_ref().and_then(crate::skills::Collector::poll) {
-                app.skills.finish(result);
+                app.finish_skills(result);
                 skills = None;
             }
             terminal.draw(|frame| ui::render(frame, app))?;
@@ -107,7 +166,10 @@ pub fn run(app: &mut App) -> io::Result<()> {
             if ((collector.is_none()
                 && diagnostic.is_none()
                 && skills.is_none()
-                && codex.is_none())
+                && codex.is_none()
+                && claude.is_none()
+                && aws.is_none()
+                && docker.is_none())
                 || event::poll(std::time::Duration::from_millis(50))?)
                 && let Event::Key(key) = event::read()?
             {

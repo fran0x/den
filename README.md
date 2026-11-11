@@ -1,7 +1,9 @@
 # Den
 
-A read-only Rust TUI for Homebrew inventory, dependency diagnostics and local Codex
-skills, configuration, instructions and MCP server definitions. Den runs a fixed set
+A read-only Rust TUI for Homebrew inventory, dependency diagnostics, local Codex
+skills, configuration, instructions and MCP server definitions, and Claude Code skills,
+instructions, settings, MCP servers, hooks and plugins, AWS CLI profiles, and Docker
+containers, images and volumes. Den runs a fixed set
 of read-only Homebrew commands; it never installs/removes tools, runs inspected skill
 scripts or starts MCP servers.
 
@@ -11,8 +13,8 @@ Run from the repository root with stable Rust (edition 2024) on macOS/Linux.
 Live Homebrew needs `brew` on `PATH`; `just` is optional.
 
 ```sh
-just run                                  # live Homebrew; Codex loads when opened
-just run --project /path/to/repo --skills  # start in Codex; defer Homebrew
+just run                                  # live Homebrew; Agents loads when opened
+just run --project /path/to/repo --skills  # start in Agents; defer Homebrew
 just run --skills --codex-profile review  # inspect review.config.toml
 just fixtures demo
 just fixtures snapshot                    # Den JSON
@@ -20,6 +22,9 @@ just fixtures brew fixtures/brew.json
 just fixtures skills
 just fixtures codex                       # isolated synthetic configuration
 just fixtures codex fixtures/mcp          # synthetic MCP definitions
+just fixtures claude                      # synthetic Codex + Claude Code side by side
+just fixtures aws                         # synthetic AWS profiles in Cloud
+just fixtures docker                      # saved synthetic Docker listings
 just fixtures brew fixtures/brew-dependencies.json # synthetic dependency trees
 ```
 
@@ -35,39 +40,82 @@ instructions, skills and MCP definitions. Fixture refresh rereads those roots on
 
 ## Navigation
 
-Tab switches the top-level **Homebrew / Codex** areas; Shift+Tab reverses.
-Each area restores its last view, selection, filters and inspector context.
-`g` opens **Sections** for Codex subviews and specialist destinations: `/` finds
-a destination, arrows or `j/k` select, and Enter opens it.
+The top bar shows **Homebrew**, **Agents**, **Cloud** and **Docker**; the active area is
+highlighted and followed by its section. Tab switches area; Shift+Tab switches section
+(Homebrew: Packages / Diagnostics; Agents: Skills / Instructions / Settings / MCP / Hooks /
+Plugins; Cloud: AWS; Docker: Containers / Images / Volumes).
+Each area and section keeps its place. There is no section switcher.
 
-The inventory keeps focus while browsing. Selection automatically updates a passive
-information panel alongside it, or below it on narrow terminals.
-Homebrew information includes **Depends on** and **Required by**
-trees, automatically opened up to two levels. Both use the displayed evidence and keg;
-uncertain records stay labeled leaves. `PARTIAL` / `…` marks omitted information.
+**Agents** shows Codex and Claude Code side by side. Every list has the same columns:
+name, **Tools** (Both, Codex only or Claude only) and **Status**, in one vocabulary for
+both tools: Ready, Off, Needs approval, Problem or Unknown (Instructions: Used, Not used, Problem or Unknown). When both tools have a row
+and agree, one status is shown; otherwise `Codex x · Claude y`. Skills match by folder
+(Claude usually reaches `~/.agents/skills` through symlinks); MCP servers match by name,
+and **Both, differ** marks a name that points to a different kind of server or program;
+instructions pair `AGENTS.md` and `CLAUDE.md` by where they apply; settings match by name
+and show the value. Hooks and Plugins are Claude Code only. The panel keeps each tool's
+own words (Eligible, Pending approval, …) next to the shared status.
+
+The inventory keeps focus while browsing. One line above the list shows its view, filters
+and search. Selection updates an information panel beside it, or below it on narrow
+terminals. `/` searches; Enter or Esc finishes editing and keeps the query.
+
 Homebrew starts with **Tools**: packages Homebrew recorded as installed on request.
-`a` switches between Tools and **All**; `f` cycles All / Formula / Cask. Counts follow
-the current search and type. Packages without a request record appear only in All;
+`a` switches between Tools and **All**; tools are bold and casks are bracketed, for
+example `[firefox]`. Counts follow the current search. Packages without a request record appear only in All;
 Unknown intent is never guessed. Rows show intent and **required by N**: other installed
 packages with recorded runtime references to an installed version. Current declarations,
 self references and unresolved versions do not count; no count does not mean unused.
-Enter explicitly inspects the selected resource. `/` edits inventory search;
-Enter or Esc finishes editing and retains the query. The inspector starts at **Overview**.
-`[` selects its section list; `]` returns to content. Arrows and Enter
-open Dependencies, Files, Sources, Evidence or other available details. Esc returns
-to the previous context in the current area, preserving selection, filters, scroll and
-dependency expansion. Switching areas never adds a Back step.
 
-Dependencies and Required by start as trees: Right expands or enters children;
-Left collapses or selects the parent; Space toggles a branch. Enter inspects a
-package and Esc restores the tree. `t` retains the direct-list alternative.
+Packages have no inspector: the information panel is the package view. It shows
+**Depends on** and **Required by** trees, opened automatically to two levels. Uncertain
+records stay labeled leaves; `PARTIAL` / `…` marks omitted information. A package without
+recorded runtime metadata shows current declarations for that package only.
 
-There are no Compact/Detailed modes. Technical information lives in **Evidence**.
-Below 100 columns, explicit inspectors show one full-width pane at a time. `?` gives contextual
-help; `r` refreshes the configured source; `q` quits, including from the section switcher.
-While editing any search, `q` is text and Ctrl-C quits. No persistent sidebar consumes inventory space.
+There is no inspector anywhere. In Agents the information panel shows everything about
+the selection, each tool under its own heading (for a skill: each tool's status, then
+Findings, Instructions, Supporting files, Evidence and coverage; for an MCP server:
+Codex's sources with transport, authentication and tools, then Claude Code's entries).
+PgUp/PgDn scroll it; `e` jumps to a configuration source. Esc goes back within the
+current section; switching areas or sections never adds a Back step. `?` gives contextual help; `r` refreshes the configured source; `q`
+quits. While editing any search, `q` is text and Ctrl-C quits.
 
-See [keyboard controls](docs/KEYBOARD.md) and the [four navigation walkthroughs](docs/ux2/README.md).
+Claude Code skills come from `~/.claude/skills` and the project's `.claude/skills`.
+Claude Code instructions are `CLAUDE.md` files in reading order:
+managed, user (`~/.claude/CLAUDE.md`), then `CLAUDE.md`, `.claude/CLAUDE.md` and
+`CLAUDE.local.md` from the outermost parent folder down. Previews are redacted; `@imports`
+are counted, not followed; linked files are reported, not read.
+
+Claude **Settings** resolves managed > local > project > user files (command-line
+`--settings` is not observed); lists such as `permissions.allow` combine, and unreadable
+files are flagged. **MCP** lists servers from `managed-mcp.json`, `~/.claude.json`, the
+project's `.mcp.json` and enabled plugins, with collisions, approvals and trust; URLs,
+arguments and values are withheld. **Hooks** lists every hook from settings and enabled
+plugins, with commands redacted. **Plugins** lists installed plugins, whether settings
+enable them, and their components. From `~/.claude.json` Den keeps only MCP servers, this
+project's MCP approvals and its trust flag; account and session data are discarded.
+Nothing is run.
+
+**Cloud › AWS** lists profiles from `~/.aws/config` and `~/.aws/credentials` (or
+`AWS_CONFIG_FILE` / `AWS_SHARED_CREDENTIALS_FILE`), then SSO sessions, as Profile · Auth
+(Role, SSO, Process, Static keys, None set) · Status (Ready with the region, or Problem:
+a missing `source_profile` or `sso-session`, a role loop, an SSO profile without account
+or role, a credentials file other users can read). The panel shows region, account ID,
+role ARN, role chain and where each profile is defined; `AWS_PROFILE` marks the active
+one. From the credentials file only profile and key names are kept; values are discarded
+as they are read. SSO start URLs, endpoints, external IDs and `credential_process`
+commands are withheld; SSO and CLI caches are never read; no AWS call is made.
+
+**Docker** lists containers (state, image, Compose project), images and volumes (which
+containers use them, or Unused; dangling images and anonymous volumes are marked), with
+disk use and reclaimable space from `docker system df`. Den runs only `docker container ls
+--all`, `docker image ls`, `docker volume ls` and `docker system df`, through the same
+bounded runner as Homebrew, and only once the Docker area is opened; nothing is started,
+stopped, pulled, inspected or removed. Container commands, environment, labels (except the
+Compose project) and Docker's error messages are not shown; from `~/.docker/config.json`
+only the current context, registry names and credential helper are kept.
+
+See [keyboard controls](docs/KEYBOARD.md). The [UX-2 walkthroughs](docs/ux2/README.md) are historical.
 
 ## Evidence and privacy
 

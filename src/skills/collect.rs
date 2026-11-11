@@ -44,7 +44,7 @@ impl Config {
         let mut roots = vec![];
         let mut coverage=vec![
             "Discovered filesystem skills, not enabled/loaded/invoked skills. Configuration status not evaluated by standalone discovery.".into(),
-            "Plugin and session-provided skills are not enumerated. System cache is only partial evidence of bundled skills.".into(),
+            "Plugin and session-provided skills are not enumerated. Bundled skills are seen only through Codex's cache, so they are partial evidence.".into(),
             "Immediate non-hidden skill folders only (plus explicit .system root). Supporting traversal: depth 8, 512 entries/skill, 20000 total entries, 1024 skills, 32 MiB text, 30s cooperative deadline. Blocking filesystem calls cannot be forcibly cancelled.".into(),
             "SKILL.md limit 1 MiB; supporting previews 256 KiB; YAML 64 KiB with parser budgets; text previews at most 20000 lines. Directory links inside a skill are not traversed.".into(),
         ];

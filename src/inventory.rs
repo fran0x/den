@@ -55,6 +55,14 @@ pub struct Resource {
     pub homebrew: Option<HomebrewMetadata>,
 }
 impl Resource {
+    /// Casks are bracketed so they stand apart from formulae without a type column.
+    pub fn display_name(&self) -> String {
+        if self.kind == ResourceKind::Cask {
+            format!("[{}]", self.name)
+        } else {
+            self.name.clone()
+        }
+    }
     pub fn intent(&self) -> InstallationIntent {
         self.homebrew
             .as_ref()
@@ -187,4 +195,26 @@ pub fn matches_query(query: &str, text: &str) -> bool {
         .to_lowercase()
         .split_whitespace()
         .all(|term| text.contains(term))
+}
+
+/// `./…` inside the project, `~/…` under home, otherwise the full path; terminal-safe.
+/// Paths are shown as text, not redacted: they are local locations, not secrets.
+pub fn short_path(
+    path: &std::path::Path,
+    project: &std::path::Path,
+    home: Option<&std::path::Path>,
+) -> String {
+    let text = if let Ok(rest) = path.strip_prefix(project) {
+        format!("./{}", rest.display())
+    } else if let Some(rest) = home.and_then(|home| path.strip_prefix(home).ok()) {
+        format!("~/{}", rest.display())
+    } else {
+        path.display().to_string()
+    };
+    safe_text(&text)
+}
+
+/// "1 skill", "2 skills".
+pub fn count(n: usize, noun: &str) -> String {
+    format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }

@@ -5,9 +5,10 @@ use den::{
         self, Context,
         config::{self, Activity, Scope},
         mcp::{self, Auth, EndpointKind, Severity, Status, Transport},
-        state::View,
     },
-    inventory, ui,
+    inventory,
+    presentation::Destination,
+    ui,
 };
 use std::{
     fs,
@@ -54,14 +55,14 @@ impl Temp {
             },
             "MCP test",
         );
-        a.module = Module::Skills;
+        a.module = Module::Agents;
         a.codex.configure(self.context());
         a.codex.finish(
             codex::discover(&self.context(), &AtomicBool::new(false)),
             &mut a.skills,
         );
         a.codex.requested = false;
-        a.codex.view = View::Mcp;
+        a.navigate(Destination::Mcp);
         a
     }
 }
@@ -571,6 +572,15 @@ fn hostile_terminal_names_are_withheld() {
     assert!(!dump(&c).contains('\u{1b}'));
     assert_eq!(c.mcp.servers[0].name, "[withheld name]");
 }
+/// Names of the MCP rows the Agents area shows.
+fn rows(a: &App) -> Vec<String> {
+    let sources = a.agent_sources();
+    a.agents
+        .rows(&sources)
+        .into_iter()
+        .map(|r| r.name)
+        .collect()
+}
 #[test]
 fn source_navigation_preserves_server_selection_search_and_filters() {
     let t = Temp::new();
@@ -578,22 +588,18 @@ fn source_navigation_preserves_server_selection_search_and_filters() {
         "{STDIO}\n[mcp_servers.web]\nurl='https://example.com'"
     ));
     let mut a = t.app();
-    a.codex.query = "web".into();
-    a.codex.mcp.transport = 2;
-    key(&mut a, KeyCode::Enter); // open inspector
-    a.codex.scroll = 2;
+    a.agents.query = "web".into();
+    a.agents.panel.offset = 2;
     key(&mut a, KeyCode::Char('e')); // source
-    assert_eq!(a.codex.view, View::Configuration);
-    assert!(a.codex.sources);
+    assert_eq!(a.destination(), Destination::Sources);
     key(&mut a, KeyCode::Backspace);
-    assert_eq!(a.codex.view, View::Mcp);
-    assert_eq!(a.codex.query, "web");
-    assert_eq!(a.codex.mcp.transport, 2);
-    assert_eq!(a.codex.scroll, 2);
-    assert!(a.codex.rows()[0].1.contains("web"));
+    assert_eq!(a.destination(), Destination::Mcp);
+    assert_eq!(a.agents.query, "web");
+    assert_eq!(a.agents.panel.offset, 2);
+    assert_eq!(rows(&a), ["web"]);
 }
 #[test]
-fn search_and_all_four_filter_dimensions_compose() {
+fn search_and_tools_column_for_codex_only_servers() {
     let t = Temp::new();
     t.trust("trusted", STDIO);
     t.write(
@@ -601,58 +607,34 @@ fn search_and_all_four_filter_dimensions_compose() {
         "[mcp_servers.web]\nurl='https://example.com'\nenabled=false",
     );
     let mut a = t.app();
-    assert_eq!(a.codex.rows().len(), 2);
-    a.codex.query = "web".into();
-    assert_eq!(a.codex.rows().len(), 1);
-    a.codex.mcp.transport = 1;
-    assert!(a.codex.rows().is_empty());
-    a.codex.mcp.transport = 2;
-    a.codex.mcp.scope = 2;
-    a.codex.mcp.status = 2;
-    a.codex.mcp.validation = 1;
-    assert_eq!(a.codex.rows().len(), 1);
-    a.codex.mcp.reset();
-    a.codex.query.clear();
-    assert_eq!(a.codex.rows().len(), 2);
+    assert_eq!(rows(&a).len(), 2);
+    a.agents.query = "web".into();
+    assert_eq!(rows(&a), ["web"]);
+    // Claude Code is not configured here, so every server is Codex only; the disabled
+    // project server is Off.
+    let sources = a.agent_sources();
+    let row = a.agents.rows(&sources).remove(0);
+    assert_eq!(
+        sources.cells(den::agents::Section::Mcp, &row),
+        ("Codex only".into(), "Off".into())
+    );
+    a.agents.query.clear();
+    assert_eq!(rows(&a).len(), 2);
 }
 #[test]
 fn refresh_preserves_identity_and_failure_keeps_mcp_snapshot() {
     let t = Temp::new();
     t.user("[mcp_servers.z]\ncommand='npx'");
     let mut a = t.app();
-    let before = a
-        .codex
-        .inventory
-        .as_ref()
-        .unwrap()
-        .configuration
-        .mcp
-        .servers[0]
-        .id
-        .clone();
+    assert_eq!(a.agent_row().unwrap().name, "z");
     t.user("[mcp_servers.a]\ncommand='npx'\n[mcp_servers.z]\ncommand='npx'");
-    a.codex.finish(
-        codex::discover(&t.context(), &AtomicBool::new(false)),
-        &mut a.skills,
-    );
-    assert_eq!(a.codex.selected[3], 1);
-    assert_eq!(
-        a.codex
-            .inventory
-            .as_ref()
-            .unwrap()
-            .configuration
-            .mcp
-            .servers[1]
-            .id,
-        before
-    );
-    a.codex.finish(
-        Err(std::io::Error::other("MCP-SECRET-CANARY")),
-        &mut a.skills,
-    );
-    assert!(a.codex.status().contains("stale"));
-    assert!(!a.codex.status().contains("MCP-SECRET-CANARY"));
+    a.finish_codex(codex::discover(&t.context(), &AtomicBool::new(false)));
+    // A new server sorts first; the selection stays on z.
+    assert_eq!(rows(&a), ["a", "z"]);
+    assert_eq!(a.agent_row().unwrap().name, "z");
+    a.finish_codex(Err(std::io::Error::other("MCP-SECRET-CANARY")));
+    let error = a.codex.error.clone().unwrap();
+    assert!(error.contains("stale") && !error.contains("MCP-SECRET-CANARY"));
     assert_eq!(
         a.codex
             .inventory
@@ -674,23 +656,32 @@ fn snapshot_mcp_is_unavailable_and_never_requests_live_collection() {
         },
         "snapshot",
     );
-    a.module = Module::Skills;
+    a.navigate(Destination::Skills);
     for _ in 0..3 {
         key(&mut a, KeyCode::F(3));
     }
-    assert_eq!(a.codex.view, View::Mcp);
+    assert_eq!(a.destination(), Destination::Mcp);
     key(&mut a, KeyCode::Char('r'));
     assert!(!a.codex.requested);
-    assert!(a.codex.status().contains("Unavailable"));
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 30)).unwrap();
+    terminal.draw(|f| ui::render(f, &mut a)).unwrap();
+    let text: String = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|c| c.symbol())
+        .collect();
+    assert!(text.contains("Codex not collected in this mode"));
 }
 #[test]
-fn rendering_all_sections_sizes_and_empty_inventory_never_leaks_secrets() {
+fn rendering_every_panel_page_size_and_empty_inventory_never_leaks_secrets() {
     let t = Temp::new();
     t.user("[mcp_servers.x]\nurl='https://user:MCP-SECRET-CANARY@host/MCP-SECRET-CANARY'\nhttp_headers={Authorization='MCP-SECRET-CANARY'}\nhttp_headers_helper='MCP-SECRET-CANARY'");
     let mut a = t.app();
     for (w, h) in [(120, 35), (40, 16), (20, 5)] {
-        for section in 0..6 {
-            a.codex.mcp.section = section;
+        a.agents.panel.offset = 0;
+        loop {
             let mut terminal =
                 ratatui::Terminal::new(ratatui::backend::TestBackend::new(w, h)).unwrap();
             terminal.draw(|f| ui::render(f, &mut a)).unwrap();
@@ -702,12 +693,16 @@ fn rendering_all_sections_sizes_and_empty_inventory_never_leaks_secrets() {
                 .map(|c| c.symbol())
                 .collect::<String>();
             assert!(!text.contains("MCP-SECRET-CANARY"));
+            if a.agents.panel.offset >= a.agents.panel.max {
+                break;
+            }
+            a.agents.panel.by(1);
         }
     }
-    a.codex.query = "no-match".into();
+    a.agents.query = "no-match".into();
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 30)).unwrap();
     terminal.draw(|f| ui::render(f, &mut a)).unwrap();
-    assert!(a.codex.rows().is_empty());
+    assert!(rows(&a).is_empty());
 }
 #[test]
 fn source_inspection_uses_existing_safe_summary() {
