@@ -267,20 +267,95 @@ pub(super) fn tail_width(width: u16) -> usize {
     column_widths(width).2
 }
 pub(super) fn columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<'static> {
+    cells(name, middle, tail, width, false)
+}
+/// `columns` with status words coloured: Ready and Running green, Needs approval
+/// yellow, Problem red. Used where cells hold states (Agents, Cloud, Docker).
+pub(super) fn status_columns(name: &str, middle: &str, tail: &str, width: u16) -> Line<'static> {
+    cells(name, middle, tail, width, true)
+}
+/// A `status_columns` list item. The selected row styles its own text, and the list
+/// highlights it with `status_selection`, so status colours stay visible when selected.
+pub(super) fn status_item(
+    (name, middle, tail): (&str, &str, &str),
+    width: u16,
+    selected: bool,
+) -> ListItem<'static> {
+    let mut line = status_columns(name, middle, tail, width);
+    if selected {
+        for span in &mut line.spans {
+            if !is_status(&span.content) {
+                span.style = theme().selected_text();
+            }
+        }
+    }
+    ListItem::new(line)
+}
+pub(super) fn status_selection() -> Style {
+    theme().selection_background()
+}
+fn is_status(text: &str) -> bool {
+    STATUS_WORDS.contains(&text)
+}
+fn cells(name: &str, middle: &str, tail: &str, width: u16, status: bool) -> Line<'static> {
     let (name_width, mid_width, tail_width) = column_widths(width);
-    Line::from(vec![
-        Span::raw(fit(name, name_width)),
-        Span::raw(" "),
-        Span::styled(
-            if mid_width > 0 {
-                format!("{} ", fit(middle, mid_width))
-            } else {
-                String::new()
-            },
-            muted(),
-        ),
-        Span::raw(fit(tail, tail_width)),
-    ])
+    let cell = |text: String, base: Style| {
+        if status {
+            status_spans(&text, base)
+        } else {
+            vec![Span::styled(text, base)]
+        }
+    };
+    let mut spans = vec![Span::raw(fit(name, name_width)), Span::raw(" ")];
+    if mid_width > 0 {
+        spans.extend(cell(fit(middle, mid_width), muted()));
+        spans.push(Span::raw(" "));
+    }
+    spans.extend(cell(fit(tail, tail_width), Style::default()));
+    Line::from(spans)
+}
+
+const STATUS_WORDS: [&str; 4] = ["Ready", "Running", "Needs approval", "Problem"];
+
+/// Colour a status word where a state starts: at the start of the cell or of a
+/// "·" part, optionally after a tool name ("Codex Ready · Claude Needs approval").
+/// Words inside free text, such as descriptions, keep the base style.
+fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
+    let starts_state = |before: &str| {
+        let before = before
+            .strip_suffix("Codex ")
+            .or_else(|| before.strip_suffix("Claude "))
+            .unwrap_or(before);
+        before.is_empty() || before.ends_with("· ")
+    };
+    let mut spans = Vec::new();
+    let mut done = 0;
+    let mut at = 0;
+    while at < text.len() {
+        let rest = &text[at..];
+        let hit = STATUS_WORDS
+            .iter()
+            .find(|w| rest.starts_with(**w) && starts_state(&text[..at]));
+        if let Some(word) = hit {
+            if done < at {
+                spans.push(Span::styled(text[done..at].to_owned(), base));
+            }
+            let style = match *word {
+                "Needs approval" => theme().warn(),
+                "Problem" => theme().bad(),
+                _ => theme().ok(),
+            };
+            spans.push(Span::styled((*word).to_owned(), style));
+            at += word.len();
+            done = at;
+        } else {
+            at += rest.chars().next().map_or(1, char::len_utf8);
+        }
+    }
+    if done < text.len() {
+        spans.push(Span::styled(text[done..].to_owned(), base));
+    }
+    spans
 }
 
 /// Short action hints describe the focused view, not every available binding.
@@ -289,5 +364,38 @@ pub(super) fn actions(searching: bool) -> &'static str {
         "Enter:done Esc:done"
     } else {
         "Tab:area Shift+Tab:section"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn words(text: &str) -> Vec<(String, Style)> {
+        status_spans(text, Style::default())
+            .into_iter()
+            .map(|s| (s.content.into_owned(), s.style))
+            .collect()
+    }
+
+    #[test]
+    fn only_states_are_coloured() {
+        let t = theme();
+        assert_eq!(
+            words("Codex Ready · Claude Needs approval"),
+            vec![
+                ("Codex ".into(), Style::default()),
+                ("Ready".into(), t.ok()),
+                (" · Claude ".into(), Style::default()),
+                ("Needs approval".into(), t.warn()),
+            ]
+        );
+        assert_eq!(
+            words("Problem · Not installed")[0],
+            ("Problem".into(), t.bad())
+        );
+        // Inside free text, and truncated, words stay plain.
+        assert_eq!(words("Off · not Ready yet").len(), 1);
+        assert_eq!(words("Rea…").len(), 1);
     }
 }

@@ -11,6 +11,8 @@ without colour) and is followed by its section, for example `Homebrew › Packag
 Colours follow the terminal: Catppuccin when it reports 24-bit colour (`COLORTERM=truecolor`),
 Latte on a light background (`COLORFGBG`), the 16 basic colours otherwise and none with
 `NO_COLOR`. The selected row has a soft background, or reverse video without colour.
+In Agents, Cloud and Docker, states are coloured: Ready and Running green, Needs approval
+yellow, Problem red (bold without colour).
 
 | Key | Action |
 | --- | --- |

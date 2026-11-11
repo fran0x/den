@@ -90,13 +90,16 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                 .iter()
                 .skip(start)
                 .take(page)
-                .map(|(name, a, b)| ListItem::new(columns(name, a, b, inner.width)))
+                .enumerate()
+                .map(|(i, (name, a, b))| {
+                    status_item((name, a, b), inner.width, start + i == selected)
+                })
                 .collect();
             let mut state = ListState::default().with_selected(Some(selected - start));
             frame.render_stateful_widget(
                 List::new(items)
                     .highlight_symbol("> ")
-                    .highlight_style(selection()),
+                    .highlight_style(status_selection()),
                 inner,
                 &mut state,
             );

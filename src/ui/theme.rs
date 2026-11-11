@@ -13,6 +13,12 @@ pub struct Theme {
     accent: Option<Color>,
     muted: Option<Color>,
     key: Option<Color>,
+    /// Healthy states, such as a running container.
+    ok: Option<Color>,
+    /// Waiting on someone, such as an approval.
+    warn: Option<Color>,
+    /// Something is wrong.
+    bad: Option<Color>,
     /// Foreground and background of the selected row.
     selected: Option<(Color, Color)>,
 }
@@ -35,6 +41,9 @@ impl Theme {
             accent: Some(Color::Rgb(137, 180, 250)),
             muted: Some(Color::Rgb(127, 132, 156)),
             key: Some(Color::Rgb(205, 214, 244)),
+            ok: Some(Color::Rgb(166, 227, 161)),
+            warn: Some(Color::Rgb(249, 226, 175)),
+            bad: Some(Color::Rgb(243, 139, 168)),
             selected: Some((Color::Rgb(205, 214, 244), Color::Rgb(49, 50, 68))),
         }
     }
@@ -44,6 +53,9 @@ impl Theme {
             accent: Some(Color::Rgb(30, 102, 245)),
             muted: Some(Color::Rgb(140, 143, 161)),
             key: Some(Color::Rgb(76, 79, 105)),
+            ok: Some(Color::Rgb(64, 160, 43)),
+            warn: Some(Color::Rgb(223, 142, 29)),
+            bad: Some(Color::Rgb(210, 15, 57)),
             selected: Some((Color::Rgb(76, 79, 105), Color::Rgb(204, 208, 218))),
         }
     }
@@ -54,6 +66,9 @@ impl Theme {
             accent: Some(Color::Blue),
             muted: None,
             key: None,
+            ok: Some(Color::Green),
+            warn: Some(Color::Yellow),
+            bad: Some(Color::Red),
             selected: None,
         }
     }
@@ -64,6 +79,9 @@ impl Theme {
             accent: None,
             muted: None,
             key: None,
+            ok: None,
+            warn: None,
+            bad: None,
             selected: None,
         }
     }
@@ -112,12 +130,47 @@ impl Theme {
             .map_or_else(Style::default, |c| Style::default().fg(c))
     }
 
+    /// Healthy states; plain text without colour.
+    pub(super) fn ok(self) -> Style {
+        self.ok
+            .map_or_else(Style::default, |c| Style::default().fg(c))
+    }
+
+    /// Waiting states; plain text without colour.
+    pub(super) fn warn(self) -> Style {
+        self.warn
+            .map_or_else(Style::default, |c| Style::default().fg(c))
+    }
+
+    /// Problems; bold without colour.
+    pub(super) fn bad(self) -> Style {
+        match self.bad {
+            Some(c) => Style::default().fg(c),
+            None => Style::default().add_modifier(Modifier::BOLD),
+        }
+    }
+
     /// The selected row: a soft background, or reverse video without colour.
     pub(super) fn selection(self) -> Style {
         match self.selected {
             Some((fg, bg)) => Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
             None => Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
         }
+    }
+
+    /// The selection highlight for rows that colour their own text (status lists):
+    /// background and bold only, so status colours survive selection.
+    pub(super) fn selection_background(self) -> Style {
+        match self.selected {
+            Some((_, bg)) => Style::default().bg(bg).add_modifier(Modifier::BOLD),
+            None => Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
+        }
+    }
+
+    /// Plain text on the selected row of such lists.
+    pub(super) fn selected_text(self) -> Style {
+        self.selected
+            .map_or_else(Style::default, |(fg, _)| Style::default().fg(fg))
     }
 
     /// The active area in the top bar. Bold and underline keep it visible without colour.
@@ -169,6 +222,7 @@ mod tests {
             assert!(theme.muted().add_modifier.contains(Modifier::DIM));
         }
         assert_eq!(Theme::plain().accent(), Style::default());
+        assert!(Theme::plain().bad().add_modifier.contains(Modifier::BOLD));
         let active = Theme::plain().active().add_modifier;
         assert!(active.contains(Modifier::BOLD | Modifier::UNDERLINED));
     }

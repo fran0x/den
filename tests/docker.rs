@@ -204,3 +204,24 @@ fn unconfigured_failed_and_tiny_screens_render() {
         draw(&mut a, w, h);
     }
 }
+
+#[test]
+fn running_containers_are_green_even_when_selected() {
+    use ratatui::style::Color;
+    let mut a = app(); // web-nginx-1, the running container, is selected.
+    let mut t = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    t.draw(|f| ui::render(f, &mut a)).unwrap();
+    let buffer = t.backend().buffer();
+    let fg = |word: &str| {
+        (0..30)
+            .find_map(|y| {
+                let line: String = (0..120).map(|x| buffer[(x, y)].symbol()).collect();
+                let x = line.find(word)?;
+                Some(buffer[(x as u16, y)].fg)
+            })
+            .unwrap_or_else(|| panic!("{word}"))
+    };
+    let green = Color::Rgb(166, 227, 161); // The default (Mocha) theme.
+    assert_eq!(fg("Running"), green);
+    assert_ne!(fg("Stopped"), green);
+}
