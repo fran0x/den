@@ -107,10 +107,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         docker::render(frame, app);
         return;
     }
-    let status = if app.live {
+    // With nothing collected yet (loading or Homebrew unavailable), the list carries the
+    // message once; the status line, filter counts and panel stay quiet.
+    let nothing = app.live && app.inventory.resources.is_empty();
+    let status = if nothing {
+        String::new()
+    } else if app.live {
         app.collection_message()
     } else {
-        app.source_label.to_owned()
+        format!("{}{}", app.source_label, app.outdated_text())
     };
     let body = chrome(
         frame,
@@ -129,7 +134,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if panes[0].width > 0 {
         render_inventory(frame, app, panes[0]);
     }
-    if panes[1].width > 0 {
+    if panes[1].width > 0 && nothing {
+        frame.render_widget(pane(" Information ", false), panes[1]);
+    } else if panes[1].width > 0 {
         if app.is_homebrew() {
             homebrew::information(frame, app, panes[1]);
         } else {
@@ -149,7 +156,9 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     let block = pane(" Inventory ", app.focus == Focus::Inventory);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let view = if app.is_homebrew() {
+    let view = if app.live && app.inventory.resources.is_empty() {
+        String::new()
+    } else if app.is_homebrew() {
         homebrew::view_text(app)
     } else {
         format!("Type: {}", app.filter.map_or("All", |k| k.label()))
@@ -161,7 +170,12 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.visible.is_empty() {
         frame.render_widget(
             Paragraph::new(if app.live && app.inventory.resources.is_empty() {
-                app.collection_message()
+                // "… | r:retry" repeats the reason's own "press r".
+                let message = app.collection_message();
+                match message.split_once(" | ") {
+                    Some((reason, _)) if reason.contains("press r") => reason.to_owned(),
+                    _ => message,
+                }
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
             } else if app.tools_only() && app.query.is_empty() && app.homebrew_counts().all > 0 {
@@ -181,36 +195,45 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<_> = app
         .visible
         .iter()
-        .map(|&index| {
+        .enumerate()
+        .map(|(row, &index)| {
             let r = &app.inventory.resources[index];
-            let item = ListItem::new(columns(
-                &r.display_name(),
-                r.version.as_deref().unwrap_or("Unknown"),
-                &if app.is_homebrew() {
-                    let users = app.graph.recorded_users(index);
-                    let intent = r.intent();
-                    let mut text = intent.label().to_owned();
-                    if users > 0 {
-                        let required = format!("required by {users}");
-                        let full = format!("{text} · {required}");
-                        // When narrow, keep the fact that explains why the package is here.
-                        text = if full.chars().count() <= tail_width(inner.width) {
-                            full
-                        } else if intent == crate::inventory::InstallationIntent::Requested {
-                            text
-                        } else {
-                            required
-                        };
-                    }
-                    if !r.description.is_empty() {
-                        text.push_str(&format!(" · {}", r.description));
-                    }
-                    text
-                } else {
-                    r.description.clone()
-                },
+            let tail = if app.is_homebrew() {
+                let users = app.graph.recorded_users(index);
+                let intent = r.intent();
+                let mut text = intent.label().to_owned();
+                if users > 0 {
+                    let required = format!("required by {users}");
+                    let full = format!("{text} · {required}");
+                    // When narrow, keep the fact that explains why the package is here.
+                    text = if full.chars().count() <= tail_width(inner.width) {
+                        full
+                    } else if intent == crate::inventory::InstallationIntent::Requested {
+                        text
+                    } else {
+                        required
+                    };
+                }
+                // An update comes first so it survives narrow widths.
+                if let Some(latest) = r.homebrew.as_ref().and_then(|m| m.update()) {
+                    text = format!("{UPDATE} {latest} · {text}");
+                }
+                if !r.description.is_empty() {
+                    text.push_str(&format!(" · {}", r.description));
+                }
+                text
+            } else {
+                r.description.clone()
+            };
+            let item = status_item(
+                (
+                    &r.display_name(),
+                    r.version.as_deref().unwrap_or("Unknown"),
+                    &tail,
+                ),
                 inner.width,
-            ));
+                app.selected == Some(row),
+            );
             // Tools stand out in bold, so All still shows what was installed on request.
             if app.is_homebrew() && app.is_tool(r) {
                 item.style(Style::default().add_modifier(Modifier::BOLD))
@@ -221,7 +244,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
         .collect();
     let list = List::new(items)
         .highlight_symbol("> ")
-        .highlight_style(selection());
+        .highlight_style(status_selection());
     let mut state = ListState::default()
         .with_selected(app.selected)
         .with_offset(app.list_offset);

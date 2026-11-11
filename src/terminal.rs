@@ -116,6 +116,10 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 }
             }
             // Docker is collected only when its area is open: it runs the docker CLI.
+            // While it stays open, live listings refresh so outside changes show up.
+            if app.module == crate::app::Module::Docker {
+                app.docker.tick(std::time::Instant::now());
+            }
             if app.module == crate::app::Module::Docker
                 && app.docker.requested
                 && docker.is_none()
@@ -162,15 +166,23 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 skills = None;
             }
             terminal.draw(|frame| ui::render(frame, app))?;
-            // Poll only during collection; otherwise preserve Stage 0's blocking input.
-            if ((collector.is_none()
-                && diagnostic.is_none()
-                && skills.is_none()
-                && codex.is_none()
-                && claude.is_none()
-                && aws.is_none()
-                && docker.is_none())
-                || event::poll(std::time::Duration::from_millis(50))?)
+            // Poll during collection, and wait for the next Docker refresh while its area
+            // is open; otherwise block on input.
+            let collecting = collector.is_some()
+                || diagnostic.is_some()
+                || skills.is_some()
+                || codex.is_some()
+                || claude.is_some()
+                || aws.is_some()
+                || docker.is_some();
+            let wait = if collecting {
+                Some(std::time::Duration::from_millis(50))
+            } else if app.module == crate::app::Module::Docker {
+                app.docker.next_refresh(std::time::Instant::now())
+            } else {
+                None
+            };
+            if wait.map_or(Ok(true), event::poll)?
                 && let Event::Key(key) = event::read()?
             {
                 app.handle_key(key);

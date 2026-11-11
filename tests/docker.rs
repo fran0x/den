@@ -225,3 +225,30 @@ fn running_containers_are_green_even_when_selected() {
     assert_eq!(fg("Running"), green);
     assert_ne!(fg("Stopped"), green);
 }
+
+#[test]
+fn live_docker_refreshes_while_open_but_fixtures_do_not() {
+    use den::docker::state::{REFRESH_EVERY, State};
+    use std::time::{Duration, Instant};
+
+    let mut live = State::default();
+    live.configure(docker::Context::local());
+    // Nothing is scheduled before the first run.
+    live.requested = false;
+    assert_eq!(live.next_refresh(Instant::now()), None);
+    live.finish(Err(std::io::Error::other("Docker daemon not reachable")));
+    let done = live.finished_at.unwrap();
+    assert!(live.next_refresh(done).unwrap() <= REFRESH_EVERY);
+    live.tick(done + Duration::from_secs(1));
+    assert!(!live.requested);
+    live.tick(done + REFRESH_EVERY);
+    assert!(live.requested);
+    // Once requested, nothing more is scheduled until that run finishes.
+    assert_eq!(live.next_refresh(done + REFRESH_EVERY), None);
+
+    let mut saved = State::default();
+    saved.configure(docker::Context::fixture(std::path::Path::new("fixtures/docker")).unwrap());
+    saved.requested = false;
+    saved.finish(Err(std::io::Error::other("x")));
+    assert_eq!(saved.next_refresh(Instant::now() + REFRESH_EVERY), None);
+}

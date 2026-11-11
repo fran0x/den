@@ -48,6 +48,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             }
         }
     };
+    // Until Docker answers, the list carries the message; the status line stays quiet.
+    let message = status;
+    let status = if d.inventory.is_some() {
+        message.clone()
+    } else {
+        String::new()
+    };
     let label = format!("Docker / {}", section.label());
     let body = chrome(
         frame,
@@ -76,7 +83,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             } else if d.inventory.is_some() {
                 format!("No {} found.", section.label().to_lowercase())
             } else {
-                status.clone()
+                message.clone()
             }
         },
         |r| {
@@ -101,7 +108,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         let inner = block.inner(panes[0]);
         frame.render_widget(block, panes[0]);
         let inner = filter_line(frame, inner, String::new(), &query, searching);
-        let inner = if inner.height > 2 {
+        let inner = if inner.height > 2 && !rows.is_empty() {
             let (a, b, c) = header;
             frame.render_widget(
                 Paragraph::new(columns(a, b, c, inner.width)).style(muted()),
@@ -123,7 +130,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         let page = inner.height.max(1) as usize;
         app.docker.page = page;
         if rows.is_empty() {
-            frame.render_widget(Paragraph::new(text.lines().next().unwrap_or("")), inner);
+            // The reason, once; the panel shows only what follows it.
+            let first = text
+                .split_once("\n\n")
+                .map_or(text.as_str(), |(first, _)| first);
+            frame.render_widget(
+                Paragraph::new(first.to_owned()).wrap(Wrap { trim: true }),
+                inner,
+            );
         } else {
             let start = (selected / page) * page;
             let items: Vec<_> = rows
@@ -144,6 +158,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         }
     }
     if panes[1].width > 0 {
-        scrolled(frame, panes[1], &text, &mut app.docker.panel);
+        let text = if rows.is_empty() {
+            text.split_once("\n\n").map_or("", |(_, more)| more)
+        } else {
+            &text
+        };
+        scrolled(frame, panes[1], text, &mut app.docker.panel);
     }
 }

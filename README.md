@@ -62,7 +62,8 @@ terminals. `/` searches; Enter or Esc finishes editing and keeps the query.
 
 Homebrew starts with **Tools**: packages Homebrew recorded as installed on request.
 `a` switches between Tools and **All**; tools are bold and casks are bracketed, for
-example `[firefox]`. Counts follow the current search. Packages without a request record appear only in All;
+example `[firefox]`. Outdated packages show the newer version, `↑ 15.0`, as of your last
+`brew update` (Den never runs it). Counts follow the current search. Packages without a request record appear only in All;
 Unknown intent is never guessed. Rows show intent and **required by N**: other installed
 packages with recorded runtime references to an installed version. Current declarations,
 self references and unresolved versions do not count; no count does not mean unused.
@@ -110,7 +111,8 @@ commands are withheld; SSO and CLI caches are never read; no AWS call is made.
 containers use them, or Unused; dangling images and anonymous volumes are marked), with
 disk use and reclaimable space from `docker system df`. Den runs only `docker container ls
 --all`, `docker image ls`, `docker volume ls` and `docker system df`, through the same
-bounded runner as Homebrew, and only once the Docker area is opened; nothing is started,
+bounded runner as Homebrew, only while the Docker area is open (every 5 seconds, so
+containers started or stopped elsewhere show up); nothing is started,
 stopped, pulled, inspected or removed. Container commands, environment, labels (except the
 Compose project) and Docker's error messages are not shown; from `~/.docker/config.json`
 only the current context, registry names and credential helper are kept.

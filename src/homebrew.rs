@@ -62,8 +62,17 @@ struct Formula {
     installed: Vec<InstalledKeg>,
     aliases: Option<Vec<String>>,
     oldnames: Option<Vec<String>>,
+    versions: Option<FormulaVersions>,
+    revision: Option<u32>,
+    outdated: Option<bool>,
+    pinned: Option<bool>,
     #[serde(flatten)]
     extra: BTreeMap<String, Value>,
+}
+
+#[derive(Deserialize)]
+struct FormulaVersions {
+    stable: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +88,8 @@ struct Cask {
     installed_as_dependency: Option<bool>,
     depends_on: Option<Value>,
     old_tokens: Option<Vec<String>>,
+    version: Option<String>,
+    outdated: Option<bool>,
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Inventory, CollectionError> {
@@ -114,7 +125,19 @@ pub fn parse(bytes: &[u8]) -> Result<Inventory, CollectionError> {
             formula.full_name.as_deref(),
             formula.tap.as_deref(),
         );
+        // Kegs carry the revision ("1.1.2_1"), so the latest version does too.
+        let latest = formula
+            .versions
+            .and_then(|v| v.stable)
+            .filter(|v| !v.trim().is_empty())
+            .map(|v| match formula.revision {
+                Some(r) if r > 0 => format!("{v}_{r}"),
+                _ => v,
+            });
         let metadata = HomebrewMetadata::Formula {
+            latest,
+            outdated: formula.outdated,
+            pinned: formula.pinned,
             aliases: formula
                 .aliases
                 .into_iter()
@@ -172,6 +195,8 @@ pub fn parse(bytes: &[u8]) -> Result<Inventory, CollectionError> {
             installed_on_request: cask.installed_on_request,
             installed_as_dependency: cask.installed_as_dependency,
             depends_on: cask.depends_on,
+            latest: cask.version.filter(|v| !v.trim().is_empty()),
+            outdated: cask.outdated,
         };
         resources.push(resource(
             id,

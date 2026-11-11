@@ -121,6 +121,8 @@ pub struct Inventory {
     pub skills: skills::Inventory,
     pub skills_config: skills::Config,
     pub enablement: Vec<Enablement>,
+    /// The Codex home ("~/.codex") when it does not exist: Codex is not set up here.
+    pub missing_home: Option<String>,
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
@@ -209,5 +211,12 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         skills,
         skills_config,
         enablement,
+        missing_home: (!context.codex_home.exists()).then(|| {
+            crate::inventory::short_path(
+                &context.codex_home,
+                &context.project,
+                context.home.as_deref(),
+            )
+        }),
     })
 }

@@ -245,6 +245,21 @@ impl App {
         }
     }
 
+    /// " · 3 outdated", or nothing. Homebrew compares with its last `brew update`.
+    pub fn outdated_text(&self) -> String {
+        let n = self
+            .inventory
+            .resources
+            .iter()
+            .filter(|r| r.homebrew.as_ref().is_some_and(|m| m.update().is_some()))
+            .count();
+        if n == 0 {
+            String::new()
+        } else {
+            format!(" · {n} outdated")
+        }
+    }
+
     pub fn collection_message(&self) -> String {
         match &self.collection_status {
             CollectionStatus::Snapshot => "Snapshot loaded; no collection commands run".into(),
@@ -258,8 +273,9 @@ impl App {
                 "No installed Homebrew packages | r:refresh".into()
             }
             CollectionStatus::Loaded => format!(
-                "Loaded {} packages | r:refresh",
-                self.inventory.resources.len()
+                "Loaded {} packages{} | r:refresh",
+                self.inventory.resources.len(),
+                self.outdated_text()
             ),
             CollectionStatus::Failed { error, stale } => {
                 format!("{}{} | r:retry", if *stale { "STALE: " } else { "" }, error)

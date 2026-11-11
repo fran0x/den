@@ -14,6 +14,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         (Some(e), _) => e.clone(),
         (None, None) if a.context.is_none() => "AWS not configured in this mode".into(),
         (None, None) => "Collecting AWS profiles...".into(),
+        (None, Some(i)) if !i.found => String::new(),
         (None, Some(i)) => {
             let profiles = i
                 .rows
@@ -37,6 +38,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             )
         }
     };
+    // Until profiles load, the list carries the message; the status line stays quiet.
+    let message = status;
+    let status = if a.inventory.is_some() {
+        message.clone()
+    } else {
+        String::new()
+    };
     let body = chrome(
         frame,
         "Cloud / AWS",
@@ -59,11 +67,16 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                 "No matches.\n/:search".into()
             } else if let Some(i) = &a.inventory {
                 format!(
-                    "No AWS profiles found.\n\n{HEADING}Coverage\n{}",
+                    "{}\n\n{HEADING}Coverage\n{}",
+                    if i.found {
+                        "No AWS profiles found."
+                    } else {
+                        "AWS not set up here: no config or credentials file."
+                    },
                     i.coverage.join("\n")
                 )
             } else {
-                status.clone()
+                message.clone()
             }
         },
         |r| {
@@ -83,7 +96,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         let inner = block.inner(panes[0]);
         frame.render_widget(block, panes[0]);
         let inner = filter_line(frame, inner, String::new(), &query, searching);
-        let inner = if inner.height > 2 {
+        let inner = if inner.height > 2 && !rows.is_empty() {
             frame.render_widget(
                 Paragraph::new(columns("Profile", "Auth", "Status", inner.width)).style(muted()),
                 Rect {
@@ -104,7 +117,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         let page = inner.height.max(1) as usize;
         app.aws.page = page;
         if rows.is_empty() {
-            frame.render_widget(Paragraph::new(text.lines().next().unwrap_or("")), inner);
+            // The reason, once; the panel shows only what follows it.
+            let first = text
+                .split_once("\n\n")
+                .map_or(text.as_str(), |(first, _)| first);
+            frame.render_widget(
+                Paragraph::new(first.to_owned()).wrap(Wrap { trim: true }),
+                inner,
+            );
         } else {
             let start = (selected / page) * page;
             let items: Vec<_> = rows
@@ -125,6 +145,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         }
     }
     if panes[1].width > 0 {
-        scrolled(frame, panes[1], &text, &mut app.aws.panel);
+        let text = if rows.is_empty() {
+            text.split_once("\n\n").map_or("", |(_, more)| more)
+        } else {
+            &text
+        };
+        scrolled(frame, panes[1], text, &mut app.aws.panel);
     }
 }

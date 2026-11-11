@@ -288,3 +288,43 @@ fn empty_tools_view_offers_all_packages() {
     key(&mut a, KeyCode::Char('a'));
     assert!(draw(&mut a, 80, 24).contains("No matches."));
 }
+
+#[test]
+fn outdated_packages_show_the_newer_version() {
+    let resources = inventory().resources;
+    let update = |name: &str, cask: bool| {
+        let r = resources
+            .iter()
+            .find(|r| r.name == name && (r.kind == den::inventory::ResourceKind::Cask) == cask)
+            .unwrap();
+        r.homebrew.as_ref().unwrap().update().map(str::to_owned)
+    };
+    assert_eq!(update("ripgrep", false).as_deref(), Some("99.0"));
+    assert_eq!(update("widget", true).as_deref(), Some("9.0"));
+    // python@3.12 has a newer stable version, but Homebrew does not flag it outdated.
+    assert_eq!(update("python@3.12", false), None);
+    assert_eq!(update("pcre2", false), None);
+
+    let mut a = app();
+    let screen = draw(&mut a, 140, 32);
+    assert!(
+        screen.contains("Homebrew snapshot · 2 outdated"),
+        "{screen}"
+    );
+    let row = screen.lines().find(|l| l.contains("> ripgrep")).unwrap();
+    assert!(row.contains("↑ 99.0 · Requested"), "{row}");
+    assert!(screen.contains("↑ 99.0 available · as of last brew update"));
+}
+
+#[test]
+fn a_revision_bump_is_part_of_the_latest_version() {
+    let raw = br#"{"formulae":[{"name":"lib","versions":{"stable":"1.1.2"},"revision":1,
+        "outdated":true,"pinned":true,"installed":[{"version":"1.1.2"}]}],"casks":[]}"#;
+    let inventory = homebrew::parse(raw).unwrap();
+    let m = inventory.resources[0].homebrew.as_ref().unwrap();
+    assert_eq!(m.update(), Some("1.1.2_1"));
+    assert!(m.pinned());
+    let mut a = App::new(inventory, "Homebrew snapshot");
+    key(&mut a, KeyCode::Char('a'));
+    assert!(draw(&mut a, 140, 32).contains("as of last brew update · pinned"));
+}

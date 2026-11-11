@@ -55,7 +55,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             &app.agents.query,
             app.agents.searching,
         );
-        let inner = if inner.height > 2 {
+        let inner = if inner.height > 2 && !view.rows.is_empty() {
             // Rows start after the 2-cell selection marker; so does the header.
             let (a, b, c) = view.header;
             frame.render_widget(
@@ -124,10 +124,13 @@ fn view(app: &App) -> View {
         .collect();
     let all = sources.rows(section);
     let selected = rows.get(a.selected[a.slot()].min(rows.len().saturating_sub(1)));
-    let text = selected.map_or_else(
-        || empty(app, &sources, section, !a.query.is_empty()),
-        |row| panel(app, &sources, section, row),
-    );
+    // With no rows the list says why once; the panel only adds what follows (coverage).
+    let nothing = empty(app, &sources, section, !a.query.is_empty());
+    let (nothing, more) = match nothing.split_once("\n\n") {
+        Some((short, more)) => (short.to_owned(), more.to_owned()),
+        None => (nothing, String::new()),
+    };
+    let text = selected.map_or(more, |row| panel(app, &sources, section, row));
     let mut filter: Vec<String> = vec![];
     match section {
         Section::Instructions => {
@@ -148,7 +151,7 @@ fn view(app: &App) -> View {
             _ => ("Name", "Tools", "Status"),
         },
         rows: cells,
-        empty: empty(app, &sources, section, !a.query.is_empty()),
+        empty: nothing,
         text,
         actions: match section {
             Section::Instructions => "t:if trusted Tab:area Shift+Tab:section",
@@ -164,6 +167,10 @@ fn view(app: &App) -> View {
 fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String {
     if let Some(notice) = &app.presentation.notice {
         return notice.clone();
+    }
+    // The list says so; zero counts would only repeat it.
+    if neither_set_up(app).is_some() {
+        return String::new();
     }
     let both = all
         .iter()
@@ -213,6 +220,30 @@ fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String
     notes.join(" · ")
 }
 
+/// Each tool's missing home folder, once collected.
+fn missing(app: &App) -> (Option<&String>, Option<&String>) {
+    (
+        app.codex
+            .inventory
+            .as_ref()
+            .and_then(|i| i.missing_home.as_ref()),
+        app.claude
+            .inventory
+            .as_ref()
+            .and_then(|i| i.missing_home.as_ref()),
+    )
+}
+
+/// "Codex and Claude Code are not set up …" when neither tool has its home folder.
+fn neither_set_up(app: &App) -> Option<String> {
+    match missing(app) {
+        (Some(codex), Some(claude)) => Some(format!(
+            "Codex and Claude Code are not set up here: no {codex} or {claude}."
+        )),
+        _ => None,
+    }
+}
+
 /// Each tool's collection state, when it is not simply loaded: (problems, information).
 fn collection(app: &App) -> (Vec<String>, Vec<String>) {
     let (mut problems, mut info) = (vec![], vec![]);
@@ -222,6 +253,8 @@ fn collection(app: &App) -> (Vec<String>, Vec<String>) {
         problems.push(e.clone());
     } else if app.codex.context.is_none() && !app.skills.loaded {
         info.push("Codex not collected in this mode".into());
+    } else if let Some(home) = missing(app).0 {
+        info.push(format!("Codex not set up (no {home})"));
     }
     if app.claude.running || (app.claude.requested && app.claude.context.is_some()) {
         info.push("collecting Claude Code".into());
@@ -229,6 +262,8 @@ fn collection(app: &App) -> (Vec<String>, Vec<String>) {
         problems.push(e.clone());
     } else if app.claude.context.is_none() {
         info.push("Claude Code not configured".into());
+    } else if let Some(home) = missing(app).1 {
+        info.push(format!("Claude Code not set up (no {home})"));
     }
     (problems, info)
 }
@@ -236,6 +271,9 @@ fn collection(app: &App) -> (Vec<String>, Vec<String>) {
 fn empty(app: &App, _: &Sources, section: Section, searching: bool) -> String {
     if searching {
         return "No matches.\n/:search".into();
+    }
+    if let Some(text) = neither_set_up(app) {
+        return text;
     }
     let mut text = match section {
         Section::Skills => "No skills found.",

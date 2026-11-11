@@ -5,7 +5,13 @@ use crate::{
     presentation::PanelScroll,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use std::io;
+use std::{
+    io,
+    time::{Duration, Instant},
+};
+
+/// While the Docker area is open, live listings are rerun this often after the last run.
+pub const REFRESH_EVERY: Duration = Duration::from_secs(5);
 
 pub struct State {
     pub context: Option<Context>,
@@ -20,6 +26,8 @@ pub struct State {
     pub searching: bool,
     pub panel: PanelScroll,
     pub page: usize,
+    /// When the last collection finished; the next automatic refresh counts from here.
+    pub finished_at: Option<Instant>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -35,6 +43,7 @@ impl Default for State {
             searching: false,
             panel: PanelScroll::default(),
             page: 0,
+            finished_at: None,
         }
     }
 }
@@ -58,6 +67,7 @@ impl State {
     /// results and says why.
     pub fn finish(&mut self, result: io::Result<Inventory>) {
         self.running = false;
+        self.finished_at = Some(Instant::now());
         let key = self.selected_row().map(|r| r.key.clone());
         match result {
             Ok(inventory) => {
@@ -69,6 +79,21 @@ impl State {
                 self.clamp();
             }
             Err(e) => self.error = Some(safe_text(&e.to_string())),
+        }
+    }
+    /// Time until the next automatic refresh, or `None` when there is none: fixtures
+    /// stay as saved, and nothing is scheduled before the first run or during one.
+    pub fn next_refresh(&self, now: Instant) -> Option<Duration> {
+        let live = self.context.as_ref()?.fixture.is_none();
+        let finished = self
+            .finished_at
+            .filter(|_| live && !self.running && !self.requested)?;
+        Some((finished + REFRESH_EVERY).saturating_duration_since(now))
+    }
+    /// Asks for a refresh once it is due.
+    pub fn tick(&mut self, now: Instant) {
+        if self.next_refresh(now) == Some(Duration::ZERO) {
+            self.requested = true;
         }
     }
     pub fn slot(&self) -> usize {

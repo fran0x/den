@@ -171,6 +171,8 @@ pub struct Inventory {
     pub active: Option<String>,
     pub sso_sessions: usize,
     pub coverage: Vec<String>,
+    /// False when neither the config nor the credentials file exists.
+    pub found: bool,
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
@@ -261,7 +263,10 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         ),
         key: format!("file:{}", path.display()),
     };
-    let config = match read(context, &context.config) {
+    let config = read(context, &context.config);
+    let credentials = read(context, &context.credentials);
+    let found = !matches!((&config, &credentials), (Read::Absent, Read::Absent));
+    let config = match config {
         Read::Text(text) => sections(&text, true),
         Read::Absent => BTreeMap::new(),
         Read::Problem(why) => {
@@ -269,7 +274,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             BTreeMap::new()
         }
     };
-    let credentials = match read(context, &context.credentials) {
+    let credentials = match credentials {
         Read::Text(text) => sections(&text, false),
         Read::Absent => BTreeMap::new(),
         Read::Problem(why) => {
@@ -358,6 +363,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         });
     }
     Ok(Inventory {
+        found,
         rows,
         active: context.active.clone(),
         sso_sessions: sso.len(),

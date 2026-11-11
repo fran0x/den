@@ -146,6 +146,8 @@ pub struct Inventory {
     /// Settings, MCP, hooks and plugins.
     pub config: config::Config,
     pub coverage: Vec<String>,
+    /// The Claude home ("~/.claude") when neither it nor ~/.claude.json exists.
+    pub missing_home: Option<String>,
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
@@ -171,7 +173,16 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     let skills = skills::discover_bounded(&config, cancel, context.boundary.as_deref())?;
     let (instructions, absent) = instructions(context, cancel)?;
     let config = config::collect(context, cancel)?;
+    let exists = |p: &Option<PathBuf>| p.as_ref().is_some_and(|p| p.exists());
+    let missing_home =
+        (!exists(&context.claude_home) && !exists(&context.claude_json)).then(|| {
+            context
+                .claude_home
+                .as_ref()
+                .map_or("~/.claude".into(), |p| short(context, p))
+        });
     Ok(Inventory {
+        missing_home,
         skills,
         instructions,
         absent,

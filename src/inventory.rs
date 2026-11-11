@@ -110,6 +110,14 @@ pub enum HomebrewMetadata {
         dependencies: std::collections::BTreeMap<String, serde_json::Value>,
         #[serde(default)]
         aliases: Vec<String>,
+        /// Newest stable version Homebrew knows of (as of the last `brew update`).
+        #[serde(default)]
+        latest: Option<String>,
+        #[serde(default)]
+        outdated: Option<bool>,
+        /// Pinned formulae are not upgraded by `brew upgrade`.
+        #[serde(default)]
+        pinned: Option<bool>,
     },
     Cask {
         full_token: Option<String>,
@@ -122,6 +130,11 @@ pub enum HomebrewMetadata {
         depends_on: Option<serde_json::Value>,
         #[serde(default)]
         old_tokens: Vec<String>,
+        /// Newest version Homebrew knows of (as of the last `brew update`).
+        #[serde(default)]
+        latest: Option<String>,
+        #[serde(default)]
+        outdated: Option<bool>,
     },
 }
 
@@ -139,6 +152,28 @@ pub fn installation_intent(
 }
 
 impl HomebrewMetadata {
+    /// The newer version Homebrew reports for an outdated package. Homebrew compares
+    /// against its local metadata, so this is as current as the last `brew update`.
+    pub fn update(&self) -> Option<&str> {
+        let (latest, outdated) = match self {
+            Self::Formula {
+                latest, outdated, ..
+            }
+            | Self::Cask {
+                latest, outdated, ..
+            } => (latest, outdated),
+        };
+        (*outdated == Some(true)).then(|| latest.as_deref().unwrap_or("newer version"))
+    }
+    pub fn pinned(&self) -> bool {
+        matches!(
+            self,
+            Self::Formula {
+                pinned: Some(true),
+                ..
+            }
+        )
+    }
     pub fn intent(&self) -> InstallationIntent {
         match self {
             Self::Formula { installed, .. } => {

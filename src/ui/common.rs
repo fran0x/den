@@ -295,7 +295,7 @@ pub(super) fn status_selection() -> Style {
     theme().selection_background()
 }
 fn is_status(text: &str) -> bool {
-    STATUS_WORDS.contains(&text)
+    STATUS_WORDS.contains(&text) || text.starts_with(UPDATE)
 }
 fn cells(name: &str, middle: &str, tail: &str, width: u16, status: bool) -> Line<'static> {
     let (name_width, mid_width, tail_width) = column_widths(width);
@@ -315,12 +315,14 @@ fn cells(name: &str, middle: &str, tail: &str, width: u16, status: bool) -> Line
     Line::from(spans)
 }
 
-const STATUS_WORDS: [&str; 4] = ["Ready", "Running", "Needs approval", "Problem"];
+const STATUS_WORDS: [&str; 5] = ["Ready", "Running", "Needs approval", "Problem", UPDATE];
+/// Starts an update notice, "↑ 15.0": coloured with its version, to the end of its part.
+pub(super) const UPDATE: &str = "↑";
 
 /// Colour a status word where a state starts: at the start of the cell or of a
 /// "·" part, optionally after a tool name ("Codex Ready · Claude Needs approval").
 /// Words inside free text, such as descriptions, keep the base style.
-fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
+pub(super) fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
     let starts_state = |before: &str| {
         let before = before
             .strip_suffix("Codex ")
@@ -341,12 +343,17 @@ fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
                 spans.push(Span::styled(text[done..at].to_owned(), base));
             }
             let style = match *word {
-                "Needs approval" => theme().warn(),
+                "Needs approval" | UPDATE => theme().warn(),
                 "Problem" => theme().bad(),
                 _ => theme().ok(),
             };
-            spans.push(Span::styled((*word).to_owned(), style));
-            at += word.len();
+            let len = if *word == UPDATE {
+                rest.find(" ·").unwrap_or(rest.len())
+            } else {
+                word.len()
+            };
+            spans.push(Span::styled(rest[..len].to_owned(), style));
+            at += len;
             done = at;
         } else {
             at += rest.chars().next().map_or(1, char::len_utf8);
@@ -397,5 +404,12 @@ mod tests {
         // Inside free text, and truncated, words stay plain.
         assert_eq!(words("Off · not Ready yet").len(), 1);
         assert_eq!(words("Rea…").len(), 1);
+        assert_eq!(
+            words("↑ 15.0 · Requested"),
+            vec![
+                ("↑ 15.0".into(), t.warn()),
+                (" · Requested".into(), Style::default())
+            ]
+        );
     }
 }

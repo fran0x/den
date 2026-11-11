@@ -96,6 +96,14 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
                 .map_or("Unknown", |m| m.intent().label())
         ),
     ];
+    if let Some(m) = &resource.homebrew
+        && let Some(latest) = m.update()
+    {
+        summary.push(format!(
+            "{UPDATE} {latest} available · as of last brew update{}",
+            if m.pinned() { " · pinned" } else { "" }
+        ));
+    }
     if inner.height >= 12 {
         summary.push(if resource.description.is_empty() {
             "No description".into()
@@ -114,7 +122,12 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(
             summary
                 .iter()
-                .map(|line| Line::from(fit(line, inner.width as usize)))
+                .map(|line| {
+                    Line::from(status_spans(
+                        &fit(line, inner.width as usize),
+                        Style::default(),
+                    ))
+                })
                 .collect::<Vec<_>>(),
         ),
         regions[0],

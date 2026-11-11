@@ -11,6 +11,10 @@ without colour) and is followed by its section, for example `Homebrew › Packag
 Colours follow the terminal: Catppuccin when it reports 24-bit colour (`COLORTERM=truecolor`),
 Latte on a light background (`COLORFGBG`), the 16 basic colours otherwise and none with
 `NO_COLOR`. The selected row has a soft background, or reverse video without colour.
+When a tool or its configuration is missing (no `brew` or `docker` on PATH, no
+`~/.codex`, `~/.claude` or `~/.aws` files), its list says so once and `r` retries; the
+status line stays empty instead of showing zero counts.
+
 In Agents, Cloud and Docker, states are coloured: Ready and Running green, Needs approval
 yellow, Problem red (bold without colour).
 
@@ -54,6 +58,11 @@ The inventory starts with **Tools**: packages Homebrew recorded as installed on 
 Tools are bold, so they stand out in All. Casks are bracketed, for example `[firefox]`,
 here and in the panel's trees; there is no type filter. Counts follow the search. During
 search, `a` is text. Area switching, Back and refresh preserve the view and search.
+
+Outdated packages start their row with the newer version in yellow, for example `↑ 15.0`;
+the status line counts them and the panel says whether a formula is pinned. This is
+Homebrew's own `outdated` flag from `brew info`, as current as your last `brew update`;
+Den never runs `brew update`.
 
 Missing, conflicting or mixed keg records stay **Unknown**, so those packages appear only
 in All. Rows label **Requested**, **Dependency** or **Unknown** and add **required by N**:
@@ -168,7 +177,8 @@ Containers / Images / Volumes, each with a header row:
 
 The status line shows counts and `docker system df` disk use and reclaimable space (Images
 also build cache). Den runs only four listing commands, each with a 10-second limit and an
-output cap, and only once this area is opened; `r` runs them again. A stopped daemon or a
+output cap, once this area is opened and again every 5 seconds while it stays open (5
+seconds after the last run ends; fixtures are not refreshed); `r` runs them at once. A stopped daemon or a
 missing CLI is explained in the status line and earlier results stay. Not shown:
 container commands, environment, labels except the Compose project, logs, and saved
 registry logins.

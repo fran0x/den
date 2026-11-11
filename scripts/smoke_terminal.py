@@ -247,8 +247,8 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     output = run_pty([binary, "--codex-fixture", "fixtures/codex"], env=isolated_env, steps=[
         (b"1 skill", b"\x1bOR"),
         (b"Synthetic global guidance", b"\x1bOR"),
-        ("› Settings".encode(), b"/model\re"),
-        (b"Raw TOML is never displayed", b"\x7fr"),
+        ("› Settings".encode(), b"s"),
+        (b"Raw TOML is never displayed", b"sr"),
         (b" settings", b"q"),
     ])
     assert b"PRIVATE-CONFIG-SENTINEL" not in output
@@ -264,10 +264,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         (b" skill", b"\x1bOR\x1bOR\x1bOR"),
         (b"7 servers", b"/docs\r"),
         (b"Launcher: npx", b"\x1b[6~"),
-        (b"PgUp", b"e"),
-        ("› Settings".encode(), b"\x7f"),
-        # Back returns to MCP (unit tests check the restored panel position).
-        ("Agents  › MCP".encode(), b"q"),
+        (b"PgUp", b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "MCP inspection must not invoke Homebrew"
@@ -367,14 +364,13 @@ print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
     print("PASS: Docker runs only the four listing commands, only when opened; a stopped daemon is explained")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
         (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
-        (b"7 servers", b"/docs\re"),
-        ("› Settings".encode(), b"\x1b"),
+        (b"7 servers", b"/docs\r"),
         ("› MCP".encode(), b"/\x15absent\r"),
         (b"No matches", b"q"),
     ])
     assert b"MCP-SECRET-CANARY" not in output
     assert not calls.exists(), "source navigation must never invoke Homebrew"
-    print("PASS: e source jump and Back restore MCP selection; no-match search remains offline")
+    print("PASS: MCP search and no-match search remain offline")
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
         (b" skill", b"\x1bOR\x1bOR\x1bOR"),
         (b"0 servers", b"?"),
@@ -385,7 +381,7 @@ print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
         (b"No MCP servers found", b"q"),
     ])
     assert not calls.exists(), "snapshot MCP must not request live data"
-    print("PASS: MCP panel, source jump/back, search, empty/partial isolation, resize and redaction")
+    print("PASS: MCP panel, search, empty/partial isolation, resize and redaction")
     output = run_pty([binary], env=isolated_env, steps=[
         (b"Loading Homebrew", b"?"),
         (b"Help", b"?"),
