@@ -253,3 +253,41 @@ fn live_docker_refreshes_while_open_but_fixtures_do_not() {
     saved.finish(Err(std::io::Error::other("x")));
     assert_eq!(saved.next_refresh(Instant::now() + REFRESH_EVERY), None);
 }
+
+#[test]
+fn lines_that_are_not_json_are_counted_not_dropped() {
+    let root = std::env::temp_dir().join(format!("den-docker-garbled-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    for (name, _) in COMMANDS {
+        let file = format!("{name}.jsonl");
+        let mut text = std::fs::read_to_string(Path::new("fixtures/docker").join(&file)).unwrap();
+        if name == "containers" {
+            text.push_str("Error: this is not JSON\n");
+        }
+        std::fs::write(root.join(&file), text).unwrap();
+    }
+    let context = docker::Context::fixture(&root).unwrap();
+    let inventory = docker::discover(&context, &std::sync::atomic::AtomicBool::new(false)).unwrap();
+    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(inventory.unreadable, 1);
+    assert_eq!(inventory.containers.len(), 3);
+
+    let mut a = App::new(
+        Inventory {
+            schema_version: 1,
+            resources: vec![],
+        },
+        "isolated Docker fixture",
+    );
+    a.docker.configure(context);
+    a.docker.finish(Ok(inventory));
+    a.docker.requested = false;
+    a.navigate(den::presentation::Destination::Containers);
+    let mut t = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 20)).unwrap();
+    t.draw(|f| ui::render(f, &mut a)).unwrap();
+    let status: String = (0..120)
+        .map(|x| t.backend().buffer()[(x, 1)].symbol())
+        .collect();
+    assert!(status.contains("· 1 line unreadable"), "{status}");
+}

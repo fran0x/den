@@ -103,6 +103,8 @@ pub struct Inventory {
     /// `docker system df` lines: (type, size, reclaimable).
     pub disk: Vec<(String, String, String)>,
     pub running: usize,
+    /// Output lines that were not JSON objects; their rows are missing, so counts may be low.
+    pub unreadable: usize,
     /// Current context, registries with saved logins and credential helpers.
     pub setup: Vec<String>,
 }
@@ -120,29 +122,45 @@ fn failure(error: crate::homebrew::CollectionError) -> io::Error {
     })
 }
 
-/// One command's JSON lines, from `docker` or the fixture.
+/// One command's JSON lines, from `docker` or the fixture, and how many lines were not
+/// JSON objects (counted, not silently dropped).
 fn lines(
     context: &Context,
     name: &str,
     args: &[&str],
     cancel: &AtomicBool,
-) -> io::Result<Vec<Map<String, Value>>> {
+) -> io::Result<(Vec<Map<String, Value>>, usize)> {
     let bytes = match &context.fixture {
-        Some(root) => match std::fs::read(root.join(format!("{name}.jsonl"))) {
-            Ok(bytes) => bytes,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => vec![],
-            Err(e) => return Err(e),
-        },
+        Some(root) => fixture(&root.join(format!("{name}.jsonl")))?,
         None => run(args, cancel)?,
     };
-    Ok(String::from_utf8_lossy(&bytes)
-        .lines()
-        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-        .filter_map(|v| match v {
-            Value::Object(map) => Some(map),
-            _ => None,
-        })
-        .collect())
+    let (mut rows, mut unreadable) = (vec![], 0);
+    for line in String::from_utf8_lossy(&bytes).lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Value>(line) {
+            Ok(Value::Object(map)) => rows.push(map),
+            _ => unreadable += 1,
+        }
+    }
+    Ok((rows, unreadable))
+}
+
+/// A saved listing, with the same size limit as live output; a missing file is empty.
+fn fixture(path: &Path) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+    let file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(e),
+    };
+    let mut bytes = vec![];
+    file.take(OUTPUT_LIMIT as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > OUTPUT_LIMIT {
+        return Err(io::Error::other("docker output exceeded its size limit"));
+    }
+    Ok(bytes)
 }
 
 #[cfg(unix)]
@@ -192,8 +210,10 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
                 w.join()
                     .unwrap_or_else(|_| Err(io::Error::other("docker listing failed")))
             })
-            .collect::<io::Result<Vec<Vec<Map<String, Value>>>>>()
+            .collect::<io::Result<Vec<_>>>()
     })?;
+    let unreadable = found.iter().map(|(_, n)| n).sum();
+    let found: Vec<_> = found.into_iter().map(|(rows, _)| rows).collect();
     let [containers, images, volumes, disk] =
         <[_; 4]>::try_from(found).map_err(|_| io::Error::other("unexpected command count"))?;
 
@@ -208,6 +228,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             .map(|d| (text(d, "Type"), text(d, "Size"), text(d, "Reclaimable")))
             .collect(),
         setup: setup(context),
+        unreadable,
         ..Inventory::default()
     };
     for image in &images {

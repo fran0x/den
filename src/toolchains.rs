@@ -12,6 +12,7 @@ use crate::{
     skills::filesystem,
 };
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     io,
     path::{Path, PathBuf},
@@ -214,38 +215,113 @@ impl Inventory {
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
-fn text(context: &Context, path: &Path) -> Option<String> {
-    match read_file(context.boundary.as_deref(), path, FILE_LIMIT) {
-        Read::Text(t) => Some(t),
-        _ => None,
+/// Reads one section's files and folders. A missing file or folder is simply absent; an
+/// unreadable folder or an invalid file becomes a Problem row, so the section never
+/// silently looks emptier or more settled than the machine is.
+struct Reader<'a> {
+    context: &'a Context,
+    problems: RefCell<Vec<Row>>,
+}
+impl std::ops::Deref for Reader<'_> {
+    type Target = Context;
+    fn deref(&self) -> &Context {
+        self.context
     }
 }
-
-/// Entry names of a directory, sorted and bounded; empty when it is missing or outside.
-fn names(context: &Context, dir: &Path) -> Vec<String> {
-    #[cfg(unix)]
-    {
-        let Ok(resolved) = filesystem::resolve(dir) else {
-            return vec![];
-        };
-        if !context.inside(&resolved) {
-            return vec![];
+impl<'a> Reader<'a> {
+    fn new(context: &'a Context) -> Self {
+        Self {
+            context,
+            problems: RefCell::new(vec![]),
         }
-        filesystem::Directory::open(&resolved)
-            .and_then(|d| d.names(NAMES_LIMIT))
-            .map(|(names, _)| {
-                names
-                    .into_iter()
-                    .filter_map(|n| n.into_string().ok())
-                    .filter(|n| !n.starts_with('.'))
-                    .collect()
-            })
-            .unwrap_or_default()
     }
-    #[cfg(not(unix))]
-    {
-        let _ = (context, dir);
-        vec![]
+    fn problem(&self, path: &Path, kind: &str, why: &str) {
+        let key = format!("problem:{}", path.display());
+        let mut problems = self.problems.borrow_mut();
+        if problems.iter().any(|r| r.key == key) {
+            return;
+        }
+        let short = self.short(path);
+        problems.push(Row {
+            name: short.clone(),
+            kind: kind.into(),
+            status: format!("Problem · {why}"),
+            detail: format!(
+                "{short}\n\nDen could not use this: {why}. What it describes is missing here, so this section may be incomplete."
+            ),
+            key,
+        });
+    }
+    fn text(&self, path: &Path) -> Option<String> {
+        match read_file(self.boundary.as_deref(), path, FILE_LIMIT) {
+            Read::Text(t) => Some(t),
+            Read::Absent => None,
+            Read::Problem(why) => {
+                self.problem(path, "File", why);
+                None
+            }
+        }
+    }
+    fn toml<T: serde::de::DeserializeOwned>(&self, path: &Path) -> Option<T> {
+        let text = self.text(path)?;
+        toml::from_str(&text)
+            .map_err(|_| self.problem(path, "File", "not valid TOML"))
+            .ok()
+    }
+    fn json(&self, path: &Path) -> Option<serde_json::Value> {
+        let text = self.text(path)?;
+        serde_json::from_str(&text)
+            .map_err(|_| self.problem(path, "File", "not valid JSON"))
+            .ok()
+    }
+    /// Entry names of a folder, sorted and bounded; empty when it is missing or outside.
+    fn names(&self, dir: &Path) -> Vec<String> {
+        #[cfg(unix)]
+        {
+            let resolved = match filesystem::resolve(dir) {
+                Ok(resolved) => resolved,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return vec![],
+                Err(_) => {
+                    self.problem(dir, "Folder", "the folder cannot be followed");
+                    return vec![];
+                }
+            };
+            if !self.inside(&resolved) {
+                return vec![];
+            }
+            match filesystem::Directory::open(&resolved).and_then(|d| d.names(NAMES_LIMIT)) {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => vec![],
+                Err(_) => {
+                    self.problem(dir, "Folder", "the folder cannot be listed");
+                    vec![]
+                }
+                Ok((names, limited)) => {
+                    if limited {
+                        self.problem(
+                            dir,
+                            "Folder",
+                            "more than 1,024 entries; the rest are not shown",
+                        );
+                    }
+                    names
+                        .into_iter()
+                        .filter_map(|n| n.into_string().ok())
+                        .filter(|n| !n.starts_with('.'))
+                        .collect()
+                }
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = dir;
+            vec![]
+        }
+    }
+    /// The section's rows with its problems first.
+    fn finish(self, rows: Vec<Row>) -> Vec<Row> {
+        let mut all = self.problems.into_inner();
+        all.extend(rows);
+        all
     }
 }
 
@@ -253,9 +329,15 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     if cancel.load(Ordering::Relaxed) {
         return Err(io::Error::other("collection cancelled"));
     }
-    let (path, npm) = on_path(context);
-    let (rust, default_toolchain) = rust(context);
-    let (packages, managers) = packages(context, npm);
+    let reader = Reader::new(context);
+    let (rows, default_toolchain) = rust(&reader);
+    let rust = reader.finish(rows);
+    let reader = Reader::new(context);
+    let (rows, npm) = on_path(&reader, default_toolchain.clone());
+    let path = reader.finish(rows);
+    let reader = Reader::new(context);
+    let (rows, managers) = packages(&reader, npm);
+    let packages = reader.finish(rows);
     Ok(Inventory {
         path,
         rust,
@@ -307,7 +389,7 @@ fn folders(context: &Context) -> (Vec<PathBuf>, Vec<String>) {
 }
 
 /// Returns the rows and the folder holding the winning `npm` (for npm's global prefix).
-fn on_path(context: &Context) -> (Vec<Row>, Option<PathBuf>) {
+fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option<PathBuf>) {
     let (dirs, relative) = folders(context);
     let mut rows = vec![];
     let mut npm = None;
@@ -338,7 +420,7 @@ fn on_path(context: &Context) -> (Vec<Row>, Option<PathBuf>) {
         managed.push((h.join(".local/bin"), "uv tool and pipx"));
     }
     for (dir, who) in managed {
-        let programs = names(context, &dir);
+        let programs = context.names(&dir);
         if programs.is_empty() || dirs.iter().any(|d| same_dir(d, &dir)) {
             continue;
         }
@@ -359,7 +441,6 @@ fn on_path(context: &Context) -> (Vec<Row>, Option<PathBuf>) {
             key: format!("folder:{}", dir.display()),
         });
     }
-    let toolchain = default_toolchain(context);
     for name in COMMANDS {
         let copies: Vec<Found> = dirs
             .iter()
@@ -401,7 +482,7 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 
 /// Who provides this copy, its version when the path shows it, and whether it is the OS's.
 fn provider(
-    context: &Context,
+    context: &Reader<'_>,
     name: &str,
     path: &Path,
     real: &Path,
@@ -545,7 +626,7 @@ fn uv_python_version(dir: &str) -> Option<String> {
     parts.next().map(safe_text)
 }
 
-fn command_row(context: &Context, name: &str, copies: &[Found]) -> Row {
+fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
     let winner = &copies[0];
     let mut problems = vec![];
     let real = context.logical(&winner.real);
@@ -554,11 +635,9 @@ fn command_row(context: &Context, name: &str, copies: &[Found]) -> Row {
     if macos
         && (stub("/usr/bin/java") || stub("/usr/bin/javac"))
         && !context.java_home
-        && names(
-            context,
-            &context.system("/Library/Java/JavaVirtualMachines"),
-        )
-        .is_empty()
+        && context
+            .names(&context.system("/Library/Java/JavaVirtualMachines"))
+            .is_empty()
     {
         problems.push("macOS stub: no JDK is installed".to_owned());
     }
@@ -648,12 +727,11 @@ struct RustupSettings {
     overrides: BTreeMap<String, String>,
 }
 
-fn settings(context: &Context) -> RustupSettings {
+fn settings(context: &Reader<'_>) -> RustupSettings {
     context
         .rustup_home
         .as_ref()
-        .and_then(|h| text(context, &h.join("settings.toml")))
-        .and_then(|t| toml::from_str(&t).ok())
+        .and_then(|h| context.toml(&h.join("settings.toml")))
         .unwrap_or_default()
 }
 
@@ -685,17 +763,13 @@ fn toolchain_matches(dir: &str, name: &str) -> bool {
     dir == name || dir.strip_prefix(name).is_some_and(|r| r.starts_with('-'))
 }
 
-fn default_toolchain(context: &Context) -> Option<String> {
-    settings(context).default_toolchain.map(|t| safe_text(&t))
-}
-
-fn rust(context: &Context) -> (Vec<Row>, Option<String>) {
+fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
     let mut rows = vec![];
     let settings = settings(context);
     let default = settings.default_toolchain.clone();
     if let Some(home) = &context.rustup_home {
         let base = home.join("toolchains");
-        for name in names(context, &base) {
+        for name in context.names(&base) {
             let is_default = default
                 .as_deref()
                 .is_some_and(|d| toolchain_matches(&name, d));
@@ -706,10 +780,12 @@ fn rust(context: &Context) -> (Vec<Row>, Option<String>) {
                 .map(|(dir, _)| context.short(Path::new(dir)))
                 .collect();
             let rustlib = base.join(&name).join("lib/rustlib");
-            let components: Vec<String> = text(context, &rustlib.join("components"))
+            let components: Vec<String> = context
+                .text(&rustlib.join("components"))
                 .map(|t| t.lines().take(64).map(safe_text).collect())
                 .unwrap_or_default();
-            let targets: Vec<String> = names(context, &rustlib)
+            let targets: Vec<String> = context
+                .names(&rustlib)
                 .into_iter()
                 .filter(|n| {
                     n.matches('-').count() >= 2
@@ -778,17 +854,15 @@ fn rust(context: &Context) -> (Vec<Row>, Option<String>) {
     (rows, default.map(|d| safe_text(split_host(&d).0)))
 }
 
-fn crates(context: &Context, cargo: &Path) -> Vec<Row> {
-    let Some(json) = text(context, &cargo.join(".crates2.json"))
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-    else {
+fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
+    let Some(json) = context.json(&cargo.join(".crates2.json")) else {
         return vec![];
     };
     let Some(installs) = json.get("installs").and_then(|i| i.as_object()) else {
         return vec![];
     };
     let bin_dir = cargo.join("bin");
-    let present = names(context, &bin_dir);
+    let present = context.names(&bin_dir);
     let mut rows = vec![];
     for (id, entry) in installs.iter().take(NAMES_LIMIT) {
         // "name version (source)"
@@ -883,21 +957,24 @@ fn crates(context: &Context, cargo: &Path) -> Vec<Row> {
 // ---------------------------------------------------------------------------------------
 // Global packages
 
-fn package_version(context: &Context, dir: &Path) -> Option<String> {
-    let json: serde_json::Value =
-        serde_json::from_str(&text(context, &dir.join("package.json"))?).ok()?;
+fn package_version(context: &Reader<'_>, dir: &Path) -> Option<String> {
+    let json = context.json(&dir.join("package.json"))?;
     json.get("version")?.as_str().map(safe_text)
 }
 
 /// The version from `<name>-<version>.dist-info` in a virtual environment.
-fn dist_version(context: &Context, venv: &Path, package: &str) -> (Option<String>, Option<String>) {
+fn dist_version(
+    context: &Reader<'_>,
+    venv: &Path,
+    package: &str,
+) -> (Option<String>, Option<String>) {
     let normal = package.to_ascii_lowercase().replace(['-', '.'], "_");
-    for lib in names(context, &venv.join("lib")) {
+    for lib in context.names(&venv.join("lib")) {
         if !lib.starts_with("python") {
             continue;
         }
         let site = venv.join("lib").join(&lib).join("site-packages");
-        for entry in names(context, &site) {
+        for entry in context.names(&site) {
             let Some(stem) = entry.strip_suffix(".dist-info") else {
                 continue;
             };
@@ -935,7 +1012,7 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
     }
 }
 
-fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(String, usize)>) {
+fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(String, usize)>) {
     let mut rows = vec![];
     let mut managers = vec![];
     let mut add = |manager: &str, found: Vec<Row>| {
@@ -953,9 +1030,10 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
     if let Some(prefix) = prefix {
         let modules = prefix.join("lib/node_modules");
         let mut found = vec![];
-        for name in names(context, &modules) {
+        for name in context.names(&modules) {
             let dirs: Vec<(String, PathBuf)> = if name.starts_with('@') {
-                names(context, &modules.join(&name))
+                context
+                    .names(&modules.join(&name))
                     .into_iter()
                     .map(|n| (format!("{name}/{n}"), modules.join(&name).join(n)))
                     .collect()
@@ -978,10 +1056,9 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
     // uv tool: one folder per tool with a receipt.
     if let Some(tools) = &context.uv_tools {
         let mut found = vec![];
-        for name in names(context, tools) {
+        for name in context.names(tools) {
             let dir = tools.join(&name);
-            let receipt: Option<toml::Value> =
-                text(context, &dir.join("uv-receipt.toml")).and_then(|t| toml::from_str(&t).ok());
+            let receipt: Option<toml::Value> = context.toml(&dir.join("uv-receipt.toml"));
             let Some(receipt) = receipt else {
                 continue;
             };
@@ -1017,7 +1094,7 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
     // uv python: real folders only; `cpython-3.13-…` links point at the newest patch.
     if let Some(dir) = &context.uv_python {
         let mut found = vec![];
-        for name in names(context, dir) {
+        for name in context.names(dir) {
             let path = dir.join(&name);
             let is_link =
                 std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink());
@@ -1041,7 +1118,8 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
     // pipx: one virtual environment per package.
     if let Some(home) = &context.pipx_home {
         let venvs = home.join("venvs");
-        let found = names(context, &venvs)
+        let found = context
+            .names(&venvs)
             .into_iter()
             .map(|name| {
                 let (version, python) = dist_version(context, &venvs.join(&name), &name);
@@ -1059,8 +1137,8 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
     // bun: the global package.json lists what was added.
     if let Some(bun) = &context.bun_install {
         let global = bun.join("install/global");
-        let declared: Vec<String> = text(context, &global.join("package.json"))
-            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        let declared: Vec<String> = context
+            .json(&global.join("package.json"))
             .and_then(|j| {
                 j.get("dependencies")?
                     .as_object()
@@ -1079,7 +1157,8 @@ fn packages(context: &Context, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(Stri
 
     // go install: program names only; versions need `go version -m`, which Den does not run.
     if let Some(bin) = &context.go_bin {
-        let found = names(context, bin)
+        let found = context
+            .names(bin)
             .into_iter()
             .filter(|n| executable(&bin.join(n)))
             .map(|name| {

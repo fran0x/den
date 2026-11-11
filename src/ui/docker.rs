@@ -23,7 +23,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     .map(|(_, size, reclaim)| format!(" · {size} · {reclaim} reclaimable"))
                     .unwrap_or_default()
             };
-            match section {
+            let mut text = match section {
                 Section::Containers => format!(
                     "{} · {} running{}",
                     crate::inventory::count(i.containers.len(), "container"),
@@ -45,7 +45,15 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     crate::inventory::count(i.volumes.len(), "volume"),
                     disk("Local Volumes")
                 ),
+            };
+            // Lines Docker printed that were not JSON: rows are missing, so say so.
+            if i.unreadable > 0 {
+                text.push_str(&format!(
+                    " · {} unreadable",
+                    crate::inventory::count(i.unreadable, "line")
+                ));
             }
+            text
         }
     };
     // Until Docker answers, the list carries the message; the status line stays quiet.

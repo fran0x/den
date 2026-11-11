@@ -284,3 +284,47 @@ fn an_empty_machine_says_what_is_missing_once_per_section() {
     }
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn unreadable_or_invalid_files_are_problems_not_silence() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = std::env::temp_dir().join(format!("den-toolchains-broken-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let home = root.join("home");
+    std::fs::create_dir_all(home.join(".rustup/toolchains/stable-aarch64-apple-darwin")).unwrap();
+    std::fs::create_dir_all(home.join(".cargo")).unwrap();
+    let tools = home.join(".local/share/uv/tools");
+    std::fs::create_dir_all(&tools).unwrap();
+    std::fs::write(root.join("PATH"), "/usr/bin\n").unwrap();
+    std::fs::write(
+        home.join(".rustup/settings.toml"),
+        "default_toolchain = [unclosed\n",
+    )
+    .unwrap();
+    std::fs::write(home.join(".cargo/.crates2.json"), "{\"installs\": ").unwrap();
+    std::fs::set_permissions(&tools, std::fs::Permissions::from_mode(0o000)).unwrap();
+    // Root can list any folder, so only check the unlistable folder when it really fails.
+    let unlistable = std::fs::read_dir(&tools).is_err();
+
+    let i = collect(&toolchains::Context::fixture(&root).unwrap());
+    std::fs::set_permissions(&tools, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let _ = std::fs::remove_dir_all(&root);
+
+    let status = |rows: &[toolchains::Row], name: &str| row(rows, name).status.clone();
+    assert_eq!(
+        status(&i.rust, "~/.rustup/settings.toml"),
+        "Problem · not valid TOML"
+    );
+    assert_eq!(
+        status(&i.rust, "~/.cargo/.crates2.json"),
+        "Problem · not valid JSON"
+    );
+    // The toolchain is still listed, and the section does not claim Rust is missing.
+    assert_eq!(status(&i.rust, "stable"), "Installed");
+    if unlistable {
+        assert_eq!(
+            status(&i.packages, "~/.local/share/uv/tools"),
+            "Problem · the folder cannot be listed"
+        );
+    }
+}
