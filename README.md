@@ -91,6 +91,7 @@ just check    # format, Clippy, tests, release build
 just smoke    # offline terminal checks in a real PTY
 ```
 
-CI runs both on Ubuntu and macOS. Live checks against your own machine are opt-in
+CI runs both on Ubuntu and macOS, and `cargo deny` checks dependencies for advisories,
+licenses and sources. Live checks against your own machine are opt-in
 (`just live`). More in [development](docs/DEVELOPMENT.md), [roadmap](ROADMAP.md) and
 [contributor rules](AGENTS.md).

@@ -20,3 +20,8 @@ or regenerating captures.
 CI (`.github/workflows/ci.yml`) runs the same checks on Ubuntu and macOS for every push to
 `main` and every pull request: formatting, Clippy, tests, release build and the offline
 terminal smoke checks. Live checks never run in CI.
+
+Security (`.github/workflows/security.yml`) runs `cargo deny check` on the same triggers and
+every Monday: RustSec advisories (including unmaintained and yanked crates), allowed
+licenses and crates.io as the only source, as set in `deny.toml`. Dependabot opens weekly
+grouped updates for crates and for the GitHub Actions, which are pinned to commits.
