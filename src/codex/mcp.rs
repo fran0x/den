@@ -1,6 +1,7 @@
 //! Read-only MCP configuration evidence, normalized before raw TOML is discarded.
 //! No MCP client, command runner, environment lookup or credential access exists here.
 mod normalize;
+pub(crate) use normalize::endpoint;
 
 use super::config::{Activity, Layer, Scope};
 pub(crate) use normalize::collect;

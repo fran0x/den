@@ -202,10 +202,16 @@ fn cloud_is_the_third_area_and_keeps_its_place() {
     key(&mut a, KeyCode::Enter);
     key(&mut a, KeyCode::Down);
     let selected = a.aws.selected_row().unwrap().key.clone();
-    key(&mut a, KeyCode::BackTab); // One section: Shift+Tab stays.
+    // Shift+Tab goes to Kubernetes and back, keeping AWS's place.
+    key(&mut a, KeyCode::BackTab);
+    assert_eq!(a.destination(), Destination::Kubernetes);
+    key(&mut a, KeyCode::BackTab);
     assert_eq!(a.destination(), Destination::Aws);
+    assert_eq!(a.aws.selected_row().unwrap().key, selected);
     key(&mut a, KeyCode::Tab);
     assert_eq!(a.module, Module::Docker);
+    key(&mut a, KeyCode::Tab);
+    assert_eq!(a.module, Module::Toolchains);
     key(&mut a, KeyCode::Tab);
     assert_eq!(a.module, Module::Homebrew);
     key(&mut a, KeyCode::Tab);

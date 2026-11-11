@@ -34,7 +34,7 @@ fn text(a: &mut App, s: &str) {
 /// then 6-8 for a specific Diagnostics report.
 fn switch(a: &mut App, d: Destination) {
     let area = d.label().split(" / ").next().unwrap();
-    for _ in 0..3 {
+    for _ in 0..4 {
         if a.destination().label().starts_with(area) {
             break;
         }
@@ -97,6 +97,8 @@ fn tab_switches_areas_and_restores_the_last_codex_subview_and_inventory_context(
     key(&mut a, KeyCode::Tab);
     assert_eq!(a.destination(), Destination::Containers);
     key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::OnPath);
+    key(&mut a, KeyCode::Tab);
     assert_eq!(a.destination(), Destination::Homebrew);
     assert_eq!(a.query, "widget");
     assert_eq!(a.filter, Some(den::inventory::ResourceKind::Formula));
@@ -122,6 +124,8 @@ fn tab_preserves_panel_scroll_and_search_queries() {
     key(&mut a, KeyCode::Tab);
     assert_eq!(a.destination(), Destination::Containers);
     key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::OnPath);
+    key(&mut a, KeyCode::Tab);
     assert_eq!(a.query, "rip");
     assert!(!a.searching);
     key(&mut a, KeyCode::Tab);
@@ -130,8 +134,8 @@ fn tab_preserves_panel_scroll_and_search_queries() {
     key(&mut a, KeyCode::PageDown);
     let offset = a.agents.panel.offset;
     assert!(offset > 0);
-    for _ in 0..3 {
-        key(&mut a, KeyCode::Tab); // Cloud, Docker, Homebrew
+    for _ in 0..4 {
+        key(&mut a, KeyCode::Tab); // Cloud, Docker, Toolchains, Homebrew
     }
     assert_eq!(a.destination(), Destination::Homebrew);
     key(&mut a, KeyCode::Tab);

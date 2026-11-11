@@ -285,6 +285,8 @@ fn tab_switches_two_areas_and_shift_tab_cycles_six_sections() {
     key(&mut a, KeyCode::Tab);
     assert_eq!(a.destination(), Destination::Containers);
     key(&mut a, KeyCode::Tab);
+    assert_eq!(a.destination(), Destination::OnPath);
+    key(&mut a, KeyCode::Tab);
     assert_eq!(a.destination(), Destination::Homebrew);
     key(&mut a, KeyCode::Tab);
     // The Agents area keeps its section and selection.

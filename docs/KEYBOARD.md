@@ -5,7 +5,7 @@ collectors, recorded dependency semantics and privacy rules are unchanged.
 
 ## Moving around
 
-The top bar shows the four areas. The active area is highlighted (bold and underlined
+The top bar shows the five areas. The active area is highlighted (bold and underlined
 without colour) and is followed by its section, for example `Homebrew › Packages`.
 
 Colours follow the terminal: Catppuccin when it reports 24-bit colour (`COLORTERM=truecolor`),
@@ -20,8 +20,8 @@ yellow, Problem red (bold without colour).
 
 | Key | Action |
 | --- | --- |
-| Tab | Switch area: Homebrew → Agents → Cloud → Docker. Each area keeps its place |
-| Shift+Tab | Switch section: Homebrew Packages / Diagnostics; Agents Skills / Instructions / Settings / MCP / Hooks / Plugins; Cloud has AWS only so far; Docker Containers / Images / Volumes |
+| Tab | Switch area: Homebrew → Agents → Cloud → Docker → Toolchains. Each area keeps its place |
+| Shift+Tab | Switch section: Homebrew Packages / Diagnostics; Agents Skills / Instructions / Settings / MCP / Hooks / Plugins; Cloud AWS / Kubernetes; Docker Containers / Images / Volumes; Toolchains On PATH / Rust / Packages |
 | Up/Down or j/k | Select in the inventory |
 | PageUp/PageDown | Scroll the information panel (Agents, Cloud, Docker) |
 | Home/End | First / last row |
@@ -164,6 +164,27 @@ credentials file), then each `[sso-session x]`, as Profile · Auth · Status.
 
 `/` searches, PgUp/PgDn scroll the panel and `r` refreshes.
 
+## Cloud › Kubernetes
+
+Shift+Tab from AWS. One row per context from the kubeconfig files (`KUBECONFIG`, or
+`~/.kube/config`), current context first, as Context · Auth · Status. With several
+`KUBECONFIG` files, for each name the first file wins, as in kubectl.
+
+- **Auth**, in the order kubectl uses them: Exec (with the program name, for example
+  `Exec · aws`), an auth provider (`gcp provider`), Client cert, Token, Basic auth, None set.
+- **Status:** Ready, then `current` for current-context and the namespace; or Problem: a
+  missing cluster or user, TLS verification off, plain http, a password stored in the file,
+  the `gcp`/`azure` auth providers removed in kubectl 1.26, or a file other users can read.
+  A `current-context` that names no context and an unreadable or invalid file are rows too.
+- **Panel:** namespace, cluster with its server (scheme, kind of address — this machine,
+  private network, public IP, host name — and port), certificate authority, user and auth,
+  exec plugin details, and the file that defines the context. Coverage counts clusters and
+  users no context uses and entries ignored because an earlier file defines the name.
+- **Privacy:** tokens, passwords, certificate and key data are parsed as presence only and
+  never kept. Server hosts, proxy URLs, file paths for certificates, keys and tokens, exec
+  arguments and env values are withheld; env variable names are shown. Linked files are
+  reported, not read. Nothing is called: no cluster, `kubectl` or exec plugin.
+
 ## Docker
 
 Containers / Images / Volumes, each with a header row:
@@ -182,6 +203,35 @@ seconds after the last run ends; fixtures are not refreshed); `r` runs them at o
 missing CLI is explained in the status line and earlier results stay. Not shown:
 container commands, environment, labels except the Compose project, logs, and saved
 registry logins.
+
+## Toolchains
+
+On PATH / Rust / Packages, each Command or Name · From or Kind · Status. Everything is read
+from files: no toolchain, package manager or program found on PATH is run.
+
+- **On PATH:** for about twenty common commands (`node`, `npm`, `python3`, `pip3`, `uv`,
+  `ruby`, `go`, `java`, `rustc`, `cargo`, …) the copy the shell runs, who provides it
+  (Homebrew, rustup, uv, nvm, pyenv, mise, asdf, Volta, the system, or its folder) and its
+  version when the install path or the package's `package.json` shows it; the panel lists
+  the copies it hides. Problems: a relative PATH entry, a manager folder with programs that
+  is not on PATH (`~/.cargo/bin`, `~/go/bin`, `~/.bun/bin`, `~/.local/bin`), a system copy
+  hiding a managed one, and macOS stubs with nothing behind them (`java` without a JDK,
+  `python3` without the Command Line Tools).
+- **Rust:** rustup toolchains, the default first, with folder overrides, targets and
+  components (`Installed` when neither the default nor an override selects one; a project's
+  `rust-toolchain.toml` may still pin it), then `cargo install` crates from
+  `~/.cargo/.crates2.json` with version, source, programs and the rustc that built them. A
+  crate whose program is missing is a Problem.
+- **Packages:** `npm -g` (from the winning npm's `lib/node_modules`, or
+  `NPM_CONFIG_PREFIX`), `uv tool` installs and uv-managed Pythons, `pipx`, `bun` globals
+  and `go install` programs (names only).
+- **Privacy:** git and private-registry URLs and local source paths of crates are withheld.
+  Newer versions, disk use and per-folder selections (`rust-toolchain.toml`, `.nvmrc`,
+  `.python-version`) are not checked.
+
+`RUSTUP_HOME`, `CARGO_HOME`, `UV_TOOL_DIR`, `UV_PYTHON_INSTALL_DIR`, `PIPX_HOME`,
+`BUN_INSTALL`, `GOBIN`/`GOPATH`, `NPM_CONFIG_PREFIX` and `JAVA_HOME` are respected. The
+area is read when opened; `r` reads it again.
 
 ## Back history
 

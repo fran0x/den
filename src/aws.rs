@@ -69,11 +69,6 @@ impl Context {
             None => safe_text(&path.display().to_string()),
         }
     }
-    fn permits(&self, path: &Path) -> bool {
-        self.boundary
-            .as_ref()
-            .is_none_or(|root| path.starts_with(root))
-    }
 }
 
 /// How a profile gets credentials, in the order the AWS SDKs check them.
@@ -176,15 +171,21 @@ pub struct Inventory {
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
-enum Read {
+/// One file read: absent, its text, or why it could not be used.
+pub(crate) enum Read {
     Absent,
     Text(String),
     Problem(&'static str),
 }
 
-/// Descriptor-relative read of a regular file. Linked files are reported, not read.
 fn read(context: &Context, path: &Path) -> Read {
-    if !context.permits(path) {
+    read_file(context.boundary.as_deref(), path, FILE_LIMIT)
+}
+
+/// Descriptor-relative read of a regular file inside `boundary` (when set). Linked files
+/// are reported, not read.
+pub(crate) fn read_file(boundary: Option<&Path>, path: &Path, limit: usize) -> Read {
+    if boundary.is_some_and(|root| !path.starts_with(root)) {
         return Read::Absent;
     }
     match std::fs::symlink_metadata(path) {
@@ -204,7 +205,7 @@ fn read(context: &Context, path: &Path) -> Read {
             .and_then(filesystem::resolve)
             .and_then(|parent| filesystem::Directory::open(&parent))
             .and_then(|dir| dir.child(name))
-            .and_then(|file| filesystem::text(file, FILE_LIMIT));
+            .and_then(|file| filesystem::text(file, limit));
         match text {
             Ok(text) => Read::Text(text),
             Err(_) => Read::Problem("unreadable, too large or not UTF-8"),
@@ -384,13 +385,18 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
 
 /// A credentials file other users can read or write.
 fn too_open(context: &Context) -> Option<&'static str> {
+    too_open_file(context.boundary.as_deref(), &context.credentials)
+}
+
+/// A regular file other users can read or write.
+pub(crate) fn too_open_file(boundary: Option<&Path>, path: &Path) -> Option<&'static str> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if !context.permits(&context.credentials) {
+        if boundary.is_some_and(|root| !path.starts_with(root)) {
             return None;
         }
-        let meta = std::fs::symlink_metadata(&context.credentials).ok()?;
+        let meta = std::fs::symlink_metadata(path).ok()?;
         (meta.is_file() && meta.permissions().mode() & 0o077 != 0)
             .then_some("other users can read or change it (expected 600)")
     }

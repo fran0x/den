@@ -16,6 +16,7 @@ Keep changes within the requested scope; later stages in `ROADMAP.md` are propos
 | `src/graph.rs`, `src/explorer.rs`, `src/diagnostics.rs`, `src/diagnostics/` | Dependency evidence, tree projection and diagnostic interpretation |
 | `src/skills.rs`, `src/skills/` | Skill models, bounded discovery, metadata, filesystem access and state |
 | `src/codex.rs`, `src/codex/` | Configuration, instructions, privacy, MCP models/normalization and state |
+| `src/aws.rs`, `src/kube.rs`, `src/docker.rs`, `src/toolchains.rs` (each with state) | Cloud, Docker and Toolchains collectors |
 
 Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing
@@ -101,6 +102,15 @@ helpers stay withheld and hooks are never run.
 AWS: keep only section and key names from the credentials file, never values; show
 config values only from the allowlist in `src/aws.rs`; never read SSO or CLI caches or
 call AWS. Account IDs and role ARNs are shown in full by decision.
+
+Kubernetes: read kubeconfig files only (`KUBECONFIG` or `~/.kube/config`); parse tokens,
+passwords and certificate/key data as presence (`IgnoredAny`), never keep them. Keep only
+scheme, address class and port of server URLs, and the program name and env variable names
+of exec plugins. Never run `kubectl`, an exec plugin or contact a cluster.
+
+Toolchains: read PATH folders, rustup settings, `.crates2.json` and package metadata only;
+never run a program found on PATH, a toolchain or a package manager (versions come from
+paths and metadata). Withhold git/private-registry URLs and local source paths of crates.
 
 Sanitize every untrusted string before terminal display. Preserve descriptor-relative,
 bounded filesystem reads and configuration/instruction symlink rejection. Do not query

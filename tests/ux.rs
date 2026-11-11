@@ -158,8 +158,8 @@ fn panel_scrolls_with_page_keys_and_keeps_its_place_across_help_and_switches() {
     key(&mut a, KeyCode::End);
     key(&mut a, KeyCode::Esc);
     assert_eq!(a.agents.panel.offset, offset);
-    for _ in 0..4 {
-        key(&mut a, KeyCode::F(2)); // Cloud, Docker, Homebrew, back to Agents
+    for _ in 0..5 {
+        key(&mut a, KeyCode::F(2)); // Cloud, Docker, Toolchains, Homebrew, back to Agents
     }
     for _ in 0..6 {
         key(&mut a, KeyCode::F(3)); // Every Agents section, back to Skills.

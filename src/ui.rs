@@ -9,6 +9,7 @@ mod cloud;
 mod diagnostics;
 mod docker;
 mod skills;
+mod toolchains;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
@@ -101,6 +102,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.module == crate::app::Module::Cloud {
         cloud::render(frame, app);
+        return;
+    }
+    if app.module == crate::app::Module::Toolchains {
+        toolchains::render(frame, app);
         return;
     }
     if app.module == crate::app::Module::Docker {

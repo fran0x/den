@@ -26,7 +26,15 @@ pub(super) enum Location {
         query: String,
         scroll: u16,
     },
+    Toolchains {
+        section: crate::toolchains::Section,
+        key: Option<String>,
+        selected: [usize; 3],
+        query: String,
+        scroll: u16,
+    },
     Cloud {
+        section: crate::app::CloudSection,
         key: Option<String>,
         selected: usize,
         query: String,
@@ -50,6 +58,7 @@ impl Location {
             Self::Agents { .. } => Module::Agents,
             Self::Cloud { .. } => Module::Cloud,
             Self::Docker { .. } => Module::Docker,
+            Self::Toolchains { .. } => Module::Toolchains,
         }
     }
 }
@@ -57,6 +66,13 @@ impl App {
     pub(super) fn location(&self) -> Location {
         let page = self.presentation.page.clone();
         match self.module {
+            Module::Toolchains => Location::Toolchains {
+                section: self.toolchains.section,
+                key: self.toolchains.selected_row().map(|r| r.key.clone()),
+                selected: self.toolchains.selected,
+                query: self.toolchains.query.clone(),
+                scroll: self.toolchains.panel.offset,
+            },
             Module::Docker => Location::Docker {
                 section: self.docker.section,
                 key: self.docker.selected_row().map(|r| r.key.clone()),
@@ -64,11 +80,21 @@ impl App {
                 query: self.docker.query.clone(),
                 scroll: self.docker.panel.offset,
             },
-            Module::Cloud => Location::Cloud {
-                key: self.aws.selected_row().map(|r| r.key.clone()),
-                selected: self.aws.selected,
-                query: self.aws.query.clone(),
-                scroll: self.aws.panel.offset,
+            Module::Cloud => match self.cloud {
+                crate::app::CloudSection::Aws => Location::Cloud {
+                    section: self.cloud,
+                    key: self.aws.selected_row().map(|r| r.key.clone()),
+                    selected: self.aws.selected,
+                    query: self.aws.query.clone(),
+                    scroll: self.aws.panel.offset,
+                },
+                crate::app::CloudSection::Kubernetes => Location::Cloud {
+                    section: self.cloud,
+                    key: self.kube.selected_row().map(|r| r.key.clone()),
+                    selected: self.kube.selected,
+                    query: self.kube.query.clone(),
+                    scroll: self.kube.panel.offset,
+                },
             },
             Module::Agents => Location::Agents {
                 section: self.agents.section,
@@ -125,22 +151,59 @@ impl App {
                 d.panel.offset = scroll;
                 self.presentation.page = Page::Browse;
             }
+            Location::Toolchains {
+                section,
+                key,
+                selected,
+                query,
+                scroll,
+            } => {
+                self.module = Module::Toolchains;
+                let t = &mut self.toolchains;
+                t.section = section;
+                t.selected = selected;
+                t.query = query;
+                t.searching = false;
+                if let Some(key) = key {
+                    t.select_key(&key);
+                }
+                t.clamp();
+                t.panel.offset = scroll;
+                self.presentation.page = Page::Browse;
+            }
             Location::Cloud {
+                section,
                 key,
                 selected,
                 query,
                 scroll,
             } => {
                 self.module = Module::Cloud;
-                let a = &mut self.aws;
-                a.selected = selected;
-                a.query = query;
-                a.searching = false;
-                if let Some(key) = key {
-                    a.select_key(&key);
+                self.cloud = section;
+                match section {
+                    crate::app::CloudSection::Aws => {
+                        let a = &mut self.aws;
+                        a.selected = selected;
+                        a.query = query;
+                        a.searching = false;
+                        if let Some(key) = key {
+                            a.select_key(&key);
+                        }
+                        a.clamp();
+                        a.panel.offset = scroll;
+                    }
+                    crate::app::CloudSection::Kubernetes => {
+                        let k = &mut self.kube;
+                        k.selected = selected;
+                        k.query = query;
+                        k.searching = false;
+                        if let Some(key) = key {
+                            k.select_key(&key);
+                        }
+                        k.clamp();
+                        k.panel.offset = scroll;
+                    }
                 }
-                a.clamp();
-                a.panel.offset = scroll;
                 self.presentation.page = Page::Browse;
             }
             Location::Agents {

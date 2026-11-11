@@ -55,8 +55,13 @@ pub(super) fn chrome(
     let accent = heading();
     let mut title = vec![Span::styled(" DEN ", accent)];
     match view.split_once(" / ") {
-        Some((area, section)) if matches!(area, "Homebrew" | "Agents" | "Cloud" | "Docker") => {
-            for name in ["Homebrew", "Agents", "Cloud", "Docker"] {
+        Some((area, section))
+            if matches!(
+                area,
+                "Homebrew" | "Agents" | "Cloud" | "Docker" | "Toolchains"
+            ) =>
+        {
+            for name in ["Homebrew", "Agents", "Cloud", "Docker", "Toolchains"] {
                 title.push(Span::raw(" "));
                 if name == area {
                     title.push(Span::styled(format!(" {name} "), theme().active()));
@@ -371,6 +376,114 @@ pub(super) fn actions(searching: bool) -> &'static str {
         "Enter:done Esc:done"
     } else {
         "Tab:area Shift+Tab:section"
+    }
+}
+
+/// What a list-and-panel section (Cloud, Toolchains) hands to `list_view`.
+pub(super) struct ListView {
+    pub(super) title: &'static str,
+    pub(super) pane: &'static str,
+    pub(super) header: (&'static str, &'static str, &'static str),
+    pub(super) status: String,
+    pub(super) rows: Vec<(String, String, String)>,
+    /// The panel text, or (with no rows) the message, a blank line and the panel text.
+    pub(super) text: String,
+    pub(super) selected: usize,
+    pub(super) query: String,
+    pub(super) searching: bool,
+}
+
+/// A searchable three-column list with a header, and a scrolling information panel.
+pub(super) fn list_view(
+    frame: &mut Frame,
+    view: ListView,
+    page_size: &mut usize,
+    panel: &mut crate::presentation::PanelScroll,
+) {
+    let ListView {
+        title,
+        pane: pane_title,
+        header,
+        status,
+        rows,
+        text,
+        selected,
+        query,
+        searching,
+    } = view;
+    let body = chrome(
+        frame,
+        title,
+        &status,
+        searching,
+        if searching {
+            actions(true)
+        } else {
+            "Tab:area Shift+Tab:section"
+        },
+    );
+    let selected = selected.min(rows.len().saturating_sub(1));
+    let panes = panes(body);
+    if panes[0].width > 0 {
+        let block = pane(pane_title, true);
+        let inner = block.inner(panes[0]);
+        frame.render_widget(block, panes[0]);
+        let inner = filter_line(frame, inner, String::new(), &query, searching);
+        let inner = if inner.height > 2 && !rows.is_empty() {
+            frame.render_widget(
+                Paragraph::new(columns(header.0, header.1, header.2, inner.width)).style(muted()),
+                Rect {
+                    x: inner.x + 2,
+                    width: inner.width.saturating_sub(2),
+                    height: 1,
+                    ..inner
+                },
+            );
+            Rect {
+                y: inner.y + 1,
+                height: inner.height - 1,
+                ..inner
+            }
+        } else {
+            inner
+        };
+        let page = inner.height.max(1) as usize;
+        *page_size = page;
+        if rows.is_empty() {
+            // The reason, once; the panel shows only what follows it.
+            let first = text
+                .split_once("\n\n")
+                .map_or(text.as_str(), |(first, _)| first);
+            frame.render_widget(
+                Paragraph::new(first.to_owned()).wrap(Wrap { trim: true }),
+                inner,
+            );
+        } else {
+            let start = (selected / page) * page;
+            let items: Vec<_> = rows
+                .iter()
+                .skip(start)
+                .take(page)
+                .enumerate()
+                .map(|(i, (n, x, y))| status_item((n, x, y), inner.width, start + i == selected))
+                .collect();
+            let mut state = ListState::default().with_selected(Some(selected - start));
+            frame.render_stateful_widget(
+                List::new(items)
+                    .highlight_symbol("> ")
+                    .highlight_style(status_selection()),
+                inner,
+                &mut state,
+            );
+        }
+    }
+    if panes[1].width > 0 {
+        let text = if rows.is_empty() {
+            text.split_once("\n\n").map_or("", |(_, more)| more)
+        } else {
+            &text
+        };
+        scrolled(frame, panes[1], text, panel);
     }
 }
 

@@ -32,6 +32,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
         let mut codex: Option<crate::codex::Collector> = None;
         let mut claude: Option<crate::claude::Collector> = None;
         let mut aws: Option<crate::aws::Collector> = None;
+        let mut kube: Option<crate::kube::Collector> = None;
+        let mut toolchains: Option<crate::toolchains::Collector> = None;
         let mut docker: Option<crate::docker::Collector> = None;
         let mut diagnostic: Option<(Check, u64, Collector<CommandOutput>)> = None;
         while !app.quit {
@@ -115,6 +117,46 @@ pub fn run(app: &mut App) -> io::Result<()> {
                     Err(error) => app.aws.finish(Err(error)),
                 }
             }
+            if app.module == crate::app::Module::Cloud
+                && app.kube.requested
+                && kube.is_none()
+                && let Some(context) = app.kube.context.clone()
+            {
+                app.kube.requested = false;
+                app.kube.running = true;
+                match crate::kube::Collector::start_with(move |cancel| {
+                    crate::kube::discover(&context, cancel)
+                }) {
+                    Ok(worker) => kube = Some(worker.detach_on_drop()),
+                    Err(error) => app.kube.finish(Err(error)),
+                }
+            }
+            if let Some(result) = kube.as_ref().and_then(crate::kube::Collector::poll) {
+                app.kube.finish(result);
+                kube = None;
+            }
+            // Toolchains are read only when their area is open.
+            if app.module == crate::app::Module::Toolchains
+                && app.toolchains.requested
+                && toolchains.is_none()
+                && let Some(context) = app.toolchains.context.clone()
+            {
+                app.toolchains.requested = false;
+                app.toolchains.running = true;
+                match crate::toolchains::Collector::start_with(move |cancel| {
+                    crate::toolchains::discover(&context, cancel)
+                }) {
+                    Ok(worker) => toolchains = Some(worker.detach_on_drop()),
+                    Err(error) => app.toolchains.finish(Err(error)),
+                }
+            }
+            if let Some(result) = toolchains
+                .as_ref()
+                .and_then(crate::toolchains::Collector::poll)
+            {
+                app.toolchains.finish(result);
+                toolchains = None;
+            }
             // Docker is collected only when its area is open: it runs the docker CLI.
             // While it stays open, live listings refresh so outside changes show up.
             if app.module == crate::app::Module::Docker {
@@ -174,6 +216,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 || codex.is_some()
                 || claude.is_some()
                 || aws.is_some()
+                || kube.is_some()
+                || toolchains.is_some()
                 || docker.is_some();
             let wait = if collecting {
                 Some(std::time::Duration::from_millis(50))

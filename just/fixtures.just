@@ -38,3 +38,11 @@ aws path="fixtures/aws":
 # Browse saved synthetic Docker listings without running docker.
 docker path="fixtures/docker":
     cargo run -- --docker-fixture "$1"
+
+# Browse isolated synthetic kubeconfig contexts in Cloud › Kubernetes.
+kube path="fixtures/kube":
+    cargo run -- --kube-fixture "$1"
+
+# Browse an isolated synthetic PATH, Rust and global packages in Toolchains.
+toolchains path="fixtures/toolchains":
+    cargo run -- --toolchains-fixture "$1"

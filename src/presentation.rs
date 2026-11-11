@@ -28,9 +28,15 @@ pub enum Destination {
     Plugins,
     /// Cloud › AWS profiles.
     Aws,
+    /// Cloud › Kubernetes contexts.
+    Kubernetes,
     Containers,
     Images,
     Volumes,
+    /// Toolchains › On PATH, Rust and Packages.
+    OnPath,
+    Rust,
+    Packages,
 }
 impl Destination {
     pub fn label(self) -> &'static str {
@@ -46,9 +52,13 @@ impl Destination {
             Self::Hooks => "Agents / Hooks",
             Self::Plugins => "Agents / Plugins",
             Self::Aws => "Cloud / AWS",
+            Self::Kubernetes => "Cloud / Kubernetes",
             Self::Containers => "Docker / Containers",
             Self::Images => "Docker / Images",
             Self::Volumes => "Docker / Volumes",
+            Self::OnPath => "Toolchains / On PATH",
+            Self::Rust => "Toolchains / Rust",
+            Self::Packages => "Toolchains / Packages",
         }
     }
     /// The Agents section this destination shows, if it is in the Agents area.
@@ -146,20 +156,21 @@ pub struct Presentation {
     /// The latest context, filed under the section the action lands in.
     pending: Option<Location>,
     saved: BTreeMap<Destination, Location>,
-    areas: [Option<Location>; 4],
+    areas: [Option<Location>; 5],
     pub(super) revision: u64,
     pub menu_searching: bool,
     pub notice: Option<String>,
 }
 impl App {
-    /// Area switching remembers the complete view. Tab: Homebrew → Agents → Cloud → Docker.
+    /// Area switching remembers the complete view. Tab: Homebrew → Agents → Cloud → Docker →
+    /// Toolchains.
     pub fn switch_area(&mut self) {
         self.commit_history();
         let current = self.module.index();
         self.presentation.areas[current] = Some(self.location());
         self.presentation.menu_searching = false;
         self.presentation.notice = None;
-        let next = (current + 1) % 4;
+        let next = (current + 1) % 5;
         if let Some(location) = self.presentation.areas[next].clone() {
             self.restore(location);
         } else {
@@ -169,6 +180,7 @@ impl App {
                     Destination::Skills,
                     Destination::Aws,
                     Destination::Containers,
+                    Destination::OnPath,
                 ][next],
             );
         }
@@ -185,16 +197,22 @@ impl App {
             Destination::Homebrew if self.is_homebrew() => Destination::Unresolved,
             Destination::Homebrew => return,
             Destination::Unresolved => Destination::Homebrew,
-            // Cloud has one section so far; Kubernetes would be the next.
-            Destination::Aws => return,
+            Destination::Aws => Destination::Kubernetes,
+            Destination::Kubernetes => Destination::Aws,
             Destination::Containers => Destination::Images,
             Destination::Images => Destination::Volumes,
             Destination::Volumes => Destination::Containers,
+            Destination::OnPath => Destination::Rust,
+            Destination::Rust => Destination::Packages,
+            Destination::Packages => Destination::OnPath,
             d => Destination::of_agents(d.agents_section().unwrap_or_default().next()),
         };
         self.searching = false;
         self.agents.searching = false;
         self.docker.searching = false;
+        self.aws.searching = false;
+        self.kube.searching = false;
+        self.toolchains.searching = false;
         self.presentation.menu_searching = false;
         self.navigate(next);
     }
@@ -213,11 +231,19 @@ impl App {
                 Destination::Sources
             }
             Module::Agents => Destination::of_agents(self.agents.section),
-            Module::Cloud => Destination::Aws,
+            Module::Cloud => match self.cloud {
+                crate::app::CloudSection::Aws => Destination::Aws,
+                crate::app::CloudSection::Kubernetes => Destination::Kubernetes,
+            },
             Module::Docker => match self.docker.section {
                 crate::docker::Section::Containers => Destination::Containers,
                 crate::docker::Section::Images => Destination::Images,
                 crate::docker::Section::Volumes => Destination::Volumes,
+            },
+            Module::Toolchains => match self.toolchains.section {
+                crate::toolchains::Section::Path => Destination::OnPath,
+                crate::toolchains::Section::Rust => Destination::Rust,
+                crate::toolchains::Section::Packages => Destination::Packages,
             },
         }
     }
@@ -227,15 +253,21 @@ impl App {
     pub fn active_focus(&self) -> Focus {
         match self.module {
             Module::Homebrew => self.focus,
-            Module::Agents | Module::Cloud | Module::Docker => Focus::Inventory,
+            Module::Agents | Module::Cloud | Module::Docker | Module::Toolchains => {
+                Focus::Inventory
+            }
         }
     }
     pub fn active_searching(&self) -> bool {
         match self.module {
             Module::Homebrew => self.searching,
             Module::Agents => self.agents.searching,
-            Module::Cloud => self.aws.searching,
+            Module::Cloud => match self.cloud {
+                crate::app::CloudSection::Aws => self.aws.searching,
+                crate::app::CloudSection::Kubernetes => self.kube.searching,
+            },
             Module::Docker => self.docker.searching,
+            Module::Toolchains => self.toolchains.searching,
         }
     }
     fn focus_content(&mut self) {
@@ -327,6 +359,18 @@ impl App {
                     self.apply_detail(detail);
                 }
             }
+            Destination::OnPath | Destination::Rust | Destination::Packages => {
+                self.module = Module::Toolchains;
+                let t = &mut self.toolchains;
+                t.section = match destination {
+                    Destination::Rust => crate::toolchains::Section::Rust,
+                    Destination::Packages => crate::toolchains::Section::Packages,
+                    _ => crate::toolchains::Section::Path,
+                };
+                t.query.clear();
+                t.panel.offset = 0;
+                t.clamp();
+            }
             Destination::Containers | Destination::Images | Destination::Volumes => {
                 self.module = Module::Docker;
                 let d = &mut self.docker;
@@ -341,9 +385,17 @@ impl App {
             }
             Destination::Aws => {
                 self.module = Module::Cloud;
+                self.cloud = crate::app::CloudSection::Aws;
                 self.aws.query.clear();
                 self.aws.panel.offset = 0;
                 self.aws.clamp();
+            }
+            Destination::Kubernetes => {
+                self.module = Module::Cloud;
+                self.cloud = crate::app::CloudSection::Kubernetes;
+                self.kube.query.clear();
+                self.kube.panel.offset = 0;
+                self.kube.clamp();
             }
             d => {
                 self.module = Module::Agents;

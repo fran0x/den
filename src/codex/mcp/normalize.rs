@@ -148,7 +148,8 @@ fn variable(s: &str) -> String {
     }
 }
 
-fn endpoint(raw: &str) -> Option<Endpoint> {
+/// Scheme, host class and port of an http(s) URL; the host itself is never kept.
+pub(crate) fn endpoint(raw: &str) -> Option<Endpoint> {
     if raw.len() > 8192
         || raw.chars().any(|c| c.is_control() || c.is_whitespace())
         || raw.contains('\\')

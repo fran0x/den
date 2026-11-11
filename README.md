@@ -2,8 +2,8 @@
 
 A read-only Rust TUI for Homebrew inventory, dependency diagnostics, local Codex
 skills, configuration, instructions and MCP server definitions, and Claude Code skills,
-instructions, settings, MCP servers, hooks and plugins, AWS CLI profiles, and Docker
-containers, images and volumes. Den runs a fixed set
+instructions, settings, MCP servers, hooks and plugins, AWS CLI profiles, Kubernetes
+contexts, Docker containers, images and volumes, and language toolchains. Den runs a fixed set
 of read-only Homebrew commands; it never installs/removes tools, runs inspected skill
 scripts or starts MCP servers.
 
@@ -24,7 +24,9 @@ just fixtures codex                       # isolated synthetic configuration
 just fixtures codex fixtures/mcp          # synthetic MCP definitions
 just fixtures claude                      # synthetic Codex + Claude Code side by side
 just fixtures aws                         # synthetic AWS profiles in Cloud
+just fixtures kube                        # synthetic kubeconfig contexts in Cloud
 just fixtures docker                      # saved synthetic Docker listings
+just fixtures toolchains                  # synthetic PATH, Rust and global packages
 just fixtures brew fixtures/brew-dependencies.json # synthetic dependency trees
 ```
 
@@ -40,10 +42,11 @@ instructions, skills and MCP definitions. Fixture refresh rereads those roots on
 
 ## Navigation
 
-The top bar shows **Homebrew**, **Agents**, **Cloud** and **Docker**; the active area is
+The top bar shows **Homebrew**, **Agents**, **Cloud**, **Docker** and **Toolchains**; the active area is
 highlighted and followed by its section. Tab switches area; Shift+Tab switches section
 (Homebrew: Packages / Diagnostics; Agents: Skills / Instructions / Settings / MCP / Hooks /
-Plugins; Cloud: AWS; Docker: Containers / Images / Volumes).
+Plugins; Cloud: AWS / Kubernetes; Docker: Containers / Images / Volumes; Toolchains: On PATH /
+Rust / Packages).
 Each area and section keeps its place. There is no section switcher.
 
 **Agents** shows Codex and Claude Code side by side. Every list has the same columns:
@@ -107,6 +110,14 @@ one. From the credentials file only profile and key names are kept; values are d
 as they are read. SSO start URLs, endpoints, external IDs and `credential_process`
 commands are withheld; SSO and CLI caches are never read; no AWS call is made.
 
+**Cloud › Kubernetes** lists contexts from `KUBECONFIG` (first file wins for each name,
+as in kubectl) or `~/.kube/config`, as Context · Auth (Exec with the program name, auth
+provider, Client cert, Token, Basic auth, None set) · Status (Ready with the namespace, or
+Problem: a missing cluster or user, TLS verification off, plain http, a stored password, a
+removed auth provider, a file other users can read). Tokens, passwords, certificate and key
+data are kept as presence only; server hosts, exec arguments and env values are withheld.
+No cluster, `kubectl` or exec plugin is run.
+
 **Docker** lists containers (state, image, Compose project), images and volumes (which
 containers use them, or Unused; dangling images and anonymous volumes are marked), with
 disk use and reclaimable space from `docker system df`. Den runs only `docker container ls
@@ -116,6 +127,14 @@ containers started or stopped elsewhere show up); nothing is started,
 stopped, pulled, inspected or removed. Container commands, environment, labels (except the
 Compose project) and Docker's error messages are not shown; from `~/.docker/config.json`
 only the current context, registry names and credential helper are kept.
+
+**Toolchains** shows which `node`, `python3`, `go`, `java`, `cargo` and other common
+commands win on PATH, who provides each (Homebrew, rustup, uv, nvm, mise, the system, …),
+their versions from install paths and the copies they hide, with problems such as a
+relative PATH entry, a manager folder missing from PATH or a macOS `java` stub without a
+JDK. **Rust** lists rustup toolchains and `cargo install` crates; **Packages** lists `npm
+-g`, uv tools and Pythons, pipx, bun and `go install` programs. Everything comes from files;
+nothing found on PATH is run, and newer versions are not checked.
 
 See [keyboard controls](docs/KEYBOARD.md). The [UX-2 walkthroughs](docs/ux2/README.md) are historical.
 

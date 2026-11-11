@@ -16,5 +16,7 @@ pub mod agents;
 pub mod aws;
 pub mod claude;
 pub mod codex;
+pub mod kube;
+pub mod toolchains;
 
 pub mod presentation;

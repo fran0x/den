@@ -6,9 +6,9 @@ const USAGE: &str = "Den - read-only local environment inspector\n\n\
 Usage: den [--demo | --snapshot FILE | --brew-snapshot FILE]\n\
        den [--project DIR] [--codex-profile NAME] [--skills]\n\
        den --skills-fixture DIR | --claude-fixture DIR | --aws-fixture DIR\n\
-       den --docker-fixture DIR\n\
+       den --kube-fixture DIR | --docker-fixture DIR | --toolchains-fixture DIR\n\
        den --help\n\n\
-Without arguments, collects local Homebrew inventory; Tab switches Homebrew/Agents/Cloud/Docker.\n\
+Without arguments, collects local Homebrew inventory; Tab switches Homebrew/Agents/Cloud/Docker/Toolchains.\n\
 --project DIR    Select project context (default: current working directory).\n\
 --codex-profile NAME  Inspect a separate profile file; no session is launched.\n\
 --codex-fixture DIR  Isolated home/.codex, project and system fixture.\n\
@@ -16,16 +16,20 @@ Without arguments, collects local Homebrew inventory; Tab switches Homebrew/Agen
 --skills-fixture DIR  Discover only an isolated user/project/admin/system fixture.\n\
 --claude-fixture DIR  Isolated home, project and managed fixture for Claude and Codex.\n\
 --aws-fixture DIR  Isolated home/.aws fixture for Cloud › AWS.\n\
+--kube-fixture DIR  Isolated home/.kube/config fixture for Cloud › Kubernetes.\n\
 --docker-fixture DIR  Saved docker JSON lines instead of running docker.\n\
+--toolchains-fixture DIR  Isolated PATH, home and system folders for Toolchains.\n\
 --demo           Load embedded synthetic inventory without running Homebrew.\n\
 --snapshot FILE  Load a local JSON inventory (schema_version: 1).\n\
 --brew-snapshot FILE  Load raw Homebrew JSON without running Homebrew.\n\
 --help, -h       Show this help without entering the TUI.\n\n\
-Keys: Tab switches Homebrew/Agents/Cloud/Docker; Shift+Tab switches sections; / searches.\n\
+Keys: Tab switches Homebrew/Agents/Cloud/Docker/Toolchains; Shift+Tab switches sections; / searches.\n\
 Homebrew: a shows Tools or All packages. PgUp/PgDn scroll the information panel. Esc goes back.\n\
 ? opens contextual help; q/Ctrl-C quits.\n\
 Read-only commands: brew info, missing, leaves, autoremove --dry-run; docker container ls,\n\
-image ls, volume ls and system df, only once the Docker area is opened.\n\
+image ls, volume ls and system df, only while the Docker area is open.\n\
+Kubeconfig files are read, never used: no cluster, kubectl or exec plugin is run.\n\
+Toolchains are read from files: no program found on PATH is run.\n\
 Snapshot modes never invoke Homebrew or scan live Codex or Claude files. Homebrew may fetch metadata.";
 
 fn main() -> ExitCode {
@@ -49,6 +53,7 @@ fn run() -> io::Result<()> {
     let mut start_claude = false;
     let mut start_cloud = false;
     let mut start_docker = false;
+    let mut start_toolchains = false;
     let mut profile = None;
     let mut mode: Option<(&str, PathBuf)> = None;
     let mut iter = args.iter();
@@ -68,8 +73,15 @@ fn run() -> io::Result<()> {
             Some("--skills") if !start_skills => start_skills = true,
             Some("--demo") if mode.is_none() => mode = Some(("demo", PathBuf::new())),
             Some(
-                flag @ ("--snapshot" | "--brew-snapshot" | "--skills-fixture" | "--codex-fixture"
-                | "--claude-fixture" | "--aws-fixture" | "--docker-fixture"),
+                flag @ ("--snapshot"
+                | "--brew-snapshot"
+                | "--skills-fixture"
+                | "--codex-fixture"
+                | "--claude-fixture"
+                | "--aws-fixture"
+                | "--kube-fixture"
+                | "--docker-fixture"
+                | "--toolchains-fixture"),
             ) if mode.is_none() => {
                 mode = Some((flag, PathBuf::from(iter.next().ok_or_else(usage)?)))
             }
@@ -94,6 +106,8 @@ fn run() -> io::Result<()> {
             )?);
             app.claude.configure(den::claude::Context::local(project)?);
             app.aws.configure(den::aws::Context::local()?);
+            app.kube.configure(den::kube::Context::local());
+            app.toolchains.configure(den::toolchains::Context::local());
             app.docker.configure(den::docker::Context::local());
             app
         }
@@ -144,6 +158,32 @@ fn run() -> io::Result<()> {
             start_cloud = true;
             app
         }
+        Some(("--kube-fixture", path)) => {
+            let mut app = App::new(
+                den::inventory::Inventory {
+                    schema_version: 1,
+                    resources: vec![],
+                },
+                "isolated Kubernetes fixture",
+            );
+            app.kube.configure(den::kube::Context::fixture(&path)?);
+            app.cloud = den::app::CloudSection::Kubernetes;
+            start_cloud = true;
+            app
+        }
+        Some(("--toolchains-fixture", path)) => {
+            let mut app = App::new(
+                den::inventory::Inventory {
+                    schema_version: 1,
+                    resources: vec![],
+                },
+                "isolated toolchains fixture",
+            );
+            app.toolchains
+                .configure(den::toolchains::Context::fixture(&path)?);
+            start_toolchains = true;
+            app
+        }
         Some(("--docker-fixture", path)) => {
             let mut app = App::new(
                 den::inventory::Inventory {
@@ -179,6 +219,9 @@ fn run() -> io::Result<()> {
     if start_docker {
         app.module = den::app::Module::Docker;
     }
+    if start_toolchains {
+        app.module = den::app::Module::Toolchains;
+    }
     den::ui::set_theme(den::ui::Theme::from_env());
     terminal::run(&mut app)
 }
@@ -186,6 +229,6 @@ fn run() -> io::Result<()> {
 fn usage() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "usage: den [--project DIR] [--codex-profile NAME] [--skills] | --demo | --snapshot FILE | --brew-snapshot FILE | --skills-fixture DIR | --claude-fixture DIR | --aws-fixture DIR | --docker-fixture DIR",
+        "usage: den [--project DIR] [--codex-profile NAME] [--skills] | --demo | --snapshot FILE | --brew-snapshot FILE | --skills-fixture DIR | --claude-fixture DIR | --aws-fixture DIR | --kube-fixture DIR | --docker-fixture DIR | --toolchains-fixture DIR",
     )
 }

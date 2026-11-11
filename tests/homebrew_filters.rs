@@ -159,8 +159,8 @@ fn f_does_not_filter_types_and_a_stays_text_during_search() {
 #[test]
 fn view_survives_area_changes_and_back_from_a_hidden_related_package() {
     let mut a = app();
-    for _ in 0..4 {
-        key(&mut a, KeyCode::Tab); // Agents, Cloud, Docker, back to Homebrew.
+    for _ in 0..5 {
+        key(&mut a, KeyCode::Tab); // Agents, Cloud, Docker, Toolchains, back to Homebrew.
     }
     assert!(!a.show_all);
     assert_eq!(a.resource().unwrap().name, "ripgrep");

@@ -27,11 +27,21 @@ pub enum Module {
     Homebrew,
     /// Codex and Claude Code side by side.
     Agents,
-    /// Cloud tools: AWS profiles.
+    /// Cloud tools: AWS profiles and Kubernetes contexts.
     Cloud,
     /// Docker containers, images and volumes.
     Docker,
+    /// Language toolchains: what wins on PATH, Rust, global packages.
+    Toolchains,
 }
+/// The Cloud area's sections; Shift+Tab switches them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CloudSection {
+    #[default]
+    Aws,
+    Kubernetes,
+}
+
 impl Module {
     /// Position in the top bar and in Tab order.
     pub fn index(self) -> usize {
@@ -55,6 +65,9 @@ pub struct App {
     pub claude: crate::claude::state::State,
     pub agents: crate::agents::State,
     pub aws: crate::aws::state::State,
+    pub kube: crate::kube::state::State,
+    pub cloud: CloudSection,
+    pub toolchains: crate::toolchains::state::State,
     pub docker: crate::docker::state::State,
     pub inventory: Inventory,
     pub graph: Graph,
@@ -99,6 +112,9 @@ impl App {
             claude: crate::claude::state::State::default(),
             agents: crate::agents::State::default(),
             aws: crate::aws::state::State::default(),
+            kube: crate::kube::state::State::default(),
+            cloud: CloudSection::default(),
+            toolchains: crate::toolchains::state::State::default(),
             docker: crate::docker::state::State::default(),
             graph,
             health,
@@ -375,13 +391,23 @@ impl App {
             return;
         }
         if self.module == Module::Cloud {
-            if self.aws.handle(key) {
+            let quit = match self.cloud {
+                CloudSection::Aws => self.aws.handle(key),
+                CloudSection::Kubernetes => self.kube.handle(key),
+            };
+            if quit {
                 self.quit = true;
             }
             return;
         }
         if self.module == Module::Docker {
             if self.docker.handle(key) {
+                self.quit = true;
+            }
+            return;
+        }
+        if self.module == Module::Toolchains {
+            if self.toolchains.handle(key) {
                 self.quit = true;
             }
             return;

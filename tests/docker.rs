@@ -159,6 +159,7 @@ fn docker_is_the_fourth_area_with_three_sections() {
     assert_eq!(a.destination(), Destination::Containers);
     key(&mut a, KeyCode::BackTab);
     for expected in [
+        Module::Toolchains,
         Module::Homebrew,
         Module::Agents,
         Module::Cloud,
