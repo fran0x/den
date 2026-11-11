@@ -1,39 +1,145 @@
-use std::{env, ffi::OsString, io, path::PathBuf, process::ExitCode};
+use std::{env, io, path::PathBuf, process::ExitCode};
 
-use den::{app::App, homebrew, inventory::safe_text, source, terminal};
+use clap::{Args, Parser};
+use den::{
+    app::{App, CloudSection, Module},
+    homebrew,
+    inventory::{Inventory, safe_text},
+    source, terminal,
+};
 
-const USAGE: &str = "Den - read-only local environment inspector\n\n\
-Usage: den [--demo | --snapshot FILE | --brew-snapshot FILE]\n\
-       den [--project DIR] [--codex-profile NAME] [--skills]\n\
-       den --skills-fixture DIR | --claude-fixture DIR | --aws-fixture DIR\n\
-       den --kube-fixture DIR | --docker-fixture DIR | --toolchains-fixture DIR\n\
-       den --help\n\n\
-Without arguments, collects local Homebrew inventory; Tab switches Homebrew/Agents/Cloud/Docker/Toolchains.\n\
---project DIR    Select project context (default: current working directory).\n\
---codex-profile NAME  Inspect a separate profile file; no session is launched.\n\
---codex-fixture DIR  Isolated home/.codex, project and system fixture.\n\
---skills         Start in Agents › Skills; Homebrew is collected only when opened.\n\
---skills-fixture DIR  Discover only an isolated user/project/admin/system fixture.\n\
---claude-fixture DIR  Isolated home, project and managed fixture for Claude and Codex.\n\
---aws-fixture DIR  Isolated home/.aws fixture for Cloud › AWS.\n\
---kube-fixture DIR  Isolated home/.kube/config fixture for Cloud › Kubernetes.\n\
---docker-fixture DIR  Saved docker JSON lines instead of running docker.\n\
---toolchains-fixture DIR  Isolated PATH, home and system folders for Toolchains.\n\
---demo           Load embedded synthetic inventory without running Homebrew.\n\
---snapshot FILE  Load a local JSON inventory (schema_version: 1).\n\
---brew-snapshot FILE  Load raw Homebrew JSON without running Homebrew.\n\
---help, -h       Show this help without entering the TUI.\n\n\
-Keys: Tab switches Homebrew/Agents/Cloud/Docker/Toolchains; Shift+Tab switches sections; / searches.\n\
-Homebrew: a shows Tools or All packages. PgUp/PgDn scroll the information panel. Esc goes back.\n\
-? opens contextual help; q/Ctrl-C quits.\n\
-Read-only commands: brew info, missing, leaves, autoremove --dry-run; docker container ls,\n\
-image ls, volume ls and system df, only while the Docker area is open.\n\
-Kubeconfig files are read, never used: no cluster, kubectl or exec plugin is run.\n\
-Toolchains are read from files: no program found on PATH is run.\n\
-Snapshot modes never invoke Homebrew or scan live Codex or Claude files. Homebrew may fetch metadata.";
+const AFTER_HELP: &str = "\
+Without a source, Den inspects this machine; Tab switches Homebrew, Agents, Cloud, Docker \
+and Toolchains, Shift+Tab switches sections, / searches, ? shows help and q quits.
+
+Read-only: Den runs only brew info, missing, leaves and autoremove --dry-run, and docker \
+container ls, image ls, volume ls and system df while the Docker area is open. Kubeconfig \
+and toolchain files are read, never used. Homebrew may fetch metadata.";
+
+/// A read-only terminal inspector for your developer machine.
+#[derive(Parser, Debug)]
+#[command(name = "den", version, about, after_help = AFTER_HELP)]
+struct Cli {
+    /// Project folder for Agents [default: the current folder]
+    #[arg(long, value_name = "DIR", conflicts_with = "source")]
+    project: Option<PathBuf>,
+
+    /// Inspect $CODEX_HOME/NAME.config.toml; no session is launched
+    #[arg(
+        long,
+        value_name = "NAME",
+        value_parser = profile,
+        conflicts_with_all = [
+            "demo", "snapshot", "brew_snapshot", "skills_fixture", "claude_fixture",
+            "aws_fixture", "kube_fixture", "docker_fixture", "toolchains_fixture",
+        ],
+    )]
+    codex_profile: Option<String>,
+
+    /// Start in Agents › Skills; Homebrew loads when opened
+    #[arg(long)]
+    skills: bool,
+
+    #[command(flatten)]
+    source: Source,
+}
+
+/// Offline sources: synthetic or saved data instead of this machine. At most one.
+#[derive(Args, Debug)]
+#[group(id = "source", multiple = false)]
+struct Source {
+    /// Embedded synthetic inventory; nothing is collected
+    #[arg(long, help_heading = "Offline sources")]
+    demo: bool,
+    /// A Den JSON inventory (schema_version 1)
+    #[arg(long, value_name = "FILE", help_heading = "Offline sources")]
+    snapshot: Option<PathBuf>,
+    /// Raw Homebrew JSON, without running Homebrew
+    #[arg(long, value_name = "FILE", help_heading = "Offline sources")]
+    brew_snapshot: Option<PathBuf>,
+    /// Isolated skill roots (user, project, admin, system)
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    skills_fixture: Option<PathBuf>,
+    /// Isolated Codex home, project and system folders
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    codex_fixture: Option<PathBuf>,
+    /// Isolated Codex and Claude Code folders
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    claude_fixture: Option<PathBuf>,
+    /// Isolated home/.aws for Cloud › AWS
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    aws_fixture: Option<PathBuf>,
+    /// Isolated home/.kube/config for Cloud › Kubernetes
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    kube_fixture: Option<PathBuf>,
+    /// Saved docker JSON lines instead of running docker
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    docker_fixture: Option<PathBuf>,
+    /// Isolated PATH, home and system folders for Toolchains
+    #[arg(long, value_name = "DIR", help_heading = "Offline sources")]
+    toolchains_fixture: Option<PathBuf>,
+}
+
+/// Where Den's data comes from: this machine, or exactly one offline source.
+#[derive(Debug, PartialEq, Eq)]
+enum Mode {
+    Live,
+    Demo,
+    Snapshot(PathBuf),
+    BrewSnapshot(PathBuf),
+    Skills(PathBuf),
+    Codex(PathBuf),
+    Claude(PathBuf),
+    Aws(PathBuf),
+    Kube(PathBuf),
+    Docker(PathBuf),
+    Toolchains(PathBuf),
+}
+
+impl Source {
+    /// The group allows at most one source, so the order here does not matter.
+    fn mode(self) -> Mode {
+        let Self {
+            demo,
+            snapshot,
+            brew_snapshot,
+            skills_fixture,
+            codex_fixture,
+            claude_fixture,
+            aws_fixture,
+            kube_fixture,
+            docker_fixture,
+            toolchains_fixture,
+        } = self;
+        if demo {
+            return Mode::Demo;
+        }
+        snapshot
+            .map(Mode::Snapshot)
+            .or(brew_snapshot.map(Mode::BrewSnapshot))
+            .or(skills_fixture.map(Mode::Skills))
+            .or(codex_fixture.map(Mode::Codex))
+            .or(claude_fixture.map(Mode::Claude))
+            .or(aws_fixture.map(Mode::Aws))
+            .or(kube_fixture.map(Mode::Kube))
+            .or(docker_fixture.map(Mode::Docker))
+            .or(toolchains_fixture.map(Mode::Toolchains))
+            .unwrap_or(Mode::Live)
+    }
+}
+
+fn profile(name: &str) -> Result<String, String> {
+    if den::codex::identifier(name) {
+        Ok(name.to_owned())
+    } else {
+        Err("use up to 64 letters, digits, '-' or '_'".into())
+    }
+}
 
 fn main() -> ExitCode {
-    match run() {
+    // Parse errors, --help and --version are reported by clap (usage errors exit with 2).
+    let cli = Cli::parse();
+    match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("den: {}", safe_text(&error.to_string()));
@@ -42,193 +148,166 @@ fn main() -> ExitCode {
     }
 }
 
-fn run() -> io::Result<()> {
-    let args: Vec<OsString> = env::args_os().skip(1).collect();
-    if matches!(args.as_slice(), [flag] if flag == "--help" || flag == "-h") {
-        println!("{USAGE}");
-        return Ok(());
-    }
-    let mut project = None;
-    let mut start_skills = false;
-    let mut start_claude = false;
-    let mut start_cloud = false;
-    let mut start_docker = false;
-    let mut start_toolchains = false;
-    let mut profile = None;
-    let mut mode: Option<(&str, PathBuf)> = None;
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        match arg.to_str() {
-            Some("--project") if project.is_none() => {
-                project = Some(PathBuf::from(iter.next().ok_or_else(usage)?))
-            }
-            Some("--codex-profile") if profile.is_none() => {
-                let value = iter
-                    .next()
-                    .and_then(|s| s.to_str())
-                    .filter(|s| den::codex::identifier(s))
-                    .ok_or_else(usage)?;
-                profile = Some(value.to_owned());
-            }
-            Some("--skills") if !start_skills => start_skills = true,
-            Some("--demo") if mode.is_none() => mode = Some(("demo", PathBuf::new())),
-            Some(
-                flag @ ("--snapshot"
-                | "--brew-snapshot"
-                | "--skills-fixture"
-                | "--codex-fixture"
-                | "--claude-fixture"
-                | "--aws-fixture"
-                | "--kube-fixture"
-                | "--docker-fixture"
-                | "--toolchains-fixture"),
-            ) if mode.is_none() => {
-                mode = Some((flag, PathBuf::from(iter.next().ok_or_else(usage)?)))
-            }
-            _ => return Err(usage()),
-        }
-    }
-    if (mode.is_some() && project.is_some())
-        || (profile.is_some()
-            && mode
-                .as_ref()
-                .is_some_and(|(flag, _)| *flag != "--codex-fixture"))
-    {
-        return Err(usage());
-    }
-    let mut app = match mode {
-        None => {
+fn run(cli: Cli) -> io::Result<()> {
+    let mut app = app(cli)?;
+    den::ui::set_theme(den::ui::Theme::from_env());
+    terminal::run(&mut app)
+}
+
+/// An app with no Homebrew inventory, for offline sources that inspect one area.
+fn offline(label: &'static str) -> App {
+    App::new(
+        Inventory {
+            schema_version: 1,
+            resources: vec![],
+        },
+        label,
+    )
+}
+
+fn app(cli: Cli) -> io::Result<App> {
+    let profile = cli.codex_profile;
+    let (mut app, start) = match cli.source.mode() {
+        Mode::Live => {
             let mut app = App::live_homebrew();
-            let project = project.unwrap_or(env::current_dir()?);
-            app.codex.configure(den::codex::Context::local(
-                project.clone(),
-                profile.clone(),
-            )?);
+            let project = match cli.project {
+                Some(project) => project,
+                None => env::current_dir()?,
+            };
+            app.codex
+                .configure(den::codex::Context::local(project.clone(), profile)?);
             app.claude.configure(den::claude::Context::local(project)?);
             app.aws.configure(den::aws::Context::local()?);
             app.kube.configure(den::kube::Context::local());
             app.toolchains.configure(den::toolchains::Context::local());
             app.docker.configure(den::docker::Context::local());
-            app
+            (app, None)
         }
-        Some(("demo", _)) => App::new(source::demo()?, "synthetic demo"),
-        Some(("--snapshot", path)) => {
-            App::new(source::load_snapshot(&path)?, "snapshot (unverified)")
-        }
-        Some(("--brew-snapshot", path)) => App::new(
-            homebrew::load_snapshot(&path).map_err(io::Error::other)?,
-            "Homebrew snapshot",
+        Mode::Demo => (App::new(source::demo()?, "synthetic demo"), None),
+        Mode::Snapshot(path) => (
+            App::new(source::load_snapshot(&path)?, "snapshot (unverified)"),
+            None,
         ),
-        Some(("--codex-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated Codex fixture",
-            );
-            app.codex
-                .configure(den::codex::Context::fixture(&path, profile.clone())?);
-            start_skills = true;
-            app
+        Mode::BrewSnapshot(path) => (
+            App::new(
+                homebrew::load_snapshot(&path).map_err(io::Error::other)?,
+                "Homebrew snapshot",
+            ),
+            None,
+        ),
+        Mode::Skills(path) => {
+            let mut app = offline("fixture (Homebrew unavailable)");
+            app.skills.configure(den::skills::Config::fixture(&path)?);
+            (app, Some(Module::Agents))
         }
-        Some(("--claude-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated Claude fixture",
-            );
+        Mode::Codex(path) => {
+            let mut app = offline("isolated Codex fixture");
             app.codex
-                .configure(den::codex::Context::fixture(&path, profile.clone())?);
+                .configure(den::codex::Context::fixture(&path, profile)?);
+            (app, Some(Module::Agents))
+        }
+        Mode::Claude(path) => {
+            let mut app = offline("isolated Claude fixture");
+            app.codex
+                .configure(den::codex::Context::fixture(&path, None)?);
             app.claude.configure(den::claude::Context::fixture(&path)?);
-            start_claude = true;
-            app
+            (app, Some(Module::Agents))
         }
-        Some(("--aws-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated AWS fixture",
-            );
+        Mode::Aws(path) => {
+            let mut app = offline("isolated AWS fixture");
             app.aws.configure(den::aws::Context::fixture(&path)?);
-            start_cloud = true;
-            app
+            (app, Some(Module::Cloud))
         }
-        Some(("--kube-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated Kubernetes fixture",
-            );
+        Mode::Kube(path) => {
+            let mut app = offline("isolated Kubernetes fixture");
             app.kube.configure(den::kube::Context::fixture(&path)?);
-            app.cloud = den::app::CloudSection::Kubernetes;
-            start_cloud = true;
-            app
+            app.cloud = CloudSection::Kubernetes;
+            (app, Some(Module::Cloud))
         }
-        Some(("--toolchains-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated toolchains fixture",
-            );
+        Mode::Docker(path) => {
+            let mut app = offline("isolated Docker fixture");
+            app.docker.configure(den::docker::Context::fixture(&path)?);
+            (app, Some(Module::Docker))
+        }
+        Mode::Toolchains(path) => {
+            let mut app = offline("isolated toolchains fixture");
             app.toolchains
                 .configure(den::toolchains::Context::fixture(&path)?);
-            start_toolchains = true;
-            app
+            (app, Some(Module::Toolchains))
         }
-        Some(("--docker-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "isolated Docker fixture",
-            );
-            app.docker.configure(den::docker::Context::fixture(&path)?);
-            start_docker = true;
-            app
-        }
-        Some(("--skills-fixture", path)) => {
-            let mut app = App::new(
-                den::inventory::Inventory {
-                    schema_version: 1,
-                    resources: vec![],
-                },
-                "fixture (Homebrew unavailable)",
-            );
-            app.skills.configure(den::skills::Config::fixture(&path)?);
-            start_skills = true;
-            app
-        }
-        _ => return Err(usage()),
     };
-    if start_skills || start_claude {
-        app.module = den::app::Module::Agents;
+    if let Some(module) = start.or(cli.skills.then_some(Module::Agents)) {
+        app.module = module;
     }
-    if start_cloud {
-        app.module = den::app::Module::Cloud;
-    }
-    if start_docker {
-        app.module = den::app::Module::Docker;
-    }
-    if start_toolchains {
-        app.module = den::app::Module::Toolchains;
-    }
-    den::ui::set_theme(den::ui::Theme::from_env());
-    terminal::run(&mut app)
+    Ok(app)
 }
 
-fn usage() -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidInput,
-        "usage: den [--project DIR] [--codex-profile NAME] [--skills] | --demo | --snapshot FILE | --brew-snapshot FILE | --skills-fixture DIR | --claude-fixture DIR | --aws-fixture DIR | --kube-fixture DIR | --docker-fixture DIR | --toolchains-fixture DIR",
-    )
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{CommandFactory, error::ErrorKind};
+
+    fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
+        Cli::try_parse_from(std::iter::once("den").chain(args.iter().copied()))
+    }
+    fn kind(args: &[&str]) -> ErrorKind {
+        parse(args).map(|_| ()).unwrap_err().kind()
+    }
+
+    #[test]
+    fn definition_is_consistent() {
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn sources_map_to_modes() {
+        assert_eq!(parse(&[]).unwrap().source.mode(), Mode::Live);
+        assert_eq!(parse(&["--demo"]).unwrap().source.mode(), Mode::Demo);
+        assert_eq!(
+            parse(&["--kube-fixture", "k"]).unwrap().source.mode(),
+            Mode::Kube("k".into())
+        );
+        assert_eq!(
+            parse(&["--toolchains-fixture", "t"]).unwrap().source.mode(),
+            Mode::Toolchains("t".into())
+        );
+    }
+
+    #[test]
+    fn mistakes_are_named_not_generic() {
+        assert_eq!(
+            kind(&["--demo", "--aws-fixture", "a"]),
+            ErrorKind::ArgumentConflict
+        );
+        assert_eq!(
+            kind(&["--demo", "--project", "p"]),
+            ErrorKind::ArgumentConflict
+        );
+        assert_eq!(
+            kind(&["--demo", "--codex-profile", "review"]),
+            ErrorKind::ArgumentConflict
+        );
+        assert_eq!(kind(&["--project"]), ErrorKind::InvalidValue);
+        assert_eq!(
+            kind(&["--codex-profile", "../x"]),
+            ErrorKind::ValueValidation
+        );
+        let typo = parse(&["--porject", "/tmp"]).map(|_| ()).unwrap_err();
+        assert_eq!(typo.kind(), ErrorKind::UnknownArgument);
+        assert!(typo.to_string().contains("--project"), "{typo}");
+    }
+
+    #[test]
+    fn help_and_version_work_anywhere() {
+        assert_eq!(kind(&["--version"]), ErrorKind::DisplayVersion);
+        assert_eq!(kind(&["--demo", "--help"]), ErrorKind::DisplayHelp);
+    }
+
+    #[test]
+    fn a_codex_profile_works_live_and_with_the_codex_fixture() {
+        let cli = parse(&["--codex-profile", "review"]).unwrap();
+        assert_eq!(cli.codex_profile.as_deref(), Some("review"));
+        let cli = parse(&["--codex-fixture", "c", "--codex-profile", "review"]).unwrap();
+        assert_eq!(cli.source.mode(), Mode::Codex("c".into()));
+    }
 }
