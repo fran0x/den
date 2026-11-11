@@ -1,4 +1,8 @@
 set positional-arguments
+set shell := ["bash", "-uc"]
+
+# Minimum supported Rust, as in Cargo.toml (`rust-version`) and the CI job.
+msrv := "1.90.0"
 
 # Offline demo and snapshot launchers.
 mod fixtures 'just/fixtures.just'
@@ -22,6 +26,11 @@ build:
 fmt:
     cargo fmt --all
 
+# Apply formatting and Clippy's automatic fixes; the only recipe that rewrites code.
+fix:
+    cargo fmt --all
+    cargo clippy --fix --allow-dirty --all-targets
+
 # Check formatting without modifying files.
 _fmt-check:
     cargo fmt --all -- --check
@@ -40,3 +49,19 @@ check: _fmt-check lint test build
 # Run offline PTY checks (macOS/Linux; requires Python 3).
 smoke binary="target/release/den": build
     python3 scripts/smoke_terminal.py "$1"
+
+# Run what CI runs: locked checks, tests and build, smoke, minimum Rust, deny.toml.
+ci: tools _fmt-check
+    cargo clippy --locked --all-targets -- -D warnings
+    cargo test --locked
+    cargo build --locked --release
+    python3 scripts/smoke_terminal.py target/release/den
+    cargo +{{msrv}} check --locked --all-targets
+    cargo deny check
+
+# Verify the tools `ci` needs; installs nothing.
+tools:
+    @command -v python3 >/dev/null || { echo "missing: python3"; exit 1; }
+    @command -v cargo-deny >/dev/null || { echo "missing: cargo-deny (cargo install --locked cargo-deny)"; exit 1; }
+    @rustup toolchain list | grep -q '^{{msrv}}' || { echo "missing: Rust {{msrv}} (rustup toolchain install {{msrv}})"; exit 1; }
+    @echo "tooling ready"

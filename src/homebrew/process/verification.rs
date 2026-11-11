@@ -1,4 +1,6 @@
 //! Opt-in comparisons against a handful of public Homebrew packages, never per-package collection.
+// Test-only (`cfg(all(test, unix))`): a failed live check should stop with its message.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use super::{command, unix};
 use crate::{
     graph::{Evidence, Graph, Provenance, Resolution},

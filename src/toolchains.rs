@@ -120,7 +120,11 @@ impl Context {
     pub fn fixture(root: &Path) -> io::Result<Self> {
         let root = filesystem::resolve(root)?;
         let home = root.join("home");
-        let text = std::fs::read_to_string(root.join("PATH"))?;
+        let text = match read_file(Some(&root), &root.join("PATH"), 64 * 1024) {
+            Read::Text(text) => text,
+            Read::Absent => return Err(io::Error::other("fixture has no PATH file")),
+            Read::Problem(why) => return Err(io::Error::other(format!("fixture PATH: {why}"))),
+        };
         let path = text
             .lines()
             .map(str::trim)

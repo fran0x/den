@@ -45,3 +45,10 @@ url = "2.5.8"
 [target.'cfg(unix)'.dependencies]
 # Nonblocking process pipes and process-group cleanup on Homebrew platforms.
 libc = "0.2"
+
+# AGENTS.md: reserve unwrap/expect for tests (clippy.toml allows them there) and
+# document every unsafe block.
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+undocumented_unsafe_blocks = "deny"

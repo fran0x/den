@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Toolchains: what wins on PATH, Rust toolchains and crates, global packages. Files only.
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{

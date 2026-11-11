@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! When a tool or its configuration is missing, each area says so once, in the list:
 //! no repeated message in the status line or panel, and no zero counters.
 use den::{

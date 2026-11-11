@@ -175,12 +175,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.visible.is_empty() {
         frame.render_widget(
             Paragraph::new(if app.live && app.inventory.resources.is_empty() {
-                // "… | r:retry" repeats the reason's own "press r".
-                let message = app.collection_message();
-                match message.split_once(" | ") {
-                    Some((reason, _)) if reason.contains("press r") => reason.to_owned(),
-                    _ => message,
-                }
+                app.collection_message()
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
             } else if app.tools_only() && app.query.is_empty() && app.homebrew_counts().all > 0 {
@@ -269,7 +264,8 @@ fn scroll_max(paragraph: &Paragraph<'_>, area: Rect) -> u16 {
     paragraph
         .line_count(area.width)
         .saturating_sub(area.height as usize)
-        .min(u16::MAX as usize) as u16
+        .try_into()
+        .unwrap_or(u16::MAX)
 }
 
 fn overview(app: &App) -> String {

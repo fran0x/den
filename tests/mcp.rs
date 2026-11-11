@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
@@ -558,6 +560,7 @@ fn inaccessible_working_directory_is_reported_without_reading_contents() {
     fs::set_permissions(t.0.join("locked"), fs::Permissions::from_mode(0o0)).unwrap();
     t.user(&format!("{STDIO}\ncwd='{}'", t.0.join("locked").display()));
     let c = t.config();
+    // SAFETY: geteuid has no preconditions and cannot fail.
     if unsafe { libc::geteuid() } != 0 {
         assert!(c.mcp.servers[0].definitions[0].invalid());
     }

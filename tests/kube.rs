@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Cloud › Kubernetes: contexts from kubeconfig files, with secrets withheld.
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{

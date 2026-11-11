@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use std::io::Cursor;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};

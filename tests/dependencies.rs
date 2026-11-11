@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use den::{
     app::{App, CollectionStatus},
     graph::{Evidence, Graph, Installation, MAX_DEPTH, MAX_EDGES, Provenance, Resolution},

@@ -105,6 +105,7 @@ mod platform {
             {
                 return Err(io::Error::last_os_error());
             }
+            // SAFETY: fstatat returned success, so it fully initialised `stat`.
             let stat = unsafe { stat.assume_init() };
             if !matches!(stat.st_mode & libc::S_IFMT, libc::S_IFREG | libc::S_IFDIR) {
                 return Err(io::Error::other("symlink or special file; not opened"));
@@ -149,14 +150,18 @@ mod platform {
             if fd < 0 {
                 return Err(io::Error::last_os_error());
             }
+            // SAFETY: `fd` is a valid descriptor we own; on success fdopendir takes it over.
             let pointer = unsafe { libc::fdopendir(fd) };
             if pointer.is_null() {
+                // SAFETY: fdopendir failed, so `fd` is still ours and is closed exactly once.
                 unsafe { libc::close(fd) };
                 return Err(io::Error::last_os_error());
             }
             struct Dir(*mut libc::DIR);
             impl Drop for Dir {
                 fn drop(&mut self) {
+                    // SAFETY: the pointer came from a successful fdopendir and is closed
+                    // only here, once, when the guard drops.
                     unsafe { libc::closedir(self.0) };
                 }
             }
@@ -164,21 +169,28 @@ mod platform {
             let mut names = vec![];
             let mut limited = false;
             loop {
-                // SAFETY: the DIR remains alive; readdir's name is copied before next call.
+                // readdir reports errors only through errno, so clear it first.
                 #[cfg(target_os = "macos")]
+                // SAFETY: returns this thread's errno location; always valid.
                 let errno = unsafe { libc::__error() };
                 #[cfg(not(target_os = "macos"))]
+                // SAFETY: returns this thread's errno location; always valid.
                 let errno = unsafe { libc::__errno_location() };
+                // SAFETY: `errno` points to this thread's errno, valid for writes.
                 unsafe {
                     *errno = 0;
                 }
+                // SAFETY: the DIR stays open until `dir` drops after the loop.
                 let entry = unsafe { libc::readdir(dir.0) };
                 if entry.is_null() {
+                    // SAFETY: as above, this thread's errno, valid for reads.
                     if unsafe { *errno } != 0 {
                         return Err(io::Error::last_os_error());
                     }
                     break;
                 }
+                // SAFETY: readdir returned a live entry whose d_name is NUL-terminated; the
+                // bytes are copied below before the next readdir call reuses the buffer.
                 let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes();
                 if name == b"." || name == b".." {
                     continue;

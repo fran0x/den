@@ -47,7 +47,8 @@ every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `
   Pass a binary path as the first argument when using a separate `CARGO_TARGET_DIR`.
 
 `just check` composes formatting, Clippy, tests and release build. `just smoke` builds
-and runs the offline PTY harness. Use `just smoke /path/to/release/den` with an external
+and runs the offline PTY harness. `just ci` runs what CI runs (locked checks, smoke, Rust
+1.90 and `cargo deny`); `just tools` verifies its prerequisites and installs nothing. Use `just smoke /path/to/release/den` with an external
 `CARGO_TARGET_DIR`. Root `justfile` recipes are everyday commands; `just/fixtures.just`
 contains offline launchers and `just/live.just` contains opt-in local checks. Each module
 sets the working directory back to the repository root and lists commands by default.
@@ -63,7 +64,9 @@ argument forwarding and the offline/live boundary without incidentally executing
 
 Use Rust 2024, rustfmt's four-space indentation, `snake_case` for modules/functions,
 and `PascalCase` for types. Prefer explicit enums and small functions over frameworks.
-Propagate recoverable I/O errors; reserve `unwrap` for tests. Keep dependencies minimal
+Propagate recoverable I/O errors; reserve `unwrap` for tests. Clippy enforces this and
+`// SAFETY:` comments on every `unsafe` block (`[lints]` in `Cargo.toml`, `clippy.toml`);
+integration test files allow `unwrap` explicitly at the top. Keep dependencies minimal
 and commit `Cargo.lock`. Review wrapped scrolling tests when upgrading pinned Ratatui.
 
 ## Testing Guidelines

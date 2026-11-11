@@ -308,7 +308,11 @@ fn imports(text: &str) -> usize {
     text.split_whitespace()
         .filter(|word| {
             word.strip_prefix('@').is_some_and(|rest| {
-                rest.starts_with(['/', '~', '.']) || rest.contains('/') || rest.ends_with(".md")
+                rest.starts_with(['/', '~', '.'])
+                    || rest.contains('/')
+                    || Path::new(rest)
+                        .extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("md"))
             })
         })
         .count()

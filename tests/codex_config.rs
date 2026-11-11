@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
@@ -699,6 +701,7 @@ fn unreadable_files_are_not_empty_or_valid() {
     t.write("home/.codex/config.toml", "model='gpt-6'");
     let p = t.0.join("home/.codex/config.toml");
     fs::set_permissions(&p, fs::Permissions::from_mode(0o0)).unwrap();
+    // SAFETY: geteuid has no preconditions and cannot fail.
     if unsafe { libc::geteuid() } != 0 {
         assert_eq!(t.config().layers[1].status, "Unavailable");
     }

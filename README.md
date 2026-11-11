@@ -97,6 +97,7 @@ just fixtures toolchains    # PATH, Rust and global packages
 ```sh
 just check    # format, Clippy, tests, release build
 just smoke    # offline terminal checks in a real PTY
+just ci       # everything CI runs (needs cargo-deny and Rust 1.90; see `just tools`)
 ```
 
 CI runs both on Ubuntu and macOS, and `cargo deny` checks dependencies for advisories,

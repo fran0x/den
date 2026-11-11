@@ -1,3 +1,5 @@
+// Integration tests: unwrap and expect report failures here.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
@@ -497,6 +499,7 @@ fn unreadable_files_and_executable_bits_are_reported_without_running_anything() 
         .iter()
         .find(|f| f.path == Path::new("private.md"))
         .unwrap();
+    // SAFETY: geteuid has no preconditions and cannot fail.
     if unsafe { libc::geteuid() } != 0 {
         assert!(inaccessible.text.is_none());
     }
@@ -514,6 +517,7 @@ fn special_files_are_never_opened_for_reading() {
     let t = Temp::new();
     t.skill("user/a", "a");
     let name = CString::new(t.0.join("user/a/pipe").as_os_str().as_bytes()).unwrap();
+    // SAFETY: `name` is a valid NUL-terminated path for the duration of the call.
     assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
     let i = t.collect();
     assert!(
@@ -770,6 +774,7 @@ fn inaccessible_roots_are_not_presented_as_a_successful_empty_refresh() {
         }],
         coverage: vec![],
     };
+    // SAFETY: geteuid has no preconditions and cannot fail.
     if unsafe { libc::geteuid() } != 0 {
         assert!(skills::discover(&config, &AtomicBool::new(false)).is_err());
     }

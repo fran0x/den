@@ -294,7 +294,13 @@ impl App {
                 self.outdated_text()
             ),
             CollectionStatus::Failed { error, stale } => {
-                format!("{}{} | r:retry", if *stale { "STALE: " } else { "" }, error)
+                let stale = if *stale { "STALE: " } else { "" };
+                // An unavailable brew already says "then press r".
+                if *error == CollectionError::Unavailable {
+                    format!("{stale}{error}")
+                } else {
+                    format!("{stale}{error} | r:retry")
+                }
             }
         }
     }

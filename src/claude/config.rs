@@ -340,13 +340,9 @@ fn settings(layers: &[Settings], context: &Context) -> Vec<Item> {
         ));
         let overridden: Vec<_> = layers
             .iter()
-            .filter(|l| l.layer != winner.layer && get(&l.value, key).is_some())
-            .map(|l| {
-                format!(
-                    "{}: {}",
-                    l.layer.label(),
-                    scalar(get(&l.value, key).unwrap())
-                )
+            .filter(|l| l.layer != winner.layer)
+            .filter_map(|l| {
+                get(&l.value, key).map(|v| format!("{}: {}", l.layer.label(), scalar(v)))
             })
             .collect();
         if !overridden.is_empty() {
