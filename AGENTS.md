@@ -20,6 +20,9 @@ Keep changes within the requested scope.
 | `src/aws.rs`, `src/kube.rs`, `src/docker.rs`, `src/toolchains.rs` (each with state) | Cloud, Docker and Toolchains collectors |
 | `src/listing.rs`, `src/status.rs` | Shared list state (selection, search, refresh) for those areas, and the typed row status (Ready, Problem, Off, Installed) |
 
+The `den` library is internal (published only as part of `den-tui`): every module is
+`#[doc(hidden)]` and has no stable API; keep new modules hidden too.
+
 Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing
 modules; do not funnel Codex/Skills models into the original snapshot resource type.
