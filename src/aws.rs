@@ -7,7 +7,7 @@
 //! and credential helper commands are withheld. SSO token caches are never read.
 pub mod state;
 
-use crate::{inventory::safe_text, skills::filesystem};
+use crate::{inventory::safe_text, skills::filesystem, status::Status};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io,
@@ -149,7 +149,7 @@ pub struct Row {
     pub name: String,
     pub kind: Kind,
     pub auth: String,
-    pub status: String,
+    pub status: Status,
     pub detail: String,
     /// Stable identity for selection across refreshes.
     pub key: String,
@@ -257,7 +257,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         name: context.short(path),
         kind: Kind::File,
         auth: "File".into(),
-        status: format!("Problem · {why}"),
+        status: Status::problem(why),
         detail: format!(
             "{}\n\nThis file could not be used: {why}. Profiles in it are not shown.",
             context.short(path)
@@ -352,12 +352,12 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             kind: Kind::SsoSession,
             auth: "SSO session".into(),
             status: if users.is_empty() {
-                "Off · used by no profile".into()
+                Status::off("used by no profile")
             } else {
-                format!(
-                    "Ready · used by {}",
+                Status::ready(format!(
+                    "used by {}",
                     crate::inventory::count(users.len(), "profile")
-                )
+                ))
             },
             detail: lines.join("\n"),
             key: format!("sso:{name}"),
@@ -546,8 +546,8 @@ fn profile_row(
             .into(),
     );
     let status = match problems.first() {
-        Some(p) => format!("Problem · {p}"),
-        None => format!("Ready · {}", region.unwrap_or("no region")),
+        Some(p) => Status::problem(p.as_str()),
+        None => Status::ready(region.unwrap_or("no region")),
     };
     Row {
         name: safe_text(name),

@@ -44,11 +44,7 @@ fn aws(app: &App) -> ListView {
                 .iter()
                 .filter(|r| r.kind == crate::aws::Kind::Profile)
                 .count();
-            let problems = i
-                .rows
-                .iter()
-                .filter(|r| r.status.starts_with("Problem"))
-                .count();
+            let problems = i.rows.iter().filter(|r| r.status.is_problem()).count();
             format!(
                 "{} · {} · {} · active: {}",
                 crate::inventory::count(profiles, "profile"),
@@ -97,10 +93,10 @@ fn aws(app: &App) -> ListView {
         rows: a
             .rows()
             .iter()
-            .map(|r| (r.name.clone(), r.auth.clone(), r.status.clone()))
+            .map(|r| (r.name.clone(), r.auth.clone(), r.status.to_string()))
             .collect(),
         text,
-        selected: a.selected,
+        selected: a.selected(),
         query: a.query.clone(),
         searching: a.searching,
     }
@@ -114,11 +110,7 @@ fn kube(app: &App) -> ListView {
         (None, None) => "Collecting Kubernetes contexts...".into(),
         (None, Some(i)) if !i.found => String::new(),
         (None, Some(i)) => {
-            let problems = i
-                .rows
-                .iter()
-                .filter(|r| r.status.starts_with("Problem"))
-                .count();
+            let problems = i.rows.iter().filter(|r| r.status.is_problem()).count();
             format!(
                 "{} · {} · current: {}",
                 crate::inventory::count(i.contexts, "context"),
@@ -171,10 +163,10 @@ fn kube(app: &App) -> ListView {
         rows: k
             .rows()
             .iter()
-            .map(|r| (r.name.clone(), r.auth.clone(), r.status.clone()))
+            .map(|r| (r.name.clone(), r.auth.clone(), r.status.to_string()))
             .collect(),
         text,
-        selected: k.selected,
+        selected: k.selected(),
         query: k.query.clone(),
         searching: k.searching,
     }

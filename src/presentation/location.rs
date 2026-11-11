@@ -36,7 +36,7 @@ pub(super) enum Location {
     Cloud {
         section: crate::app::CloudSection,
         key: Option<String>,
-        selected: usize,
+        selected: [usize; crate::listing::MAX_SECTIONS],
         query: String,
         scroll: u16,
     },

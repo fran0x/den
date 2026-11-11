@@ -12,6 +12,7 @@ use crate::{
     codex::mcp::{EndpointKind, endpoint},
     inventory::{count, safe_text},
     skills::filesystem,
+    status::Status,
 };
 use serde::{Deserialize, de::IgnoredAny};
 use std::{
@@ -191,7 +192,7 @@ struct AuthProvider {
 pub struct Row {
     pub name: String,
     pub auth: String,
-    pub status: String,
+    pub status: Status,
     pub detail: String,
     pub file: bool,
     /// Stable identity for selection across refreshes.
@@ -255,7 +256,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     let file_row = |path: &Path, why: &str| Row {
         name: context.short(path),
         auth: "File".into(),
-        status: format!("Problem · {why}"),
+        status: Status::problem(why),
         detail: format!(
             "{}\n\nThis file could not be used: {why}. Contexts in it are not shown.",
             context.short(path)
@@ -305,7 +306,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         rows.push(Row {
             name: "current-context".into(),
             auth: "File".into(),
-            status: format!("Problem · '{}' is not defined", safe_text(c)),
+            status: Status::problem(format!("'{}' is not defined", safe_text(c))),
             detail: format!(
                 "current-context\n\ncurrent-context names '{}', but no file defines a context with that name. kubectl commands without --context fail.",
                 safe_text(c)
@@ -445,9 +446,9 @@ fn context_row(
     }
     let namespace = namespace.map_or_else(|| "default".into(), safe_text);
     let status = match problems.first() {
-        Some(p) => format!("Problem · {p}"),
-        None if current => format!("Ready · current · {namespace}"),
-        None => format!("Ready · {namespace}"),
+        Some(p) => Status::problem(p.as_str()),
+        None if current => Status::ready(format!("current · {namespace}")),
+        None => Status::ready(namespace),
     };
     Row {
         name: safe_text(name),

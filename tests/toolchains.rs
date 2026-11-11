@@ -84,7 +84,7 @@ fn on_path_shows_the_winner_its_provider_version_and_problems() {
     for (name, from, status) in expect {
         let r = row(&i.path, name);
         assert_eq!(
-            (r.kind.as_str(), r.status.as_str()),
+            (r.kind.as_str(), r.status.to_string().as_str()),
             (from, status),
             "{name}"
         );
@@ -123,7 +123,7 @@ fn rust_lists_toolchains_default_first_then_crates() {
     for (name, kind, status) in expect {
         let r = row(&i.rust, name);
         assert_eq!(
-            (r.kind.as_str(), r.status.as_str()),
+            (r.kind.as_str(), r.status.to_string().as_str()),
             (kind, status),
             "{name}"
         );
@@ -174,7 +174,7 @@ fn packages_come_from_each_managers_metadata() {
     for (name, manager, status) in expect {
         let r = row(&i.packages, name);
         assert_eq!(
-            (r.kind.as_str(), r.status.as_str()),
+            (r.kind.as_str(), r.status.to_string().as_str()),
             (manager, status),
             "{name}"
         );

@@ -142,6 +142,7 @@ fn broken_chains_loops_and_unused_sessions_are_reported() {
     assert!(
         row(&i, "loop-a", Kind::Profile)
             .status
+            .to_string()
             .contains("loops back")
     );
     assert_eq!(
@@ -160,7 +161,11 @@ fn an_open_credentials_file_is_a_problem() {
     let t = Temp::new("open", 0o644);
     let i = collect(&t.0);
     let file = i.rows.iter().find(|r| r.kind == Kind::File).unwrap();
-    assert!(file.status.contains("other users can read or change it"));
+    assert!(
+        file.status
+            .to_string()
+            .contains("other users can read or change it")
+    );
     let t = Temp::new("closed", 0o600);
     assert!(collect(&t.0).rows.iter().all(|r| r.kind != Kind::File));
 }

@@ -17,6 +17,8 @@ pub mod aws;
 pub mod claude;
 pub mod codex;
 pub mod kube;
+pub mod listing;
+pub mod status;
 pub mod toolchains;
 
 pub mod presentation;

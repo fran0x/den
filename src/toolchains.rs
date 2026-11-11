@@ -10,6 +10,7 @@ use crate::{
     aws::{Read, read_file},
     inventory::{count, safe_text},
     skills::filesystem,
+    status::Status,
 };
 use std::{
     cell::RefCell,
@@ -187,12 +188,25 @@ impl Context {
     }
 }
 
+/// What a row is, for counting; the `kind` column is free text (provider or manager).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Class {
+    /// A command found on PATH.
+    Command,
+    /// A PATH entry, folder or file that could not be used.
+    Setup,
+    Toolchain,
+    Crate,
+    Package,
+}
+
 #[derive(Clone, Debug)]
 pub struct Row {
+    pub class: Class,
     pub name: String,
     /// Provider, manager or kind: the middle column.
     pub kind: String,
-    pub status: String,
+    pub status: Status,
     pub detail: String,
     /// Stable identity for selection across refreshes.
     pub key: String,
@@ -247,9 +261,10 @@ impl<'a> Reader<'a> {
         }
         let short = self.short(path);
         problems.push(Row {
+            class: Class::Setup,
             name: short.clone(),
             kind: kind.into(),
-            status: format!("Problem · {why}"),
+            status: Status::problem(why),
             detail: format!(
                 "{short}\n\nDen could not use this: {why}. What it describes is missing here, so this section may be incomplete."
             ),
@@ -399,9 +414,10 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
     let mut npm = None;
     for entry in &relative {
         rows.push(Row {
+            class: Class::Setup,
             name: if entry.is_empty() { "(empty)".into() } else { entry.clone() },
             kind: "PATH entry".into(),
-            status: "Problem · relative PATH entry".into(),
+            status: Status::problem("relative PATH entry"),
             detail: format!(
                 "PATH entry '{entry}'\n\nA relative entry makes the shell look for commands in whatever folder you are in, so a file there can run in place of a real command. Use absolute folders only."
             ),
@@ -430,9 +446,10 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
         }
         let short = context.short(&dir);
         rows.push(Row {
+            class: Class::Setup,
             name: short.clone(),
             kind: "Folder".into(),
-            status: "Problem · not on PATH".into(),
+            status: Status::problem("not on PATH"),
             detail: format!(
                 "{short}\n\nPrograms installed with {who} go here, but the folder is not on PATH, so the shell does not find them by name: {}.",
                 programs
@@ -700,19 +717,20 @@ fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
         .as_deref()
         .map(|v| v.split(" (").next().unwrap_or(v).to_owned());
     let status = match problems.first() {
-        Some(p) => format!("Problem · {p}"),
+        Some(p) => Status::problem(p.as_str()),
         None => {
-            let mut s = format!(
-                "Ready · {}",
-                short_version.as_deref().unwrap_or("version unknown")
-            );
+            let mut s = short_version
+                .as_deref()
+                .unwrap_or("version unknown")
+                .to_owned();
             if copies.len() > 1 {
                 s.push_str(&format!(" · hides {}", copies.len() - 1));
             }
-            s
+            Status::ready(s)
         }
     };
     Row {
+        class: Class::Command,
         name: safe_text(name),
         kind: winner.provider.clone(),
         status,
@@ -835,13 +853,14 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
                 lines.push("Not the default and no folder override selects it. A project's rust-toolchain.toml may still pin it; Den does not search for those.".into());
             }
             let status = if is_default {
-                "Ready · default".into()
+                Status::ready("default")
             } else if !overrides.is_empty() {
-                format!("Ready · override for {}", count(overrides.len(), "folder"))
+                Status::ready(format!("override for {}", count(overrides.len(), "folder")))
             } else {
-                "Installed".into()
+                Status::installed()
             };
             rows.push(Row {
+                class: Class::Toolchain,
                 name: safe_text(short),
                 kind: "Toolchain".into(),
                 status,
@@ -850,7 +869,7 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
             });
         }
         // The default first, then by name.
-        rows.sort_by_key(|r| r.status != "Ready · default");
+        rows.sort_by_key(|r| r.status != Status::ready("default"));
     }
     if let Some(cargo) = &context.cargo_home {
         rows.extend(crates(context, cargo));
@@ -936,7 +955,7 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
             lines.push(format!("Built with: {r}"));
         }
         let status = if missing.is_empty() {
-            format!("Ready · {}", safe_text(version))
+            Status::ready(safe_text(version))
         } else {
             let names: Vec<_> = missing.iter().map(|s| s.as_str()).collect();
             lines.push(String::new());
@@ -945,9 +964,10 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
                 context.short(&bin_dir),
                 names.join(", ")
             ));
-            format!("Problem · program missing: {}", names.join(", "))
+            Status::problem(format!("program missing: {}", names.join(", ")))
         };
         rows.push(Row {
+            class: Class::Crate,
             name: safe_text(name),
             kind: "cargo install".into(),
             status,
@@ -1005,12 +1025,10 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
     ));
     detail.append(&mut lines);
     Row {
+        class: Class::Package,
         name: safe_text(name),
         kind: manager.into(),
-        status: format!(
-            "Ready · {}",
-            version.as_deref().unwrap_or("version unknown")
-        ),
+        status: Status::ready(version.as_deref().unwrap_or("version unknown")),
         detail: detail.join("\n"),
         key: format!("{manager}:{name}"),
     }

@@ -1,6 +1,6 @@
 //! The Toolchains area: On PATH, Rust and Packages, with the same layout as Cloud.
 use super::*;
-use crate::toolchains::Section;
+use crate::toolchains::{Class, Section};
 
 pub(super) const HELP: &str = "Toolchains: language tools on this machine, read from files\n\
 On PATH: for each common command (node, python3, go, java, cargo, …) the copy the shell runs, who provides it (Homebrew, rustup, uv, nvm, mise, the system, …), its version when the install path shows it, and the copies it hides. Problems: a relative PATH entry, a manager folder that is not on PATH, a system copy hiding a managed one, or a macOS stub with nothing behind it (java without a JDK, python3 without the Command Line Tools).\n\
@@ -18,30 +18,25 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         (None, None) => "Reading toolchains...".into(),
         (None, Some(i)) => {
             let rows = i.rows(section);
-            let problems = rows
-                .iter()
-                .filter(|r| r.status.starts_with("Problem"))
-                .count();
+            let problems = rows.iter().filter(|r| r.status.is_problem()).count();
             let problems = crate::inventory::count(problems, "problem");
             match section {
                 Section::Path => format!(
                     "{} on PATH · {problems}",
                     crate::inventory::count(
-                        rows.iter()
-                            .filter(|r| r.key.starts_with("command:"))
-                            .count(),
+                        rows.iter().filter(|r| r.class == Class::Command).count(),
                         "command"
                     )
                 ),
                 Section::Rust => format!(
                     "{} · default {} · {} · {problems}",
                     crate::inventory::count(
-                        rows.iter().filter(|r| r.kind == "Toolchain").count(),
+                        rows.iter().filter(|r| r.class == Class::Toolchain).count(),
                         "toolchain"
                     ),
                     i.default_toolchain.as_deref().unwrap_or("not set"),
                     crate::inventory::count(
-                        rows.iter().filter(|r| r.kind == "cargo install").count(),
+                        rows.iter().filter(|r| r.class == Class::Crate).count(),
                         "crate"
                     ),
                 ),
@@ -101,10 +96,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         rows: t
             .rows()
             .iter()
-            .map(|r| (r.name.clone(), r.kind.clone(), r.status.clone()))
+            .map(|r| (r.name.clone(), r.kind.clone(), r.status.to_string()))
             .collect(),
         text,
-        selected: t.selected[t.slot()],
+        selected: t.selected(),
         query: t.query.clone(),
         searching: t.searching,
     };

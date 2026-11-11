@@ -18,6 +18,7 @@ Keep changes within the requested scope.
 | `src/skills.rs`, `src/skills/` | Skill models, bounded discovery, metadata, filesystem access and state |
 | `src/codex.rs`, `src/codex/` | Configuration, instructions, privacy, MCP models/normalization and state |
 | `src/aws.rs`, `src/kube.rs`, `src/docker.rs`, `src/toolchains.rs` (each with state) | Cloud, Docker and Toolchains collectors |
+| `src/listing.rs`, `src/status.rs` | Shared list state (selection, search, refresh) for those areas, and the typed row status (Ready, Problem, Off, Installed) |
 
 Synthetic data lives in `fixtures/`, integration tests in `tests/`, and the Unix
 PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their existing

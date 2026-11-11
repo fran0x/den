@@ -78,8 +78,9 @@ impl Context {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Section {
+    #[default]
     Containers,
     Images,
     Volumes,

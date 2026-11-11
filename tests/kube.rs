@@ -118,7 +118,11 @@ fn every_context_gets_its_auth_and_status() {
     for (name, auth, status) in expect {
         let r = row(&i, name);
         assert_eq!(r.auth, auth, "{name}");
-        assert!(r.status.starts_with(status), "{name}: {}", r.status);
+        assert!(
+            r.status.to_string().starts_with(status),
+            "{name}: {}",
+            r.status
+        );
     }
     // TLS verification off is reported too, after the first problem.
     assert!(row(&i, "legacy").detail.contains("TLS verification is off"));
@@ -187,7 +191,7 @@ fn with_several_files_the_first_definition_wins() {
     let i = collect(&home.context(&["a", "b", "missing"]));
     assert_eq!(i.current.as_deref(), Some("one"));
     assert_eq!(i.contexts, 2);
-    assert!(row(&i, "one").status.ends_with("first"));
+    assert!(row(&i, "one").status.to_string().ends_with("first"));
     assert!(row(&i, "two").detail.contains("Defined in: ~/.kube/b"));
     let coverage = i.coverage.join("\n");
     assert!(coverage.contains("1 entry ignored"), "{coverage}");
@@ -212,17 +216,23 @@ fn file_problems_are_rows_and_other_files_still_count() {
     )
     .unwrap();
     let i = collect(&home.context(&["broken", "ok"]));
-    let statuses: Vec<_> = i.rows.iter().map(|r| r.status.as_str()).collect();
+    let statuses: Vec<String> = i.rows.iter().map(|r| r.status.to_string()).collect();
     assert!(
-        statuses.contains(&"Problem · not a valid kubeconfig"),
+        statuses
+            .iter()
+            .any(|s| s == "Problem · not a valid kubeconfig"),
         "{statuses:?}"
     );
     assert!(
-        statuses.contains(&"Problem · other users can read or change it (expected 600)"),
+        statuses
+            .iter()
+            .any(|s| s == "Problem · other users can read or change it (expected 600)"),
         "{statuses:?}"
     );
     assert!(
-        statuses.contains(&"Problem · 'nowhere' is not defined"),
+        statuses
+            .iter()
+            .any(|s| s == "Problem · 'nowhere' is not defined"),
         "{statuses:?}"
     );
     assert_eq!(row(&i, "x").auth, "None set");
