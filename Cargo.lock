@@ -164,7 +164,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "den"
+name = "den-tui"
 version = "0.1.0"
 dependencies = [
  "crossterm",

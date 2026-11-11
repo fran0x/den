@@ -25,3 +25,21 @@ Security (`.github/workflows/security.yml`) runs `cargo deny check` on the same 
 every Monday: RustSec advisories (including unmaintained and yanked crates), allowed
 licenses and crates.io as the only source, as set in `deny.toml`. Dependabot opens weekly
 grouped updates for crates and for the GitHub Actions, which are pinned to commits.
+
+## Releasing
+
+1. Update `version` in `Cargo.toml` and move the `Unreleased` notes in `CHANGELOG.md`
+   under the new version.
+2. Run `just check`, `just smoke` and `cargo publish --dry-run`.
+3. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+
+The Release workflow checks that the tag matches `Cargo.toml`, builds `den` for macOS
+(Apple Silicon and Intel) and Linux (x86_64 and arm64), and attaches the archives and
+their SHA-256 sums to a GitHub release.
+
+The crate is published as `den-tui` (the name `den` is taken on crates.io); it installs
+the `den` command. The first version is published by hand with `cargo publish`. After
+that, add GitHub trusted publishing for `fran0x/den`, workflow `release.yml`, environment
+`crates-io` in the crate's settings on crates.io, create the `crates-io` environment in the
+repository, and set the repository variable `PUBLISH_CRATE` to `true`. Each release tag
+then publishes without a stored token.

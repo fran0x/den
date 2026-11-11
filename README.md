@@ -1,12 +1,16 @@
 # Den
 
 [![CI](https://github.com/fran0x/den/actions/workflows/ci.yml/badge.svg)](https://github.com/fran0x/den/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/den-tui.svg)](https://crates.io/crates/den-tui)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 **A read-only terminal inspector for your developer machine.**
 
 Den shows what is installed and how it is configured: Homebrew packages and their
 dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
 toolchains. It reads; it never installs, removes, logs in or runs what it finds.
+
+![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
 
 ## What it shows
 
@@ -21,6 +25,8 @@ toolchains. It reads; it never installs, removes, logs in or runs what it finds.
 Every row is **Ready**, **Problem** or a plainer state, and the panel beside it explains
 why: a role chain that loops, a context whose cluster is gone, a `java` that is only a
 macOS stub, a system `python3` hiding Homebrew's.
+
+![Den showing which commands win on PATH](docs/images/toolchains.svg)
 
 ## Read-only by design
 
@@ -39,13 +45,15 @@ Homebrew itself may refresh its metadata when Den asks it for information. Detai
 
 ## Run
 
-Requires stable Rust (edition 2024) on macOS or Linux. `brew` and `docker` are optional;
+Den runs on macOS and Linux. `brew` and `docker` are optional;
 an area whose tool is missing says so.
 
 ```sh
-cargo run --release              # or: just run
-cargo install --path .           # then: den
+cargo install den-tui            # installs the `den` command
+den
 ```
+
+From a checkout: `cargo run --release` or `just run`. Den needs Rust 1.90 or newer.
 
 | Flag | Effect |
 | --- | --- |
@@ -95,3 +103,9 @@ CI runs both on Ubuntu and macOS, and `cargo deny` checks dependencies for advis
 licenses and sources. Live checks against your own machine are opt-in
 (`just live`). More in [development](docs/DEVELOPMENT.md), [roadmap](ROADMAP.md) and
 [contributor rules](AGENTS.md).
+
+## License
+
+Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at
+your option. Contributions are accepted under the same terms; see
+[contributing](CONTRIBUTING.md) and the [security policy](SECURITY.md).
