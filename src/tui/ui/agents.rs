@@ -17,6 +17,7 @@ Instructions: t shows Codex's chain as if the project were trusted. MCP: V picks
 The information panel shows everything about the selection; PgUp/PgDn scroll it. r refreshes both tools.\n\n\
 The panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
 Only MCP servers, MCP approvals and project trust are read from ~/.claude.json. URLs, arguments and values are withheld. Hooks, helpers and servers are never run.\n\
+When Homebrew installed Codex or Claude Code, the status line names a newer version (↑) from Homebrew's data or Codex's own update check (~/.codex/version.json). Den never checks online.\n\
 Nothing here shows what a running Codex or Claude Code session actually loaded.";
 
 /// What one frame shows, computed before drawing so the panel can scroll mutably.
@@ -216,9 +217,35 @@ fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String
         Section::Plugins => crate::inventory::count(all.len(), "plugin"),
     };
     let (mut notes, info) = collection(app);
+    notes.extend(updates(app));
     notes.push(text);
     notes.extend(info);
     notes.join(" · ")
+}
+
+/// "↑ Codex 0.167.2 available", for a tool Homebrew installed, from Homebrew's data or
+/// Codex's own update check. Without Homebrew's record the installed version is unknown.
+fn updates(app: &App) -> Option<String> {
+    let own = app
+        .codex
+        .inventory
+        .as_ref()
+        .and_then(|i| i.update_check.as_ref())
+        .map(|c| c.latest.as_str());
+    let found: Vec<_> = [
+        (
+            "Codex",
+            crate::updates::tool(&app.inventory, &["codex"], own),
+        ),
+        (
+            "Claude Code",
+            crate::updates::tool(&app.inventory, &["claude-code"], None),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(tool, v)| v.map(|v| format!("{tool} {}", safe_text(&v))))
+    .collect();
+    (!found.is_empty()).then(|| format!("{UPDATE} {} available", found.join(" and ")))
 }
 
 /// Each tool's missing home folder, once collected.

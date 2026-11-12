@@ -83,6 +83,8 @@ pub struct App {
     /// Homebrew starts with Tools (recorded as requested); `a` shows all packages.
     pub show_all: bool,
     pub live: bool,
+    /// When Homebrew last refreshed the package data that "outdated" comes from.
+    pub homebrew_data: Option<std::time::SystemTime>,
     pub refresh_requested: bool,
     pub collection_status: CollectionStatus,
     has_valid_inventory: bool,
@@ -129,6 +131,7 @@ impl App {
             filter: None,
             show_all: false,
             live: false,
+            homebrew_data: None,
             refresh_requested: false,
             collection_status: CollectionStatus::Snapshot,
             has_valid_inventory: true,
@@ -289,9 +292,13 @@ impl App {
                 "No installed Homebrew packages | r:refresh".into()
             }
             CollectionStatus::Loaded => format!(
-                "Loaded {} packages{} | r:refresh",
+                "Loaded {} packages{}{} | r:refresh",
                 self.inventory.resources.len(),
-                self.outdated_text()
+                self.outdated_text(),
+                self.homebrew_data.map_or_else(String::new, |when| format!(
+                    " · data from {}",
+                    crate::updates::age(when, std::time::SystemTime::now())
+                ))
             ),
             CollectionStatus::Failed { error, stale } => {
                 let stale = if *stale { "STALE: " } else { "" };

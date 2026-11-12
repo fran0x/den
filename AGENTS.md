@@ -99,7 +99,10 @@ never add removal/repair commands or execute inspected scripts, MCP servers or h
 Docker uses the same runner (`homebrew::run_bounded`) for exactly the four listings in
 `docker::COMMANDS`, only when the Docker area is opened; never add commands that change
 state or read container internals (`inspect`, `logs`, `exec`).
-Homebrew may fetch metadata despite disabled auto-update/analytics. Demo/snapshot modes
+Homebrew may fetch metadata despite disabled auto-update/analytics. Den reads only the
+modification times of `*.jws.json` in Homebrew's API cache (how old "outdated" is), never
+their contents. Update notices use data already on the machine (Homebrew's, Codex's
+`version.json`: `latest_version` and the check date only); never query a registry. Demo/snapshot modes
 never run Homebrew or discover live Codex data; fixtures stay within their explicit roots.
 
 From `~/.claude.json` keep only `mcpServers` and the selected project's MCP approvals,

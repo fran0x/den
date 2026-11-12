@@ -1,12 +1,12 @@
 //! The Toolchains area: On PATH, Rust and Packages, with the same layout as Cloud.
 use super::*;
-use crate::areas::toolchains::{Class, Section};
+use crate::areas::toolchains::{Class, Row, Section};
 
 pub(super) const HELP: &str = "Toolchains: language tools on this machine, read from files\n\
 On PATH: for each common command (node, python3, go, java, cargo, …) the copy the shell runs, who provides it (Homebrew, rustup, uv, nvm, mise, the system, …), its version when the install path shows it, and the copies it hides. Problems: a relative PATH entry, a manager folder that is not on PATH, a system copy hiding a managed one, or a macOS stub with nothing behind it (java without a JDK, python3 without the Command Line Tools).\n\
 Rust: rustup toolchains (the default, folder overrides, targets and components), then cargo install crates with their version, source and programs.\n\
 Packages: global npm packages, uv tools and Pythons, pipx, bun and go install programs.\n\
-Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Newer versions are not checked.\n\
+Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has; nothing else is checked for updates.\n\
 / searches; PgUp/PgDn scroll the panel; Shift+Tab switches sections; r refreshes.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
@@ -21,13 +21,21 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             let problems = rows.iter().filter(|r| r.status.is_problem()).count();
             let problems = crate::inventory::count(problems, "problem");
             match section {
-                Section::Path => format!(
-                    "{} on PATH · {problems}",
-                    crate::inventory::count(
-                        rows.iter().filter(|r| r.class == Class::Command).count(),
-                        "command"
+                Section::Path => {
+                    let updates = rows.iter().filter(|r| update(app, r).is_some()).count();
+                    format!(
+                        "{} on PATH · {problems}{}",
+                        crate::inventory::count(
+                            rows.iter().filter(|r| r.class == Class::Command).count(),
+                            "command"
+                        ),
+                        if updates > 0 {
+                            format!(" · {}", crate::inventory::count(updates, "update"))
+                        } else {
+                            String::new()
+                        }
                     )
-                ),
+                }
                 Section::Rust => format!(
                     "{} · default {} · {} · {problems}",
                     crate::inventory::count(
@@ -69,7 +77,15 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                 message.clone()
             }
         },
-        |r| format!("{HEADING}{}\n\n{HEADING}Coverage\n{coverage}", r.detail),
+        |r| {
+            let update = update(app, r).map_or_else(String::new, |v| {
+                format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
+            });
+            format!(
+                "{HEADING}{}{update}\n\n{HEADING}Coverage\n{coverage}",
+                r.detail
+            )
+        },
     );
     let (title, header) = match section {
         Section::Path => ("Toolchains / On PATH", ("Command", "From", "Status")),
@@ -96,7 +112,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         rows: t
             .rows()
             .iter()
-            .map(|r| (r.name.clone(), r.kind.clone(), r.status.to_string()))
+            .map(|r| {
+                let status = match update(app, r) {
+                    Some(v) => format!("{UPDATE} {v} · {}", r.status),
+                    None => r.status.to_string(),
+                };
+                (r.name.clone(), r.kind.clone(), status)
+            })
             .collect(),
         text,
         selected: t.selected(),
@@ -105,4 +127,12 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
     };
     let t = &mut app.toolchains;
     list_view(frame, view, &mut t.page, &mut t.panel);
+}
+
+/// Homebrew's newer version of a command it installed, from the Homebrew data Den
+/// already has (none in offline modes).
+fn update(app: &App, row: &Row) -> Option<String> {
+    let package = row.homebrew.as_ref()?;
+    crate::updates::homebrew(&app.inventory, &package.name, package.cask)
+        .and_then(crate::updates::from_homebrew)
 }

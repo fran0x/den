@@ -50,6 +50,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
             }
             if let Some(result) = collector.as_ref().and_then(Collector::poll) {
                 app.finish_collection(result);
+                app.homebrew_data = crate::areas::homebrew::cache_dir()
+                    .and_then(|c| crate::areas::homebrew::data_refreshed(&c));
                 collector = None;
             }
             if collector.is_none()

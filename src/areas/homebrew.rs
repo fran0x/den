@@ -16,7 +16,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fmt,
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
@@ -320,4 +320,37 @@ impl From<std::io::Error> for CollectionError {
     fn from(_: std::io::Error) -> Self {
         Self::Failed("collection worker unavailable".into())
     }
+}
+
+/// Homebrew's download cache: `HOMEBREW_CACHE`, or its usual place.
+pub fn cache_dir() -> Option<PathBuf> {
+    if let Some(cache) = std::env::var_os("HOMEBREW_CACHE") {
+        return Some(PathBuf::from(cache));
+    }
+    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+    Some(if cfg!(target_os = "macos") {
+        home.join("Library/Caches/Homebrew")
+    } else {
+        std::env::var_os("XDG_CACHE_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".cache"))
+            .join("Homebrew")
+    })
+}
+
+/// When Homebrew last downloaded its package data (`*.jws.json` under `api/`, or
+/// `api/internal/` in newer versions): "outdated" is only as current as this. Only file
+/// times are read, never the files; anything unreadable is simply skipped.
+pub fn data_refreshed(cache: &Path) -> Option<std::time::SystemTime> {
+    let api = cache.join("api");
+    [api.join("internal"), api]
+        .iter()
+        .filter_map(|dir| std::fs::read_dir(dir).ok())
+        .flat_map(|entries| entries.take(256).flatten())
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".jws.json"))
+        // Not followed: a link's own metadata is not a regular file.
+        .filter_map(|e| e.metadata().ok())
+        .filter(std::fs::Metadata::is_file)
+        .filter_map(|m| m.modified().ok())
+        .max()
 }

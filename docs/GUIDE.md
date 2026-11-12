@@ -45,8 +45,8 @@ like `[firefox]`.
 
 Each row says whether you asked for the package, whether it came in as a dependency, and
 how many other packages need it (**required by 3**). A newer version shows at the start of
-the row in yellow, like `↑ 15.0`. That comes from Homebrew's own data, as fresh as your last
-`brew update`; Den never runs `brew update` itself.
+the row in yellow, like `↑ 15.0`. That comes from Homebrew's own data, and the status line
+says how old it is (**data from 2 h ago**). Den never runs `brew update` itself.
 
 The panel shows two small trees: what the package **depends on** and what it is
 **required by**. When Homebrew's records are incomplete, Den says **Unknown** rather than
@@ -86,6 +86,11 @@ The panel shows each tool under its own heading, with the details that only that
 | `s` | Settings: show Codex's source files |
 | `t` | Instructions: show what Codex would read if this project were trusted |
 | `V` | MCP: switch to the next Codex source |
+
+When Homebrew installed Codex or Claude Code and a newer version is known, the status line
+starts with it, for example **↑ Codex 0.167.2 available**. The newer version comes from
+Homebrew's data or from Codex's own update check (`~/.codex/version.json`). Den never checks
+online, and a tool installed another way shows nothing, because Den can't tell its version.
 
 Den shows what the configuration files say, not what a running Codex or Claude Code
 session has loaded.
@@ -132,8 +137,9 @@ running, the status line says so and the last results stay.
   installed with `cargo install`.
 - **Packages:** global packages from npm, uv, pipx, bun and `go install`.
 
-Den reads all of this from files and runs none of these tools, so it does not check for
-newer versions. It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
+Den reads all of this from files and runs none of these tools. Commands that Homebrew
+installed show its newer version, like `↑ 22.12.0`; nothing else is checked for updates.
+It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
 ## What Den reads, and what it never does

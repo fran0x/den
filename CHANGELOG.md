@@ -5,9 +5,14 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Updates, offline:** Agents names a newer Codex or Claude Code when Homebrew installed
+  it, from Homebrew's data or Codex's own update check (`~/.codex/version.json`).
+  Toolchains marks commands Homebrew can update (`↑ 22.12.0`), and Homebrew's status line
+  says how old its data is. Nothing is fetched.
 - **Cloud › AWS:** the active profile (from `AWS_PROFILE`, or `default`) comes first, starred
-  (`*`), and its status says `active`. The current Kubernetes context is starred too. An `AWS_PROFILE` naming a profile that doesn't exist is a
-  Problem row, and the status line names the variable that chose the profile.
+  (`*`), and its status says `active`. An `AWS_PROFILE` naming a profile that doesn't
+  exist is a Problem row, and the status line names the variable that chose the profile.
+  The current Kubernetes context is starred too.
 
 ## [0.1.0] - 2026-11-12
 

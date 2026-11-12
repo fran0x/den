@@ -123,6 +123,45 @@ pub struct Inventory {
     pub enablement: Vec<Enablement>,
     /// The Codex home ("~/.codex") when it does not exist: Codex is not set up here.
     pub missing_home: Option<String>,
+    /// Codex's own update check, from `version.json`.
+    pub update_check: Option<UpdateCheck>,
+}
+
+/// The newest Codex version that Codex itself last saw. Den reads the file Codex keeps;
+/// it never checks for updates itself.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UpdateCheck {
+    pub latest: String,
+    /// The day of the check, `YYYY-MM-DD`.
+    pub checked: Option<String>,
+}
+
+/// An absent, unreadable or unexpected `version.json` gives `None`: it is a hint about
+/// updates, and nothing else depends on it.
+fn update_check(context: &Context) -> Option<UpdateCheck> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        latest_version: String,
+        last_checked_at: Option<String>,
+    }
+    let text = read(context, &context.codex_home.join("version.json")).ok()?;
+    let file: File = serde_json::from_str(&text).ok()?;
+    let latest = file.latest_version.trim();
+    crate::updates::plausible(latest).then(|| UpdateCheck {
+        latest: latest.to_owned(),
+        checked: file
+            .last_checked_at
+            .and_then(|at| at.get(..10).map(str::to_owned))
+            .filter(|day| {
+                day.bytes().enumerate().all(|(i, b)| {
+                    if i == 4 || i == 7 {
+                        b == b'-'
+                    } else {
+                        b.is_ascii_digit()
+                    }
+                })
+            }),
+    })
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
@@ -211,6 +250,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         skills,
         skills_config,
         enablement,
+        update_check: update_check(context),
         missing_home: (!context.codex_home.exists()).then(|| {
             crate::inventory::short_path(
                 &context.codex_home,

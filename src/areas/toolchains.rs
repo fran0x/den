@@ -200,8 +200,17 @@ pub enum Class {
     Package,
 }
 
+/// The Homebrew formula or cask a command belongs to, to look up Homebrew's newer version.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Package {
+    pub name: String,
+    pub cask: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct Row {
+    /// Set for commands Homebrew installed.
+    pub homebrew: Option<Package>,
     pub class: Class,
     pub name: String,
     /// Provider, manager or kind: the middle column.
@@ -261,6 +270,7 @@ impl<'a> Reader<'a> {
         }
         let short = self.short(path);
         problems.push(Row {
+            homebrew: None,
             class: Class::Setup,
             name: short.clone(),
             kind: kind.into(),
@@ -414,6 +424,7 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
     let mut npm = None;
     for entry in &relative {
         rows.push(Row {
+            homebrew: None,
             class: Class::Setup,
             name: if entry.is_empty() { "(empty)".into() } else { entry.clone() },
             kind: "PATH entry".into(),
@@ -446,6 +457,7 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
         }
         let short = context.short(&dir);
         rows.push(Row {
+            homebrew: None,
             class: Class::Setup,
             name: short.clone(),
             kind: "Folder".into(),
@@ -529,6 +541,11 @@ fn provider(
     let dir_is = |rel: &str| home.as_ref().is_some_and(|h| dir_l == h.join(rel));
     // From where the file really lives.
     if let Some(i) = parts.iter().position(|p| p == "Cellar")
+        && parts.len() > i + 2
+    {
+        return ("Homebrew".into(), Some(safe_text(&parts[i + 2])), false);
+    }
+    if let Some(i) = parts.iter().position(|p| p == "Caskroom")
         && parts.len() > i + 2
     {
         return ("Homebrew".into(), Some(safe_text(&parts[i + 2])), false);
@@ -640,6 +657,22 @@ fn provider(
     (context.short(&dir_l), node_version, false)
 }
 
+/// `…/Cellar/node/26.13.0_2/bin/node` → formula `node`; `…/Caskroom/codex/…` → cask.
+fn homebrew_package(real: &Path) -> Option<Package> {
+    let parts: Vec<_> = real.components().map(|c| c.as_os_str()).collect();
+    parts.windows(3).find_map(|w| {
+        let cask = match w[0].to_str()? {
+            "Cellar" => false,
+            "Caskroom" => true,
+            _ => return None,
+        };
+        Some(Package {
+            name: w[1].to_str()?.to_owned(),
+            cask,
+        })
+    })
+}
+
 /// `cpython-3.13.14-macos-aarch64-none` → `3.13.14`.
 fn uv_python_version(dir: &str) -> Option<String> {
     let mut parts = dir.splitn(3, '-');
@@ -730,6 +763,7 @@ fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
         }
     };
     Row {
+        homebrew: homebrew_package(&real),
         class: Class::Command,
         name: safe_text(name),
         kind: winner.provider.clone(),
@@ -860,6 +894,7 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
                 Status::installed()
             };
             rows.push(Row {
+                homebrew: None,
                 class: Class::Toolchain,
                 name: safe_text(short),
                 kind: "Toolchain".into(),
@@ -967,6 +1002,7 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
             Status::problem(format!("program missing: {}", names.join(", ")))
         };
         rows.push(Row {
+            homebrew: None,
             class: Class::Crate,
             name: safe_text(name),
             kind: "cargo install".into(),
@@ -1025,6 +1061,7 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
     ));
     detail.append(&mut lines);
     Row {
+        homebrew: None,
         class: Class::Package,
         name: safe_text(name),
         kind: manager.into(),

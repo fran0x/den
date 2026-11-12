@@ -20,4 +20,6 @@ pub mod source;
 pub mod status;
 #[doc(hidden)]
 pub mod tui;
+#[doc(hidden)]
+pub mod updates;
 mod worker;
