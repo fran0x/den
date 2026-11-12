@@ -121,10 +121,26 @@ pub(super) fn help(app: &App) -> String {
         Module::Docker => super::docker::HELP,
         Module::Toolchains => super::toolchains::HELP,
         Module::Homebrew => {
-            "Homebrew\nPackages start with Tools: packages Homebrew recorded as installed on request.\na switches Tools / All. Tools are bold; casks are [bracketed]. Counts follow search.\nRows show intent and \"required by N\": other installed packages with recorded runtime references.\nPackages without a request record appear only in All; Unknown stays Unknown and is never guessed.\nThe information panel shows Depends on and Required by, up to two levels; PARTIAL marks omissions.\nTransitive and uncertain records stay labeled leaves; no direct links are inferred.\nCurrent declarations do not count toward \"required by\"; no count does not mean unused.\nDiagnostics: [ selects a report (or 5-8); Enter drills down; Space shows full evidence; o shows the original report; c runs the read-only check.\nA package opened from Diagnostics is selected in Packages; Esc returns."
+            "Homebrew\n\
+Packages starts with your Tools: what you installed on purpose. a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed].\n\
+Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update.\n\
+The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
+Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Enter opens a group or jumps to a package (Esc comes back), Space shows the full finding, o Homebrew's original report, c runs the check now (read-only)."
         }
     };
     format!(
-        "Den — Area › Section › Inventory\n\nTab switches Homebrew / Agents / Cloud / Docker / Toolchains; each area keeps its place.\nShift+Tab switches sections: Homebrew Packages / Diagnostics; Agents Skills / Instructions / Settings / MCP / Hooks / Plugins; Cloud AWS / Kubernetes; Docker Containers / Images / Volumes; Toolchains On PATH / Rust / Packages.\nThe inventory keeps focus; the information panel follows the selection and shows everything about it. There is no inspector: PgUp/PgDn scroll the panel.\n/ searches the inventory. Enter or Esc finishes editing and keeps the query.\nIn Diagnostics, [ selects a report and ] its content.\nEsc goes back within the current section. Switching areas or sections never adds a Back step.\nHome/End move to the first or last row. ? opens this help; Esc closes it. q or Ctrl-C quits.\n\n{context}\n\nShortcuts: F2 = Tab, F3 = Shift+Tab.\n\nRead-only inspection. No inspected commands, scripts or MCP servers are executed. Withheld configuration values stay withheld.\nEach section keeps up to 64 Back contexts; removed resources are clamped after refresh."
+        "Den\n\n\
+Tab        next area: Homebrew, Agents, Cloud, Docker, Toolchains\n\
+Shift+Tab  next section in this area\n\
+↑ ↓ j k    move through the list; Home and End jump to the first or last row\n\
+PgUp PgDn  scroll the panel\n\
+/          search; Enter or Esc finishes and keeps the search\n\
+Esc        go back\n\
+r          refresh\n\
+q          quit (Ctrl-C works anywhere)\n\n\
+Every area and section remembers where you were.\n\n\
+{context}\n\n\
+F2 is Tab and F3 is Shift+Tab. Esc closes this help.\n\
+Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld."
     )
 }

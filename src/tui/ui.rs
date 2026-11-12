@@ -23,46 +23,6 @@ use crate::{
     inventory::{HomebrewMetadata, safe_text},
 };
 
-pub const HELP: &str = "Den — navigation\n\n\
-F2: Homebrew / Codex · F3: next view; each view retains its state.\nEnter from list: full-screen inspector · Esc: Back\nv: Compact / Detailed · z: full-screen toggle from either pane\n\n\
-Browse read-only Homebrew inventory, or offline snapshots/demo data.\n\n\
-Up/Down or k/j   Move selection / scroll focused pane\n\
-PageUp/PageDown  Move a page\n\
-Home/End        First / last item or detail line\n\
-Tab/Shift-Tab   Switch Homebrew/Codex areas; retain context\n\
-Enter           Inspect selected resource (full screen)\nRight           Tree expansion in an explicit inspector\n\
-[ / ]           Inspector sections / content\n\
-/               Edit search (live, case insensitive)\n\
-Enter/Esc       Finish search, retaining the query\n\
-Backspace       Delete last search character\n\
-Ctrl-U          Clear query while editing\n\
-f               Cycle kind filter; wraps back to All\n\
-i               Cycle Homebrew intent: Requested/Dependency/Unknown/All\n\
-u               Toggle Used by others (recorded runtime; independent of intent)\n\
-r               Refresh live Homebrew inventory (snapshots stay offline)\n\
-5/6/7/8         Diagnostics: Unresolved / Missing / Leaves / Cleanup\n\
-c (diagnostics) Run the selected Homebrew check (live only)\n\
-o (diagnostics) Show original sanitized output; Space: full finding\n\
-1/2/3/4         Overview / Dependencies / Required by / Dependency paths\n\
-s (details)     Switch recorded runtime / current declaration evidence\n\
-V (details)     Cycle installed keg (linked keg is preferred initially)\n\
-t (relations)   Direct list / all evidence with expandable direct-edge tree\n\
-Space           Expand/collapse selected tree branch\n\
-Enter           Open selected related package overview\n\
-Backspace       Back to previous package and its search/filter context\n\
-Esc             Clear query and all filters when browsing\n\
-? / F1          Open help (F1 also works during search)\n\
-Esc / ? / F1    Close help\n\
-q / Ctrl-C      Quit (q is text while editing search)\n\n\
-Search matches all words across name, kind, ID, version, path, description, origin and reason.\n\n\
-Browsing information is passive, below the inventory at narrow widths. Minimum useful size: 30 x 10.\n\n\
-Trust: unknown. No security checks or package changes. Den invokes brew info once per collection; Homebrew may fetch metadata. Snapshot claims are unverified.\n\n\
-Cask versions are Homebrew-recorded versions; applications may self-update. Mixed or insufficient installation-intent records are Unknown.\n\n\
-Relationships never change installation intent. Recorded transitive/unknown-directness entries are leaves, not inferred direct edges. Current optional/build/test declarations are labeled and excluded from runtime traversal.\n\n\
-Paths show one shortest known direct-edge path per requested installation, within the selected evidence view. Missing versions, ambiguous references and missing metadata can prevent a path. No path does not imply unused or safe to remove.\n\n\
-Exploration limits: 100000 edges, 400 visible rows, depth 32, 10000 traversal steps, 20 requested paths and 32 back-history entries. Partial results are labeled.\n\n\
-Scroll this help with arrows, j/k, PageUp/PageDown or Home/End.";
-
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
     if area.width < 30 || area.height < 10 {

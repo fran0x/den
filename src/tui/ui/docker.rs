@@ -4,7 +4,7 @@ use crate::areas::docker::Section;
 
 pub(super) const HELP: &str = "Docker: containers, images and volumes\n\
 Shift+Tab switches Containers / Images / Volumes. Containers show their state and image (and Compose project); images and volumes say which containers use them, or Unused. The status line shows disk use and what docker system df could reclaim.\n\
-Den runs only: docker container ls --all, docker image ls, docker volume ls and docker system df, each with a 10-second limit, and only once this area is opened. Nothing is started, stopped, pulled, inspected or removed.\n\
+Den runs only: docker container ls --all, docker image ls, docker volume ls and docker system df, each with a 10-second limit, while this area is open: when you open it and every 5 seconds after. Nothing is started, stopped, pulled, inspected or removed.\n\
 Not shown: container commands, environment, labels (except the Compose project) and logs. From ~/.docker/config.json only the context, registry names and credential helper are kept; saved logins are discarded. DOCKER_HOST is noted, not shown.\n\
 / searches; PgUp/PgDn scroll the panel; r refreshes.";
 

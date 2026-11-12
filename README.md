@@ -41,7 +41,7 @@ macOS stub, a system `python3` hiding Homebrew's.
   recorded", not "safe to remove".
 
 Homebrew itself may refresh its metadata when Den asks it for information. Per-area
-details are in the [guide](docs/KEYBOARD.md).
+details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does).
 
 ## Run
 
@@ -75,7 +75,7 @@ From a checkout: `cargo run --release` or `just run`. Den needs Rust 1.90 or new
 | `?` | Help for where you are |
 | `q` · `Ctrl-C` | Quit |
 
-The full guide, area by area: [keyboard and behaviour](docs/KEYBOARD.md).
+What each area shows and its extra keys: [the guide](docs/GUIDE.md).
 
 ## Try it offline
 
