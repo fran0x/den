@@ -12,6 +12,17 @@ toolchains. It reads; it never installs, removes, logs in or runs what it finds.
 
 ![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
 
+## Install
+
+```sh
+cargo install --locked den-tui   # installs the `den` command
+den
+```
+
+Or download a binary for macOS or Linux from
+[Releases](https://github.com/fran0x/den/releases). Building from source needs Rust 1.90 or
+newer. `brew` and `docker` are optional: an area whose tool is missing says so.
+
 ## What it shows
 
 | Area | Sections | At a glance |
@@ -22,9 +33,9 @@ toolchains. It reads; it never installs, removes, logs in or runs what it finds.
 | **Docker** | Containers · Images · Volumes | State, usage and reclaimable space, refreshed while you watch |
 | **Toolchains** | On PATH · Rust · Packages | Which `node`, `python3` or `cargo` wins and from where; rustup toolchains, `cargo install`, npm, uv, pipx, bun and go globals |
 
-Every row is **Ready**, **Problem** or a plainer state, and the panel beside it explains
-why: a role chain that loops, a context whose cluster is gone, a `java` that is only a
-macOS stub, a system `python3` hiding Homebrew's.
+Every row has a status, and when something is wrong the panel beside it says why: a role
+chain that loops, a context whose cluster is gone, a `java` that is only a macOS stub, a
+system `python3` hiding Homebrew's.
 
 ![Den showing which commands win on PATH](docs/images/toolchains.svg)
 
@@ -32,7 +43,8 @@ macOS stub, a system `python3` hiding Homebrew's.
 
 - **Fixed commands only.** `brew info`, `missing`, `leaves` and `autoremove --dry-run`;
   `docker container ls`, `image ls`, `volume ls` and `system df`. Each is bounded in time
-  and output. Everything else is read from files.
+  and output, and everything else is read from files. Homebrew may refresh its own
+  metadata when asked.
 - **Nothing is called.** No AWS API, cluster, `kubectl`, exec plugin, credential helper,
   MCP server, hook or program found on PATH is ever run.
 - **Secrets stay put.** Credential values, tokens, keys, server hosts and URLs are dropped
@@ -40,57 +52,26 @@ macOS stub, a system `python3` hiding Homebrew's.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
 
-Homebrew itself may refresh its metadata when Den asks it for information. Per-area
-details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does).
+Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does).
 
-## Run
+## Use
 
-Den runs on macOS and Linux. `brew` and `docker` are optional;
-an area whose tool is missing says so.
+`Tab` switches areas, `Shift+Tab` sections, `/` searches, `?` shows help for where you
+are and `q` quits. [The guide](docs/GUIDE.md) covers each area and its extra keys.
+
+To look around first without Den reading anything on your machine:
 
 ```sh
-cargo install den-tui            # installs the `den` command
-den
+den --demo
 ```
-
-From a checkout: `cargo run --release` or `just run`. Den needs Rust 1.90 or newer.
 
 | Flag | Effect |
 | --- | --- |
 | `--project DIR` | Project for Agents (default: the current folder) |
 | `--codex-profile NAME` | Inspect `$CODEX_HOME/NAME.config.toml` |
 | `--skills` | Start in Agents; Homebrew loads when opened |
-| `--help` | All flags, without starting the interface |
-
-## Keys
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Shift+Tab` | Next area / next section (each keeps its place) |
-| `↑` `↓` `j` `k` · `Home` `End` | Move through the list |
-| `PgUp` / `PgDn` | Scroll the information panel |
-| `/` | Search; `Enter` or `Esc` keeps the query |
-| `Esc` | Back within the section |
-| `r` | Refresh |
-| `?` | Help for where you are |
-| `q` · `Ctrl-C` | Quit |
-
-What each area shows and its extra keys: [the guide](docs/GUIDE.md).
-
-## Try it offline
-
-Synthetic fixtures exercise every area without touching your machine:
-
-```sh
-just fixtures demo          # embedded Homebrew inventory
-just fixtures claude        # Codex and Claude Code side by side
-just fixtures aws           # AWS profiles
-just fixtures kube          # Kubernetes contexts
-just fixtures docker        # Docker listings
-just fixtures toolchains    # PATH, Rust and global packages
-```
-
-`just fixtures` lists them all; without `just`, use the matching `--*-fixture DIR` flag.
+| `--demo` | Built-in sample data; nothing on this machine is read |
+| `--help` | All flags, including the offline sources |
 
 ## Develop
 
@@ -100,7 +81,9 @@ just smoke    # offline terminal checks in a real PTY
 just ci       # everything CI runs (needs cargo-deny and Rust 1.90; see `just tools`)
 ```
 
-CI runs both on Ubuntu and macOS, and `cargo deny` checks dependencies for advisories,
+From a checkout, `just run` starts Den and `just fixtures` lists synthetic setups for every
+area (Codex and Claude Code, AWS, Kubernetes, Docker, toolchains) that never touch your
+machine. CI runs on Ubuntu and macOS, and `cargo deny` checks dependencies for advisories,
 licenses and sources. Live checks against your own machine are opt-in
 (`just live`). Contributor rules, including what Den may run and read, are in
 [AGENTS.md](AGENTS.md).
