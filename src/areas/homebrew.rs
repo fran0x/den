@@ -5,9 +5,9 @@ pub mod graph;
 mod process;
 #[cfg(test)]
 mod reconciliation;
-#[cfg(unix)]
-pub(crate) use process::run_bounded;
 pub use process::{Collector, CommandOutput, collect, diagnose};
+#[cfg(unix)]
+pub(crate) use process::{run_bounded, run_write};
 
 use crate::inventory::{HomebrewMetadata, InstalledKeg, Inventory, Resource, ResourceKind};
 use serde::Deserialize;

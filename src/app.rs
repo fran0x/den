@@ -58,6 +58,8 @@ pub struct HomebrewCounts {
 }
 
 pub struct App {
+    /// Write actions: off unless started with `--allow-writes` and switched on with `W`.
+    pub actions: crate::actions::State,
     pub presentation: crate::tui::presentation::Presentation,
     pub module: Module,
     pub skills: crate::areas::agents::skills::state::State,
@@ -107,6 +109,7 @@ impl App {
         let graph = Graph::build(&inventory);
         let health = Health::build(&graph);
         let mut app = Self {
+            actions: crate::actions::State::default(),
             presentation: crate::tui::presentation::Presentation::default(),
             module: Module::Homebrew,
             skills: crate::areas::agents::skills::state::State::default(),
@@ -384,9 +387,31 @@ impl App {
         if key.kind == KeyEventKind::Release {
             return;
         }
+        // An open action dialog takes every key, Ctrl-C included: while an action runs,
+        // Ctrl-C stops it rather than quitting in the middle.
+        if self.actions.dialog.is_some() {
+            self.action_key(key);
+            return;
+        }
+        self.actions.notice = None;
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.quit = true;
             return;
+        }
+        if !self.active_searching() && !self.presentation.menu_searching {
+            match key.code {
+                KeyCode::Char('W') => {
+                    let notice = self.actions.toggle();
+                    self.actions.notice = Some(notice);
+                    return;
+                }
+                KeyCode::Char('x') if self.module == Module::Homebrew => {
+                    let items = self.action_items();
+                    self.actions.open(items);
+                    return;
+                }
+                _ => {}
+            }
         }
         if !self.inspecting() {
             self.focus_inventory();
@@ -489,6 +514,133 @@ impl App {
             KeyCode::Home => self.move_by(-isize::MAX),
             KeyCode::End => self.move_by(isize::MAX),
             _ => {}
+        }
+    }
+
+    /// Keys while an action dialog is open.
+    fn action_key(&mut self, key: KeyEvent) {
+        use crate::actions::Dialog;
+        let ctrl_c =
+            key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c');
+        match &mut self.actions.dialog {
+            Some(Dialog::Running { .. }) => {
+                if ctrl_c || key.code == KeyCode::Esc {
+                    self.actions.stop();
+                }
+            }
+            Some(Dialog::Menu { items, selected }) => match key.code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    *selected = (*selected + 1).min(items.len().saturating_sub(1));
+                }
+                KeyCode::Up | KeyCode::Char('k') => *selected = selected.saturating_sub(1),
+                KeyCode::Home => *selected = 0,
+                KeyCode::End => *selected = items.len().saturating_sub(1),
+                KeyCode::Enter => {
+                    if let Some(item) = items.get(*selected).cloned() {
+                        self.actions.choose(item);
+                    }
+                }
+                KeyCode::Char('c') if !ctrl_c => {
+                    if let Some(action) = items.get(*selected).map(|i| i.action.clone()) {
+                        self.actions.copy(&action);
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('q') => self.actions.close(),
+                _ if ctrl_c => {
+                    self.actions.close();
+                    self.quit = true;
+                }
+                _ => {}
+            },
+            Some(Dialog::Confirm { item, .. }) => match key.code {
+                KeyCode::Char('y') => self.actions.confirm(),
+                KeyCode::Char('c') if !ctrl_c => {
+                    let action = item.action.clone();
+                    self.actions.copy(&action);
+                }
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('q') => self.actions.close(),
+                _ if ctrl_c => {
+                    self.actions.close();
+                    self.quit = true;
+                }
+                _ => {}
+            },
+            Some(Dialog::Done { .. }) => {
+                if ctrl_c {
+                    self.quit = true;
+                }
+                if ctrl_c || matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q'))
+                {
+                    self.actions.close();
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// What the actions menu offers here: the selected package's upgrade and uninstall
+    /// (Packages only), then Homebrew-wide maintenance.
+    pub fn action_items(&self) -> Vec<crate::actions::Item> {
+        use crate::actions::{Action, Item, Package};
+        use crate::inventory::HomebrewMetadata;
+        let mut items = vec![];
+        let package = (self.destination() == crate::tui::presentation::Destination::Homebrew)
+            .then(|| self.selected_node().zip(self.resource()))
+            .flatten();
+        if let Some((index, resource)) = package
+            && let Some(meta) = &resource.homebrew
+        {
+            let (name, cask) = match meta {
+                HomebrewMetadata::Formula { full_name, .. } => {
+                    (full_name.as_deref().unwrap_or(&resource.name), false)
+                }
+                HomebrewMetadata::Cask { full_token, .. } => {
+                    (full_token.as_deref().unwrap_or(&resource.name), true)
+                }
+            };
+            if let Some(package) = Package::new(name, cask) {
+                if meta.update().is_some() {
+                    items.push(Item {
+                        action: Action::BrewUpgrade(package.clone()),
+                        blocked: meta
+                            .pinned()
+                            .then(|| "it is pinned; unpin it with brew unpin first".into()),
+                    });
+                }
+                let users = self.graph.recorded_users(index);
+                items.push(Item {
+                    action: Action::BrewUninstall(package),
+                    blocked: (users > 0).then(|| {
+                        format!(
+                            "required by {}; uninstall those first",
+                            crate::inventory::count(users, "installed package")
+                        )
+                    }),
+                });
+            }
+        }
+        for action in [
+            Action::BrewUpdate,
+            Action::BrewAutoremove,
+            Action::BrewCleanup,
+        ] {
+            items.push(Item {
+                action,
+                blocked: None,
+            });
+        }
+        items
+    }
+
+    /// An action finished: log it, show it, and reload Homebrew, which it may have changed.
+    pub fn finish_action(
+        &mut self,
+        result: Result<crate::areas::homebrew::CommandOutput, CollectionError>,
+        log: Option<&std::path::Path>,
+    ) {
+        self.actions.finish(result, log);
+        if self.live && !matches!(self.collection_status, CollectionStatus::Loading { .. }) {
+            self.refresh_requested = true;
         }
     }
 

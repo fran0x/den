@@ -36,6 +36,14 @@ pub(super) fn hints(text: &str) -> Line<'static> {
     Line::from(spans)
 }
 
+// Write mode, for the top bar: set at the start of each frame, on the thread that draws it.
+thread_local! {
+    static WRITE_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+pub(super) fn set_write_mode(on: bool) {
+    WRITE_MODE.with(|w| w.set(on));
+}
+
 /// Top bar, status line and footer around a body. `view` is "Area / Section" for the
 /// Homebrew, Agents, Cloud and Docker areas: the active area is highlighted and followed by its section.
 pub(super) fn chrome(
@@ -54,6 +62,14 @@ pub(super) fn chrome(
     .split(frame.area());
     let accent = heading();
     let mut title = vec![Span::styled(" DEN ", accent)];
+    if WRITE_MODE.with(std::cell::Cell::get) {
+        title.push(Span::styled(
+            " WRITE ",
+            theme()
+                .bad()
+                .add_modifier(Modifier::REVERSED | Modifier::BOLD),
+        ));
+    }
     match view.split_once(" / ") {
         Some((area, section))
             if matches!(

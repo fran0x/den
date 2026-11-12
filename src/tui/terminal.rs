@@ -36,6 +36,9 @@ pub fn run(app: &mut App) -> io::Result<()> {
         let mut toolchains: Option<crate::areas::toolchains::Collector> = None;
         let mut docker: Option<crate::areas::docker::Collector> = None;
         let mut diagnostic: Option<(Check, u64, Collector<CommandOutput>)> = None;
+        // A write action's preview (false) or the action itself (true); one at a time.
+        let mut action: Option<(bool, crate::actions::Worker)> = None;
+        let log = crate::actions::log_path();
         while !app.quit {
             if app.module == crate::app::Module::Homebrew
                 && app.refresh_requested
@@ -227,6 +230,57 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.finish_skills(result);
                 skills = None;
             }
+            if action.is_none()
+                && let Some(request) = app.actions.request.take()
+            {
+                use crate::actions::Request;
+                let run = matches!(request, Request::Run(_));
+                let started = match request {
+                    Request::Preview(a) => crate::actions::start_preview(a),
+                    // Only `--allow-writes` creates a permit, and only write mode lends it.
+                    Request::Run(a) => match app.actions.permit() {
+                        Some(permit) => crate::actions::start(a, permit),
+                        None => Err(crate::areas::homebrew::CollectionError::Invalid(
+                            "write mode is off",
+                        )),
+                    },
+                };
+                match started {
+                    Ok(worker) => action = Some((run, worker)),
+                    Err(error) if run => app.finish_action(Err(error), log.as_deref()),
+                    Err(error) => app.actions.finish_preview(Err(error)),
+                }
+            }
+            if let Some((run, worker)) = &action {
+                if *run && app.actions.cancel_requested {
+                    worker.cancel();
+                }
+                // A closed confirmation no longer needs its preview: dropping stops it.
+                if !*run
+                    && !matches!(
+                        app.actions.dialog,
+                        Some(crate::actions::Dialog::Confirm { .. })
+                    )
+                {
+                    action = None;
+                }
+            }
+            if let Some((run, worker)) = &action
+                && let Some(result) = worker.poll()
+            {
+                if *run {
+                    app.finish_action(result, log.as_deref());
+                } else {
+                    app.actions.finish_preview(result);
+                }
+                action = None;
+            }
+            if let Some(text) = app.actions.clipboard.take() {
+                use std::io::Write;
+                let backend = terminal.backend_mut();
+                backend.write_all(crate::actions::clipboard_sequence(&text).as_bytes())?;
+                backend.flush()?;
+            }
             terminal.draw(|frame| ui::render(frame, app))?;
             // Poll during collection, and wait for the next Docker refresh while its area
             // is open; otherwise block on input.
@@ -238,7 +292,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 || aws.is_some()
                 || kube.is_some()
                 || toolchains.is_some()
-                || docker.is_some();
+                || docker.is_some()
+                || action.is_some();
             let wait = if collecting {
                 // About one frame: results show up promptly; idle still blocks on input.
                 Some(std::time::Duration::from_millis(16))

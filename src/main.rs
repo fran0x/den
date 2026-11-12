@@ -13,7 +13,8 @@ const AFTER_HELP: &str = "\
 Without a source, Den inspects this machine; Tab switches Homebrew, Agents, Cloud, Docker \
 and Toolchains, Shift+Tab switches sections, / searches, ? shows help and q quits.
 
-Read-only: Den runs only brew info, missing, leaves and autoremove --dry-run, and docker \
+Read-only unless started with --allow-writes; even then, W turns writes on, x opens the \
+actions, and each one runs only after you confirm it with y. Otherwise Den runs only brew info, missing, leaves and autoremove --dry-run, and docker \
 container ls, image ls, volume ls and system df while the Docker area is open. Kubeconfig \
 and toolchain files are read, never used. Homebrew may fetch metadata.";
 
@@ -40,6 +41,10 @@ struct Cli {
     /// Start in Agents › Skills; Homebrew loads when opened
     #[arg(long)]
     skills: bool,
+
+    /// Allow write actions (upgrade, uninstall, cleanup); each still needs W, then y
+    #[arg(long, conflicts_with = "source")]
+    allow_writes: bool,
 
     #[command(flatten)]
     source: Source,
@@ -168,6 +173,7 @@ fn offline(label: &'static str) -> App {
 
 fn app(cli: Cli) -> io::Result<App> {
     let profile = cli.codex_profile;
+    let permit = den::actions::Permit::from_flag(cli.allow_writes);
     let (mut app, start) = match cli.source.mode() {
         Mode::Live => {
             let mut app = App::live_homebrew();
@@ -251,6 +257,7 @@ fn app(cli: Cli) -> io::Result<App> {
     if let Some(module) = start.or(cli.skills.then_some(Module::Agents)) {
         app.module = module;
     }
+    app.actions = den::actions::State::new(permit);
     Ok(app)
 }
 
@@ -299,6 +306,13 @@ mod tests {
             kind(&["--demo", "--codex-profile", "review"]),
             ErrorKind::ArgumentConflict
         );
+        // Writes only ever apply to this machine, never to offline data.
+        assert_eq!(
+            kind(&["--allow-writes", "--snapshot", "s.json"]),
+            ErrorKind::ArgumentConflict
+        );
+        assert!(parse(&["--allow-writes"]).unwrap().allow_writes);
+        assert!(!parse(&[]).unwrap().allow_writes);
         assert_eq!(kind(&["--project"]), ErrorKind::InvalidValue);
         assert_eq!(
             kind(&["--codex-profile", "../x"]),

@@ -5,6 +5,14 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Write actions, opt-in:** start Den with `--allow-writes`, press `W` (the top bar shows
+  WRITE), then `x` in Homebrew: upgrade or uninstall the selected package, update
+  Homebrew's data, remove unneeded dependencies, or clean up. Each action shows its exact
+  command and a dry run where Homebrew has one, and runs only on `y`. Uninstall is refused
+  while something needs the package; pinned packages are not upgraded. Esc or Ctrl-C
+  stops a running action, giving Homebrew 10 seconds to clean up. Results are logged to
+  `~/.local/state/den/actions.log` (time, command, result). Without the flag, `x` only
+  copies commands to the clipboard.
 - **Updates, offline:** Agents names a newer Codex or Claude Code when Homebrew installed
   it, from Homebrew's data or Codex's own update check (`~/.codex/version.json`).
   Toolchains marks commands Homebrew can update (`↑ 22.12.0`), and Homebrew's status line

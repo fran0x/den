@@ -92,7 +92,16 @@ terminal screenshots for visible layout changes.
 
 ## Security & Scope
 
-Den stays read-only. Production subprocesses use the existing bounded Homebrew runner:
+Den is read-only by default. Writes live only in `src/actions.rs`: a closed `Action` enum
+whose command lines are built from names checked by `Package::new`, a preview (dry run)
+where the tool has one, and a run that needs a `Permit` (created only by `--allow-writes`)
+while write mode is on (`W`), after an explicit `y`. Writes use `homebrew::run_write`:
+no shell, closed stdin, own process group, timeout, SIGTERM with a grace period before
+SIGKILL. Never add `--force`, `--ignore-dependencies`, `--zap`, sudo or free-form
+arguments; each new action needs known-answer tests of its command line, a smoke step
+with a fake tool, and SECURITY.md/README/guide updates. The action log
+(`$XDG_STATE_HOME/den/actions.log`) keeps time, command and result, never output.
+Reads use the existing bounded Homebrew runner:
 `brew info --json=v2 --installed`, `brew missing`, `brew leaves` and
 `brew autoremove --dry-run`. Keep fixed arguments, time/output limits and cancellation;
 never add removal/repair commands or execute inspected scripts, MCP servers or helpers.

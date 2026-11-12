@@ -41,6 +41,10 @@ impl<T: Send + 'static, E: From<std::io::Error> + Send + 'static> Worker<T, E> {
         self.join_on_drop = false;
         self
     }
+    /// Asks the work to stop without waiting for it; the result still arrives by `poll`.
+    pub fn cancel(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
     pub fn poll(&self) -> Option<Result<T, E>> {
         match self.receiver.try_recv() {
             Ok(value) => Some(value),

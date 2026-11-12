@@ -50,6 +50,28 @@ pub(crate) fn run_bounded(
             timeout,
             stdout,
             stderr: 64 * 1024,
+            grace: None,
+        },
+    )
+}
+
+/// A write action: like [`run_bounded`], but on cancel or timeout the process group is
+/// asked to stop (SIGTERM) and given `grace` before it is killed.
+#[cfg(unix)]
+pub(crate) fn run_write(
+    command: &mut std::process::Command,
+    cancel: &AtomicBool,
+    timeout: std::time::Duration,
+    grace: std::time::Duration,
+) -> Result<CommandOutput, CollectionError> {
+    unix::capture(
+        command,
+        cancel,
+        unix::Limits {
+            timeout,
+            stdout: 1024 * 1024,
+            stderr: 1024 * 1024,
+            grace: Some(grace),
         },
     )
 }
@@ -109,6 +131,9 @@ mod unix {
         pub timeout: Duration,
         pub stdout: usize,
         pub stderr: usize,
+        /// Writes only: on cancel or timeout, ask the process group to stop (SIGTERM)
+        /// and wait this long before killing it, so a package manager can clean up.
+        pub grace: Option<Duration>,
     }
     impl Default for Limits {
         fn default() -> Self {
@@ -116,7 +141,16 @@ mod unix {
                 timeout: Duration::from_secs(30),
                 stdout: super::super::MAX_INPUT_BYTES,
                 stderr: 64 * 1024,
+                grace: None,
             }
+        }
+    }
+
+    fn terminate(process: &Process) {
+        // SAFETY: the child was placed in its own process group using process_group(0);
+        // the negative PID addresses only that group.
+        unsafe {
+            libc::kill(-(process.0.id() as i32), libc::SIGTERM);
         }
     }
 
@@ -228,12 +262,25 @@ mod unix {
         nonblocking(&stderr)?;
         let (mut output, mut diagnostics) = (Vec::new(), Vec::new());
         let (mut stdout_done, mut stderr_done) = (false, false);
+        // Why and since when a write is being asked to stop.
+        let mut stopping: Option<(Instant, CollectionError)> = None;
         loop {
-            if cancel.load(Ordering::Relaxed) {
-                return Err(CollectionError::Cancelled);
-            }
-            if start.elapsed() >= limits.timeout {
-                return Err(CollectionError::Timeout);
+            let stop = if cancel.load(Ordering::Relaxed) {
+                Some(CollectionError::Cancelled)
+            } else if start.elapsed() >= limits.timeout {
+                Some(CollectionError::Timeout)
+            } else {
+                None
+            };
+            if let Some(reason) = stop {
+                match (limits.grace, &stopping) {
+                    (Some(_), None) => {
+                        terminate(&process);
+                        stopping = Some((Instant::now(), reason));
+                    }
+                    (Some(grace), Some((since, _))) if since.elapsed() < grace => {}
+                    _ => return Err(stopping.map_or(reason, |(_, first)| first)),
+                }
             }
             if !stdout_done {
                 stdout_done = drain(&mut stdout, &mut output, limits.stdout)?;
@@ -248,6 +295,9 @@ mod unix {
                 && stdout_done
                 && stderr_done
             {
+                if let Some((_, reason)) = stopping {
+                    return Err(reason);
+                }
                 return Ok(super::CommandOutput {
                     code: status.code(),
                     stdout: output,
@@ -283,6 +333,14 @@ mod unix {
                     io::stderr().write_all(&[b'x'; 8192]).unwrap();
                 }
                 "wait" => thread::sleep(Duration::from_secs(5)),
+                "ignore-term" => {
+                    // SAFETY: setting a signal disposition to SIG_IGN in this short-lived
+                    // child process; no handler code runs.
+                    unsafe {
+                        libc::signal(libc::SIGTERM, libc::SIG_IGN);
+                    }
+                    thread::sleep(Duration::from_secs(5));
+                }
                 _ => {}
             }
         }
@@ -301,6 +359,7 @@ mod unix {
                 timeout: Duration::from_secs(2),
                 stdout: 1024,
                 stderr: 1024,
+                grace: None,
             }
         }
 
@@ -347,6 +406,49 @@ mod unix {
                 Err(CollectionError::Invalid(_))
             ));
         }
+        /// Cancels after 300 ms, from another thread, and times the capture.
+        fn stopped(
+            mode: &str,
+            grace: Duration,
+        ) -> (
+            Result<super::super::CommandOutput, CollectionError>,
+            Duration,
+        ) {
+            let cancel = AtomicBool::new(false);
+            let start = Instant::now();
+            let result = thread::scope(|s| {
+                s.spawn(|| {
+                    thread::sleep(Duration::from_millis(300));
+                    cancel.store(true, Ordering::Relaxed);
+                });
+                capture(
+                    &mut fake(mode),
+                    &cancel,
+                    Limits {
+                        timeout: Duration::from_secs(20),
+                        grace: Some(grace),
+                        ..limits()
+                    },
+                )
+            });
+            (result, start.elapsed())
+        }
+
+        #[test]
+        fn a_write_is_asked_to_stop_before_it_is_killed() {
+            // SIGTERM ends this child at once: well inside an 8-second grace.
+            let (result, took) = stopped("wait", Duration::from_secs(8));
+            assert_eq!(result, Err(CollectionError::Cancelled));
+            assert!(took < Duration::from_secs(4), "{took:?}");
+            // A child that ignores SIGTERM is killed once the grace runs out.
+            let (result, took) = stopped("ignore-term", Duration::from_secs(1));
+            assert_eq!(result, Err(CollectionError::Cancelled));
+            assert!(
+                took >= Duration::from_millis(1200) && took < Duration::from_secs(4),
+                "{took:?}"
+            );
+        }
+
         #[test]
         fn timeout_kills_and_reaps_child() {
             let limits = Limits {

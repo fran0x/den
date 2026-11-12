@@ -64,6 +64,9 @@ links, missing dependencies, leaves and a cleanup preview.
 | `o` | Show Homebrew's original report |
 | `c` | Run the selected check now (live only, read-only) |
 
+`x` opens the actions for the selected package and for Homebrew; see
+[Making changes](#making-changes).
+
 ## Agents
 
 Codex and Claude Code, side by side. Every list has the same three columns: the name,
@@ -142,6 +145,33 @@ installed show its newer version, like `↑ 22.12.0`; nothing else is checked fo
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
+## Making changes
+
+Den is read-only unless you start it with `den --allow-writes`. Then:
+
+1. Press `W` to turn writes on. The top bar shows a red **WRITE** while they are on; `W`
+   again turns them off.
+2. In Homebrew, press `x` for the actions. The selected package can be upgraded (when a
+   newer version is known) or uninstalled; Homebrew as a whole can update its package data,
+   remove dependencies nothing needs, and clean up old versions and downloads.
+3. `Enter` shows what an action will do: the exact command and, where Homebrew has one,
+   a dry run of it.
+4. `y` runs it. Nothing else does: not `Enter`, not a second `x`.
+
+While an action runs, `Esc` or `Ctrl-C` stops it, giving Homebrew 10 seconds to clean up.
+Afterwards Den reloads Homebrew and logs the action to `~/.local/state/den/actions.log`:
+the time, the command and whether it worked, never its output.
+
+What Den will not do:
+
+- Uninstall a package something else needs, or upgrade a pinned one.
+- Run `brew update` on its own: refreshing Homebrew's data is an action you choose.
+- Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
+  your password, the action fails quickly and you can run the command yourself.
+
+Without `--allow-writes`, `x` still works: `c` copies an action's command to the clipboard,
+if your terminal allows it, so you can run it yourself.
+
 ## What Den reads, and what it never does
 
 Den only looks. The [README](../README.md#read-only-by-design) lists the few commands it
@@ -162,6 +192,8 @@ Files that link elsewhere are reported with their target, not followed.
 
 ## Small print
 
+- **Write mode:** `W` turns it on and off, only when Den was started with
+  `--allow-writes`; see [Making changes](#making-changes).
 - **Searching:** `Backspace` deletes, `Ctrl-U` clears, `Enter` or `Esc` finishes and keeps
   the search. `Tab` and `Shift+Tab` also finish it.
 - **Going back:** `Esc` (or `Backspace`) steps back through your earlier selections and

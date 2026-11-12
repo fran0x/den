@@ -1,3 +1,4 @@
+mod actions;
 mod common;
 mod theme;
 pub use theme::{Theme, set_theme};
@@ -24,6 +25,28 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, app: &mut App) {
+    set_write_mode(app.actions.on());
+    screen(frame, app);
+    let area = frame.area();
+    if area.width < 30 || area.height < 10 {
+        return;
+    }
+    if app.actions.dialog.is_some() {
+        actions::render(frame, app);
+    } else if let Some(notice) = &app.actions.notice {
+        // Replaces the status line until the next key.
+        frame.render_widget(
+            Paragraph::new(safe_text(notice)).style(theme::theme().warn()),
+            Rect {
+                y: area.y + 1,
+                height: 1,
+                ..area
+            },
+        );
+    }
+}
+
+fn screen(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
     if area.width < 30 || area.height < 10 {
         frame.render_widget(
@@ -90,7 +113,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         if app.searching {
             actions(true)
         } else if app.is_homebrew() {
-            "a:tools/all Tab:area Shift+Tab:section"
+            "a:tools/all x:actions Tab:area Shift+Tab:section"
         } else {
             "f:type Tab:area"
         },

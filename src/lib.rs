@@ -7,6 +7,8 @@
 //! release, including patch releases, so do not depend on it.
 
 #[doc(hidden)]
+pub mod actions;
+#[doc(hidden)]
 pub mod app;
 #[doc(hidden)]
 pub mod areas;

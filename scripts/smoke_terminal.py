@@ -483,6 +483,61 @@ else:
     assert history.count(['info', '--json=v2', '--installed']) == 2
     print("PASS: responsive on-demand diagnostics, expected missing exit, cleanup failure, freshness and exact dry-run argv")
 
+    # Write actions: a fake brew records every argv. Without --allow-writes nothing but
+    # `info` may run; with it, W, x, the preview and y run exactly the chosen command.
+    calls.unlink()
+    state = Path(temporary) / "state"
+    fake.write_text(f"#!{sys.executable}\n" + """
+import json, os, pathlib, sys
+for name in ['HOMEBREW_NO_AUTO_UPDATE', 'HOMEBREW_NO_ANALYTICS']:
+    assert os.environ[name] == '1', name
+args = sys.argv[1:]
+calls = pathlib.Path(__file__).with_name('calls')
+history = json.loads(calls.read_text()) if calls.exists() else []
+history.append(args)
+calls.write_text(json.dumps(history))
+if args == ['info', '--json=v2', '--installed']:
+    # After an action Den reloads; a different inventory proves the reload finished.
+    acted = ['cleanup'] in history
+    print(pathlib.Path('fixtures/brew.json' if acted else 'fixtures/brew-diagnostics.json').read_text())
+elif args == ['cleanup', '--dry-run']:
+    print('Would remove: old-download.tar.gz (1MB)')
+elif args == ['cleanup']:
+    print('Removing: old-download.tar.gz')
+else:
+    sys.exit(3)
+""")
+    write_env = dict(isolated_env, XDG_STATE_HOME=str(state))
+    run_pty([binary], env=write_env, steps=[
+        (b"Loaded 8", b"W"),
+        (b"--allow-writes", b"x"),
+        (b"Actions", [b"\x1b[F", b"\r"]),
+        (b"Not run: writes are off", b"y"),
+        (b"--allow-writes", b"\x1b"),
+        (b"Loaded 8", b"q"),
+    ])
+    assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
+    assert not state.exists(), "nothing ran, so nothing is logged"
+    calls.unlink()
+    run_pty([binary, "--allow-writes"], env=write_env, steps=[
+        (b"Loaded 8", b"W"),
+        (b"WRITE", b"x"),
+        (b"Actions", [b"\x1b[F", b"\r"]),
+        # Enter never confirms; only y does.
+        (b"Would remove: old-download", b"\ry"),
+        (b"Done", b"\r"),
+        (b"Loaded 7", b"q"),
+    ])
+    assert json.loads(calls.read_text()) == [
+        ["info", "--json=v2", "--installed"],
+        ["cleanup", "--dry-run"],
+        ["cleanup"],
+        ["info", "--json=v2", "--installed"],
+    ], calls.read_text()
+    log = (state / "den" / "actions.log").read_text()
+    assert log.endswith("\tbrew cleanup\tDone\n") and "old-download" not in log, log
+    print("PASS: write actions need --allow-writes, W and y; exact argv, preview first, logged without output")
+
 build = subprocess.run(["cargo", "test", "--lib", "--no-run", "--message-format=json"],
                        check=True, capture_output=True, text=True)
 artifacts = [json.loads(line) for line in build.stdout.splitlines()]

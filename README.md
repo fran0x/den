@@ -8,7 +8,8 @@
 
 Den shows what is installed and how it is configured: Homebrew packages and their
 dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
-toolchains. It reads; it never installs, removes, logs in or runs what it finds.
+toolchains. It reads; unless you allow writes, it never installs, removes, logs in or runs
+what it finds.
 
 ![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
 
@@ -39,7 +40,7 @@ system `python3` hiding Homebrew's.
 
 ![Den showing which commands win on PATH](docs/images/toolchains.svg)
 
-## Read-only by design
+## Read-only by default
 
 - **Fixed commands only.** `brew info`, `missing`, `leaves` and `autoremove --dry-run`;
   `docker container ls`, `image ls`, `volume ls` and `system df`. Each is bounded in time
@@ -51,8 +52,12 @@ system `python3` hiding Homebrew's.
   as they are read or kept only as "set". Untrusted text is sanitized before display.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
+- **Writes are opt-in.** Upgrading, uninstalling and cleaning up Homebrew packages needs
+  `den --allow-writes`, then `W` to turn writes on (the top bar shows WRITE), then `y` to
+  confirm each action after its preview. Without the flag, `x` only copies the commands.
 
-Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does).
+Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
+actions are in [Making changes](docs/GUIDE.md#making-changes).
 
 ## Use
 
@@ -70,6 +75,7 @@ den --demo
 | `--project DIR` | Project for Agents (default: the current folder) |
 | `--codex-profile NAME` | Inspect `$CODEX_HOME/NAME.config.toml` |
 | `--skills` | Start in Agents; Homebrew loads when opened |
+| `--allow-writes` | Allow Homebrew actions; `W` turns them on, `y` confirms each one |
 | `--demo` | Built-in sample data; nothing on this machine is read |
 | `--help` | All flags, including the offline sources |
 
