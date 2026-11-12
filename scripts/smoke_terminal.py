@@ -239,7 +239,9 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     assert not calls.exists(), "snapshot diagnostics must never execute Homebrew"
     print("PASS: snapshot diagnostic drill-down, jump/back, and live-check isolation")
     run_pty([binary, "--skills-fixture", "fixtures/skills"], env=isolated_env, steps=[
+        # Wait for the end, then one page back: frames between Page Downs may be skipped.
         (b"Findings (", b"\x1b[6~" * 6),
+        ("End · PgUp to go back".encode(), b"\x1b[5~"),
         (b"Codex discovery coverage", b"\t"),
         ("Cloud  › AWS".encode(), b"\t"),
         ("Docker  › Containers".encode(), b"\t"),
@@ -496,6 +498,7 @@ if "--live" in sys.argv[2:]:
     print("PASS: real Homebrew inventory and on-demand cleanup preview render and exit cleanly")
     run_pty([binary, "--project", str(Path.cwd()), "--skills"], steps=[
         (b" skill", b"\x1b[6~" * 40),
+        ("End · PgUp to go back".encode(), b"\x1b[5~"),
         (b"Codex discovery coverage", b"q"),
     ])
     print("PASS: real Skills discovery, instructions, coverage and terminal restoration")
