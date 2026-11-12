@@ -196,11 +196,17 @@ fn brew_snapshots_use_the_same_parser_and_enforce_limits() {
 #[test]
 fn search_and_tools_view_compose_without_changing_existing_controls() {
     let mut app = app();
+    // Homebrew keeps no request record for casks; one that nothing installed needs is
+    // a tool.
     app.query = "editor widget".into();
     app.refresh();
-    assert!(app.visible.is_empty()); // The widget cask has no request record: not a tool.
-    key(&mut app, KeyCode::Char('a')); // All
     assert_eq!(app.resource().unwrap().id, "brew:cask:example/tools/widget");
+    // A dependency is not a tool: Tools hides it, All shows it.
+    app.query = "pcre2".into();
+    app.refresh();
+    assert!(app.visible.is_empty());
+    key(&mut app, KeyCode::Char('a')); // All
+    assert_eq!(app.resource().unwrap().name, "pcre2");
     key(&mut app, KeyCode::Char('f')); // Homebrew has no type filter.
     assert_eq!(app.filter, None);
     assert_eq!(app.visible.len(), 1);

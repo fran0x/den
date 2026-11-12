@@ -184,7 +184,11 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
             let tail = if app.is_homebrew() {
                 let users = app.graph.recorded_users(index);
                 let intent = r.intent();
-                let mut text = intent.label().to_owned();
+                let mut text = r
+                    .homebrew
+                    .as_ref()
+                    .map_or(intent.label(), |m| m.intent_label())
+                    .to_owned();
                 if users > 0 {
                     let required = format!("required by {users}");
                     let full = format!("{text} · {required}");
@@ -218,7 +222,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                 app.selected == Some(row),
             );
             // Tools stand out in bold, so All still shows what was installed on request.
-            if app.is_homebrew() && app.is_tool(r) {
+            if app.is_homebrew() && app.is_tool(index) {
                 item.style(Style::default().add_modifier(Modifier::BOLD))
             } else {
                 item
@@ -255,10 +259,7 @@ fn overview(app: &App) -> String {
     let Some(r) = app.resource() else {
         return "Select a resource to inspect its details.".into();
     };
-    let intent = r
-        .homebrew
-        .as_ref()
-        .map_or("Unknown", |m| m.intent().label());
+    let intent = r.homebrew.as_ref().map_or("Unknown", |m| m.intent_label());
     let version_label = if matches!(&r.homebrew, Some(HomebrewMetadata::Cask { .. })) {
         "Homebrew-recorded version"
     } else {

@@ -174,6 +174,25 @@ impl HomebrewMetadata {
             }
         )
     }
+    /// False for casks: Homebrew keeps no installed-on-request record for them.
+    pub fn request_recorded(&self) -> bool {
+        match self {
+            Self::Formula { .. } => true,
+            Self::Cask {
+                installed_on_request,
+                installed_as_dependency,
+                ..
+            } => installed_on_request.is_some() || installed_as_dependency.is_some(),
+        }
+    }
+    /// The intent as shown: "No request record" where Homebrew keeps none.
+    pub fn intent_label(&self) -> &'static str {
+        if self.request_recorded() {
+            self.intent().label()
+        } else {
+            "No request record"
+        }
+    }
     pub fn intent(&self) -> InstallationIntent {
         match self {
             Self::Formula { installed, .. } => {

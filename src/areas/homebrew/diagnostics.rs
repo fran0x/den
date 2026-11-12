@@ -361,9 +361,7 @@ pub fn describe(
                 format!(
                     "Informational: no observed dependents in the selected evidence view.\n{}\nIntent: {} (unchanged).\nIncomplete metadata and unresolved references limit this observation. It does not imply unused, autoremove-eligible, or safe to remove. Enter: package; Backspace: groups.",
                     r.id,
-                    r.homebrew
-                        .as_ref()
-                        .map_or("Unknown", |m| m.intent().label())
+                    r.homebrew.as_ref().map_or("Unknown", |m| m.intent_label())
                 ),
             )
         }

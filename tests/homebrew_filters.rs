@@ -42,15 +42,17 @@ fn draw(app: &mut App, w: u16, h: u16) -> String {
 fn homebrew_starts_with_tools_and_counts_follow_search() {
     let mut a = app();
     assert!(!a.show_all);
-    assert_eq!(names(&a), ["ripgrep", "requested-app"]);
-    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 2 });
+    assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
+    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 3 });
     key(&mut a, KeyCode::Char('a'));
     assert!(a.show_all);
     assert_eq!(a.visible.len(), 7);
-    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 2 }); // Counts ignore the view.
+    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 3 }); // Counts ignore the view.
+    // The widget formula is a dependency; the widget cask has no request record and
+    // nothing needs it, so it is a tool.
     a.query = "widget".into();
     a.refresh();
-    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 2, tools: 0 });
+    assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 2, tools: 1 });
 }
 
 fn evidence_fixture() -> Inventory {
@@ -139,7 +141,7 @@ fn f_does_not_filter_types_and_a_stays_text_during_search() {
     let mut a = app();
     key(&mut a, KeyCode::Char('f'));
     assert_eq!(a.filter, None);
-    assert_eq!(names(&a), ["ripgrep", "requested-app"]);
+    assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
     key(&mut a, KeyCode::Char('a'));
     assert_eq!(a.visible.len(), 7);
     key(&mut a, KeyCode::Char('/'));
@@ -189,7 +191,7 @@ fn refresh_keeps_the_view_and_failure_retains_counts_and_selection() {
     let mut a = App::live_homebrew();
     a.begin_collection();
     a.finish_collection(Ok(inventory()));
-    assert_eq!(names(&a), ["ripgrep", "requested-app"]);
+    assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
     key(&mut a, KeyCode::Char('a'));
     key(&mut a, KeyCode::Char('j'));
     let selected = a.resource().unwrap().id.clone();
@@ -214,12 +216,12 @@ fn view_counts_and_row_evidence_are_visible_at_supported_sizes() {
     for (w, h) in [(80, 24), (120, 32), (160, 45)] {
         let mut a = app();
         let screen = draw(&mut a, w, h);
-        assert!(screen.contains("[Tools 2] · All 7"), "{w}: {screen}");
+        assert!(screen.contains("[Tools 3] · All 7"), "{w}: {screen}");
         assert!(screen.lines().last().unwrap().contains("a:tools/all"));
-        assert_eq!(names(&a), ["ripgrep", "requested-app"]);
+        assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
         key(&mut a, KeyCode::Char('a'));
         let screen = draw(&mut a, w, h);
-        assert!(screen.contains("Tools 2 · [All 7]"));
+        assert!(screen.contains("Tools 3 · [All 7]"));
         assert!(!screen.contains("Type:") && !screen.contains("f:type"));
         // Narrow side-by-side rows keep "required by" rather than the intent word.
         let pcre2 = if w == 120 {
@@ -265,9 +267,10 @@ fn tools_are_bold_and_casks_are_bracketed() {
             .unwrap_or_else(|| panic!("{name} row"))
     };
     let bold = |y: u16| buffer[(4, y)].modifier.contains(Modifier::BOLD);
-    // ripgrep and the requested-app cask are tools; pcre2 and the widget cask are not.
-    assert!(bold(row("ripgrep")) && bold(row("[requested-app]")));
-    assert!(!bold(row("pcre2")) && !bold(row("[widget]")));
+    // ripgrep and both casks are tools (the widget cask has no request record, and
+    // nothing needs it); pcre2 is a dependency.
+    assert!(bold(row("ripgrep")) && bold(row("[requested-app]")) && bold(row("[widget]")));
+    assert!(!bold(row("pcre2")));
 }
 
 #[test]
@@ -275,6 +278,7 @@ fn empty_tools_view_offers_all_packages() {
     let mut raw: serde_json::Value =
         serde_json::from_slice(include_bytes!("../fixtures/brew.json")).unwrap();
     raw["formulae"][0]["installed"][0]["installed_on_request"] = false.into();
+    raw["casks"][0]["installed_as_dependency"] = true.into();
     raw["casks"][1]["installed_on_request"] = false.into();
     let mut a = App::new(
         homebrew::parse(&serde_json::to_vec(&raw).unwrap()).unwrap(),
@@ -329,4 +333,31 @@ fn a_revision_bump_is_part_of_the_latest_version() {
     let mut a = App::new(inventory, "Homebrew snapshot");
     key(&mut a, KeyCode::Char('a'));
     assert!(draw(&mut a, 140, 32).contains("as of last brew update · pinned"));
+}
+
+#[test]
+fn a_cask_another_package_needs_is_not_a_tool() {
+    // Like real Homebrew data: neither cask has a request record. widget declares that
+    // it needs helper-app, so only widget is a tool.
+    let mut raw: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../fixtures/brew.json")).unwrap();
+    let mut helper = raw["casks"][1].clone();
+    helper["token"] = "helper-app".into();
+    helper["full_token"] = "helper-app".into();
+    helper
+        .as_object_mut()
+        .unwrap()
+        .remove("installed_on_request");
+    raw["casks"].as_array_mut().unwrap().push(helper);
+    raw["casks"][0]["depends_on"]["cask"] = serde_json::json!(["helper-app"]);
+    let mut a = App::new(
+        homebrew::parse(&serde_json::to_vec(&raw).unwrap()).unwrap(),
+        "Homebrew snapshot",
+    );
+    assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
+    key(&mut a, KeyCode::Char('a'));
+    assert!(names(&a).contains(&"helper-app"));
+    // Neither claims to be "Requested": Homebrew has no record either way.
+    let screen = draw(&mut a, 160, 45);
+    assert!(screen.contains("No request record"), "{screen}");
 }

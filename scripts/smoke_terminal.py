@@ -180,25 +180,25 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
             (b"Inventory", b"j"),
-            (b"> [requested-app]", b"\t"),
+            (b"> [widget]", b"\t"),
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
             ("Toolchains  › On PATH".encode(), b"\t"),
-            (b"> [requested-app]", b"\x1b[Z"),
+            (b"> [widget]", b"\x1b[Z"),
             (b"Diagnostics", b"\t"),
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
             ("Toolchains  › On PATH".encode(), b"\t"),
             (b"Diagnostics", b"\x1b[Z"),
-            (b"> [requested-app]", b"q"),
+            (b"> [widget]", b"q"),
         ])
     assert not calls.exists(), "area switching must preserve snapshot isolation"
     print("PASS: Tab switches areas and Shift+Tab sections, restoring selection at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
-            (b"[Tools 2]", b"a"),
+            (b"[Tools 3]", b"a"),
             (b"[All 7]", b"\t"),
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
@@ -223,7 +223,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: passive dependency trees in both directions with evidence/keg context at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
-            (b"[Tools 5]", b"\r\x1b[Cgvz2a"),
+            (b"[Tools 7]", b"\r\x1b[Cgvz2a"),
             (b"[All 26]", b"q"),
         ])
         text = visible_text(output)

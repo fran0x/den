@@ -39,7 +39,9 @@ no `~/.aws`, …), its list says so and `r` tries again.
 
 ## Homebrew
 
-**Packages** starts with your **Tools**: what you installed on purpose. Press `a` to see
+**Packages** starts with your **Tools**: what you installed on purpose. Homebrew keeps no
+record of why a cask was installed, so a cask counts as a tool unless another installed
+package needs it; its panel says **No request record**. Press `a` to see
 **All** packages, dependencies included; your tools stay in bold. Casks appear in brackets,
 like `[firefox]`.
 

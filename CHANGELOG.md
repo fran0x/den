@@ -5,6 +5,10 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Fixed: casks missing from Tools.** Homebrew keeps no installed-on-request record for
+  casks, so every cask showed as Unknown and appeared only under All. A cask now counts as
+  a tool unless another installed package needs it, and says **No request record**
+  instead of Unknown.
 - **Write actions, opt-in:** start Den with `--allow-writes`, press `W` (the top bar shows
   WRITE), then `x` in Homebrew: upgrade or uninstall the selected package, update
   Homebrew's data, remove unneeded dependencies, or clean up. Each action shows its exact

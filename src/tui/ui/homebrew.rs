@@ -93,7 +93,7 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
             resource
                 .homebrew
                 .as_ref()
-                .map_or("Unknown", |m| m.intent().label())
+                .map_or("Unknown", |m| m.intent_label())
         ),
     ];
     if let Some(m) = &resource.homebrew

@@ -183,7 +183,7 @@ impl App {
         // Related packages may be hidden by the current query or Tools view. Back restores that context.
         self.query.clear();
         self.filter = None;
-        self.show_all |= !self.is_tool(&self.inventory.resources[target.node]);
+        self.show_all |= !self.is_tool(target.node);
         self.refresh();
         self.selected = self.visible.iter().position(|&node| node == target.node);
         self.explorer.select(&self.graph, Some(target.node));
@@ -339,10 +339,21 @@ impl App {
         ));
         crate::inventory::matches_query(&self.query, &haystack)
     }
-    /// A tool is a package Homebrew recorded as installed on request. Missing or
-    /// conflicting records are not guessed, so those packages appear only in All.
-    pub fn is_tool(&self, resource: &Resource) -> bool {
+    /// A tool is a package Homebrew recorded as installed on request, or a cask that
+    /// nothing installed needs: Homebrew keeps no request record for casks, and a cask is
+    /// only ever installed as a dependency through another package's declaration. Other
+    /// missing or conflicting records are not guessed, so those packages appear only in
+    /// All. A cut-short graph cannot rule dependents out, so casks then stay out too.
+    pub fn is_tool(&self, index: usize) -> bool {
+        let resource = &self.inventory.resources[index];
         resource.intent() == InstallationIntent::Requested
+            || (resource.kind == ResourceKind::Cask
+                && resource
+                    .homebrew
+                    .as_ref()
+                    .is_some_and(|m| !m.request_recorded())
+                && !self.graph.truncated
+                && !self.graph.needed(index))
     }
     /// True when the Homebrew inventory is limited to Tools.
     pub fn tools_only(&self) -> bool {
@@ -351,14 +362,15 @@ impl App {
     /// Counts for the search scope, independent of Tools/All.
     pub fn homebrew_counts(&self) -> HomebrewCounts {
         let mut counts = HomebrewCounts::default();
-        for resource in self
+        for (index, _) in self
             .inventory
             .resources
             .iter()
-            .filter(|r| self.matches_scope(r))
+            .enumerate()
+            .filter(|(_, r)| self.matches_scope(r))
         {
             counts.all += 1;
-            counts.tools += usize::from(self.is_tool(resource));
+            counts.tools += usize::from(self.is_tool(index));
         }
         counts
     }
@@ -371,7 +383,7 @@ impl App {
             .iter()
             .enumerate()
             .filter_map(|(i, r)| {
-                (self.matches_scope(r) && (!self.tools_only() || self.is_tool(r))).then_some(i)
+                (self.matches_scope(r) && (!self.tools_only() || self.is_tool(i))).then_some(i)
             })
             .collect();
         self.selected = previous

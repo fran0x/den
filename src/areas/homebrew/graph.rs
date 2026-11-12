@@ -422,6 +422,23 @@ impl Graph {
         users.len()
     }
 
+    /// True when another installed package needs `node` at run time: a recorded
+    /// reference, or a current required or recommended declaration. Casks declare their
+    /// dependencies only this way (`depends_on`), so "required by" alone misses them.
+    pub fn needed(&self, node: usize) -> bool {
+        self.reverse
+            .get(node)
+            .into_iter()
+            .flatten()
+            .map(|&index| &self.edges[index])
+            .any(|edge| {
+                edge.from != node
+                    && (edge.provenance.evidence() == Evidence::Recorded
+                        || edge.provenance.traversable())
+                    && self.target_state(edge).is_some()
+            })
+    }
+
     /// Unknown/missing target versions are never silently replaced by a different keg.
     pub fn target_state(&self, edge: &Edge) -> Option<Installation> {
         let Resolution::Installed(node) = edge.target else {

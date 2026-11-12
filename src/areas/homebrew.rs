@@ -235,10 +235,14 @@ fn resource(
     description: Option<String>,
     metadata: HomebrewMetadata,
 ) -> Resource {
-    let reason = format!(
-        "{} according to Homebrew installation records; missing or conflicting evidence is Unknown.",
-        metadata.intent().label()
-    );
+    let reason = if metadata.request_recorded() {
+        format!(
+            "{} according to Homebrew installation records; missing or conflicting evidence is Unknown.",
+            metadata.intent().label()
+        )
+    } else {
+        "Homebrew keeps no installed-on-request record for casks; a cask nothing installed needs is listed under Tools.".into()
+    };
     Resource {
         id,
         name,
