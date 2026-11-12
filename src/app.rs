@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::{
-    diagnostics::{Check, CheckState, Health, Item, Report, Tab, View},
-    explorer::{Explorer, Section},
-    graph::{Graph, Installation},
-    homebrew::CollectionError,
+    areas::homebrew::CollectionError,
+    areas::homebrew::diagnostics::{Check, CheckState, Health, Item, Report, Tab, View},
+    areas::homebrew::explorer::{Explorer, Section},
+    areas::homebrew::graph::{Graph, Installation},
     inventory::{InstallationIntent, Inventory, Resource, ResourceKind, safe_text},
 };
 
@@ -58,17 +58,17 @@ pub struct HomebrewCounts {
 }
 
 pub struct App {
-    pub presentation: crate::presentation::Presentation,
+    pub presentation: crate::tui::presentation::Presentation,
     pub module: Module,
-    pub skills: crate::skills::state::State,
-    pub codex: crate::codex::state::State,
-    pub claude: crate::claude::state::State,
-    pub agents: crate::agents::State,
-    pub aws: crate::aws::state::State,
-    pub kube: crate::kube::state::State,
+    pub skills: crate::areas::agents::skills::state::State,
+    pub codex: crate::areas::agents::codex::state::State,
+    pub claude: crate::areas::agents::claude::state::State,
+    pub agents: crate::areas::agents::State,
+    pub aws: crate::areas::cloud::aws::state::State,
+    pub kube: crate::areas::cloud::kube::state::State,
     pub cloud: CloudSection,
-    pub toolchains: crate::toolchains::state::State,
-    pub docker: crate::docker::state::State,
+    pub toolchains: crate::areas::toolchains::state::State,
+    pub docker: crate::areas::docker::state::State,
     pub inventory: Inventory,
     pub graph: Graph,
     pub explorer: Explorer,
@@ -105,17 +105,17 @@ impl App {
         let graph = Graph::build(&inventory);
         let health = Health::build(&graph);
         let mut app = Self {
-            presentation: crate::presentation::Presentation::default(),
+            presentation: crate::tui::presentation::Presentation::default(),
             module: Module::Homebrew,
-            skills: crate::skills::state::State::default(),
-            codex: crate::codex::state::State::default(),
-            claude: crate::claude::state::State::default(),
-            agents: crate::agents::State::default(),
-            aws: crate::aws::state::State::default(),
-            kube: crate::kube::state::State::default(),
+            skills: crate::areas::agents::skills::state::State::default(),
+            codex: crate::areas::agents::codex::state::State::default(),
+            claude: crate::areas::agents::claude::state::State::default(),
+            agents: crate::areas::agents::State::default(),
+            aws: crate::areas::cloud::aws::state::State::default(),
+            kube: crate::areas::cloud::kube::state::State::default(),
             cloud: CloudSection::default(),
-            toolchains: crate::toolchains::state::State::default(),
-            docker: crate::docker::state::State::default(),
+            toolchains: crate::areas::toolchains::state::State::default(),
+            docker: crate::areas::docker::state::State::default(),
             graph,
             health,
             diagnostics: View::default(),
@@ -172,7 +172,7 @@ impl App {
         }
         self.remember();
         // Packages have no inspector: select the package in the list; Back returns.
-        self.presentation.page = crate::presentation::Page::Browse;
+        self.presentation.page = crate::tui::presentation::Page::Browse;
         self.diagnostics = View::default();
         // Related packages may be hidden by the current query or Tools view. Back restores that context.
         self.query.clear();
@@ -497,7 +497,7 @@ impl App {
     pub fn finish_check(
         &mut self,
         check: Check,
-        result: Result<crate::homebrew::CommandOutput, CollectionError>,
+        result: Result<crate::areas::homebrew::CommandOutput, CollectionError>,
         epoch: u64,
     ) {
         self.checks[check.index()] = CheckState {

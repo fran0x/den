@@ -3,8 +3,9 @@
 //! When a tool or its configuration is missing, each area says so once, in the list:
 //! no repeated message in the status line or panel, and no zero counters.
 use den::{
-    app::App, aws, claude, codex, docker, homebrew::CollectionError, inventory::Inventory,
-    presentation::Destination, ui,
+    app::App, areas::agents::claude, areas::agents::codex, areas::cloud::aws, areas::docker,
+    areas::homebrew::CollectionError, inventory::Inventory, tui::presentation::Destination,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};

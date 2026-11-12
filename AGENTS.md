@@ -8,17 +8,16 @@ Keep changes within the requested scope.
 
 | Location | Responsibility |
 | --- | --- |
-| `src/main.rs`, `src/terminal.rs` | CLI arguments, terminal lifecycle and collection/event loop |
-| `src/app.rs` | Homebrew application state, refresh and diagnostic requests |
-| `src/presentation.rs`, `src/presentation/location.rs` | Shared section/inspector navigation and bounded per-section Back history |
-| `src/ui.rs`, `src/ui/` | Rendering, layout, focused action hints and contextual help |
+| `src/main.rs` | CLI arguments and choosing live or offline sources |
+| `src/app.rs`, `src/listing.rs`, `src/status.rs` | Application state; shared list state (selection, search, refresh); the typed row status (Ready, Problem, Off, Installed) |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
-| `src/homebrew.rs`, `src/homebrew/` | Homebrew normalization, bounded subprocesses and reconciliation tests |
-| `src/graph.rs`, `src/explorer.rs`, `src/diagnostics.rs`, `src/diagnostics/` | Dependency evidence, tree projection and diagnostic interpretation |
-| `src/skills.rs`, `src/skills/` | Skill models, bounded discovery, metadata, filesystem access and state |
-| `src/codex.rs`, `src/codex/` | Configuration, instructions, privacy, MCP models/normalization and state |
-| `src/aws.rs`, `src/kube.rs`, `src/docker.rs`, `src/toolchains.rs` (each with state) | Cloud, Docker and Toolchains collectors |
-| `src/listing.rs`, `src/status.rs` | Shared list state (selection, search, refresh) for those areas, and the typed row status (Ready, Problem, Off, Installed) |
+| `src/tui/` | Terminal lifecycle and event loop (`terminal`), split escape sequences (`keys`), section/inspector navigation and Back history (`presentation`), rendering and help (`ui/`) |
+| `src/areas/homebrew/` | Homebrew normalization, bounded subprocesses, dependency graph, tree projection, diagnostics and reconciliation tests |
+| `src/areas/agents/` | Rows matched across Codex and Claude Code (`agents.rs`); `claude/`, `codex/`, `skills/` collectors |
+| `src/areas/cloud/` | AWS and Kubernetes collectors |
+| `src/areas/docker/`, `src/areas/toolchains/` | Docker and Toolchains collectors |
+
+Each area module is `name.rs` beside a `name/` folder (no `mod.rs`; `clippy::mod_module_files` enforces it).
 
 The `den` library is internal (published only as part of `den-tui`): every module is
 `#[doc(hidden)]` and has no stable API; keep new modules hidden too.
@@ -28,7 +27,7 @@ PTY smoke harness in `scripts/smoke_terminal.py`. Domain models stay in their ex
 modules; do not funnel Codex/Skills models into the original snapshot resource type.
 Browsing keeps input in the inventory and updates a passive information panel.
 Tab switches areas (Homebrew / Agents / Cloud / Docker / Toolchains) and Shift+Tab sections. Agents shows Codex and
-Claude Code side by side (`src/agents.rs` matches their results into rows; collectors and
+Claude Code side by side (`src/areas/agents.rs` matches their results into rows; collectors and
 privacy rules stay per tool). There are no inspectors: the Agents information panel stacks
 every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `]`.
 
@@ -108,7 +107,7 @@ toggles and trust flag; never surface its account or session data. Claude creden
 helpers stay withheld and hooks are never run.
 
 AWS: keep only section and key names from the credentials file, never values; show
-config values only from the allowlist in `src/aws.rs`; never read SSO or CLI caches or
+config values only from the allowlist in `src/areas/cloud/aws.rs`; never read SSO or CLI caches or
 call AWS. Account IDs and role ARNs are shown in full by decision.
 
 Kubernetes: read kubeconfig files only (`KUBECONFIG` or `~/.kube/config`); parse tokens,

@@ -2,13 +2,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
-    agents::Section,
     app::App,
-    claude::{self, Kind, Status},
-    codex,
+    areas::agents::Section,
+    areas::agents::claude::{self, Kind, Status},
+    areas::agents::codex,
     inventory::Inventory,
-    presentation::Destination,
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};

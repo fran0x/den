@@ -3,9 +3,10 @@ use std::{env, io, path::PathBuf, process::ExitCode};
 use clap::{Args, Parser};
 use den::{
     app::{App, CloudSection, Module},
-    homebrew,
+    areas::homebrew,
     inventory::{Inventory, safe_text},
-    source, terminal,
+    source,
+    tui::terminal,
 };
 
 const AFTER_HELP: &str = "\
@@ -129,7 +130,7 @@ impl Source {
 }
 
 fn profile(name: &str) -> Result<String, String> {
-    if den::codex::identifier(name) {
+    if den::areas::agents::codex::identifier(name) {
         Ok(name.to_owned())
     } else {
         Err("use up to 64 letters, digits, '-' or '_'".into())
@@ -150,7 +151,7 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> io::Result<()> {
     let mut app = app(cli)?;
-    den::ui::set_theme(den::ui::Theme::from_env());
+    den::tui::ui::set_theme(den::tui::ui::Theme::from_env());
     terminal::run(&mut app)
 }
 
@@ -175,12 +176,18 @@ fn app(cli: Cli) -> io::Result<App> {
                 None => env::current_dir()?,
             };
             app.codex
-                .configure(den::codex::Context::local(project.clone(), profile)?);
-            app.claude.configure(den::claude::Context::local(project)?);
-            app.aws.configure(den::aws::Context::local()?);
-            app.kube.configure(den::kube::Context::local());
-            app.toolchains.configure(den::toolchains::Context::local());
-            app.docker.configure(den::docker::Context::local());
+                .configure(den::areas::agents::codex::Context::local(
+                    project.clone(),
+                    profile,
+                )?);
+            app.claude
+                .configure(den::areas::agents::claude::Context::local(project)?);
+            app.aws.configure(den::areas::cloud::aws::Context::local()?);
+            app.kube
+                .configure(den::areas::cloud::kube::Context::local());
+            app.toolchains
+                .configure(den::areas::toolchains::Context::local());
+            app.docker.configure(den::areas::docker::Context::local());
             (app, None)
         }
         Mode::Demo => (App::new(source::demo()?, "synthetic demo"), None),
@@ -197,42 +204,47 @@ fn app(cli: Cli) -> io::Result<App> {
         ),
         Mode::Skills(path) => {
             let mut app = offline("fixture (Homebrew unavailable)");
-            app.skills.configure(den::skills::Config::fixture(&path)?);
+            app.skills
+                .configure(den::areas::agents::skills::Config::fixture(&path)?);
             (app, Some(Module::Agents))
         }
         Mode::Codex(path) => {
             let mut app = offline("isolated Codex fixture");
             app.codex
-                .configure(den::codex::Context::fixture(&path, profile)?);
+                .configure(den::areas::agents::codex::Context::fixture(&path, profile)?);
             (app, Some(Module::Agents))
         }
         Mode::Claude(path) => {
             let mut app = offline("isolated Claude fixture");
             app.codex
-                .configure(den::codex::Context::fixture(&path, None)?);
-            app.claude.configure(den::claude::Context::fixture(&path)?);
+                .configure(den::areas::agents::codex::Context::fixture(&path, None)?);
+            app.claude
+                .configure(den::areas::agents::claude::Context::fixture(&path)?);
             (app, Some(Module::Agents))
         }
         Mode::Aws(path) => {
             let mut app = offline("isolated AWS fixture");
-            app.aws.configure(den::aws::Context::fixture(&path)?);
+            app.aws
+                .configure(den::areas::cloud::aws::Context::fixture(&path)?);
             (app, Some(Module::Cloud))
         }
         Mode::Kube(path) => {
             let mut app = offline("isolated Kubernetes fixture");
-            app.kube.configure(den::kube::Context::fixture(&path)?);
+            app.kube
+                .configure(den::areas::cloud::kube::Context::fixture(&path)?);
             app.cloud = CloudSection::Kubernetes;
             (app, Some(Module::Cloud))
         }
         Mode::Docker(path) => {
             let mut app = offline("isolated Docker fixture");
-            app.docker.configure(den::docker::Context::fixture(&path)?);
+            app.docker
+                .configure(den::areas::docker::Context::fixture(&path)?);
             (app, Some(Module::Docker))
         }
         Mode::Toolchains(path) => {
             let mut app = offline("isolated toolchains fixture");
             app.toolchains
-                .configure(den::toolchains::Context::fixture(&path)?);
+                .configure(den::areas::toolchains::Context::fixture(&path)?);
             (app, Some(Module::Toolchains))
         }
     };

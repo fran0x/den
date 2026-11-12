@@ -3,10 +3,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
-    docker::{self, COMMANDS, Section},
+    areas::docker::{self, COMMANDS, Section},
     inventory::Inventory,
-    presentation::Destination,
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};
@@ -231,7 +231,7 @@ fn running_containers_are_green_even_when_selected() {
 
 #[test]
 fn live_docker_refreshes_while_open_but_fixtures_do_not() {
-    use den::docker::state::{REFRESH_EVERY, State};
+    use den::areas::docker::state::{REFRESH_EVERY, State};
     use std::time::{Duration, Instant};
 
     let mut live = State::default();
@@ -285,7 +285,7 @@ fn lines_that_are_not_json_are_counted_not_dropped() {
     a.docker.configure(context);
     a.docker.finish(Ok(inventory));
     a.docker.requested = false;
-    a.navigate(den::presentation::Destination::Containers);
+    a.navigate(den::tui::presentation::Destination::Containers);
     let mut t = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 20)).unwrap();
     t.draw(|f| ui::render(f, &mut a)).unwrap();
     let status: String = (0..120)

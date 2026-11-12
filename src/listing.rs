@@ -4,7 +4,7 @@
 //! reselecting the same row key.
 use crate::{
     inventory::{matches_query, safe_text},
-    presentation::PanelScroll,
+    tui::presentation::PanelScroll,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::{io, time::Instant};

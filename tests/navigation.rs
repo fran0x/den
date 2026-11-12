@@ -3,9 +3,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Focus},
-    codex, homebrew,
-    presentation::{Destination, Detail},
-    ui,
+    areas::agents::codex,
+    areas::homebrew,
+    tui::presentation::{Destination, Detail},
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};
@@ -189,9 +190,12 @@ fn browsing_selection_updates_passive_information_in_every_resource_view() {
                 a.codex.requested = false;
             }
             if destination == Destination::Skills {
-                let c = den::skills::Config::fixture(Path::new("fixtures/skills")).unwrap();
-                a.skills
-                    .finish(den::skills::discover(&c, &AtomicBool::new(false)));
+                let c = den::areas::agents::skills::Config::fixture(Path::new("fixtures/skills"))
+                    .unwrap();
+                a.skills.finish(den::areas::agents::skills::discover(
+                    &c,
+                    &AtomicBool::new(false),
+                ));
             }
             a.navigate(destination);
             let before = information_text(&draw(&mut a, width, height), width);
@@ -297,9 +301,12 @@ fn agents_footers_name_section_keys_and_enter_opens_nothing() {
                 let mut a = app();
                 if destination == Destination::Skills {
                     let config =
-                        den::skills::Config::fixture(Path::new("fixtures/skills")).unwrap();
-                    a.skills
-                        .finish(den::skills::discover(&config, &AtomicBool::new(false)));
+                        den::areas::agents::skills::Config::fixture(Path::new("fixtures/skills"))
+                            .unwrap();
+                    a.skills.finish(den::areas::agents::skills::discover(
+                        &config,
+                        &AtomicBool::new(false),
+                    ));
                 }
                 a.navigate(destination);
                 key(&mut a, arrow);
@@ -456,7 +463,10 @@ fn inspector_actions_reuse_read_only_commands_without_new_collection() {
     a.navigate(Destination::Cleanup);
     assert!(a.detail_choices().contains(&Detail::RunCheck));
     a.open_detail(Detail::RunCheck);
-    assert_eq!(a.check_requested, Some(den::diagnostics::Check::Cleanup));
+    assert_eq!(
+        a.check_requested,
+        Some(den::areas::homebrew::diagnostics::Check::Cleanup)
+    );
     assert!(!a.refresh_requested && !a.codex.requested);
     key(&mut a, KeyCode::Esc);
     assert_eq!(a.destination(), Destination::Cleanup);

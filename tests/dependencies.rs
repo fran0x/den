@@ -2,10 +2,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use den::{
     app::{App, CollectionStatus},
-    graph::{Evidence, Graph, Installation, MAX_DEPTH, MAX_EDGES, Provenance, Resolution},
-    homebrew::{self, CollectionError},
+    areas::homebrew::graph::{
+        Evidence, Graph, Installation, MAX_DEPTH, MAX_EDGES, Provenance, Resolution,
+    },
+    areas::homebrew::{self, CollectionError},
     inventory::{HomebrewMetadata, InstallationIntent, Inventory, ResourceKind},
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 

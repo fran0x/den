@@ -488,7 +488,7 @@ test_binary = next(item["executable"] for item in artifacts
                    if item.get("reason") == "compiler-artifact" and item.get("executable")
                    and item.get("profile", {}).get("test"))
 for test in ["restores_after_io_error", "restores_after_panic"]:
-    run_pty([test_binary, f"terminal::tests::{test}", "--exact", "--ignored", "--nocapture"])
+    run_pty([test_binary, f"tui::terminal::tests::{test}", "--exact", "--ignored", "--nocapture"])
 print("PASS: injected I/O error and panic restore terminal")
 
 if "--live" in sys.argv[2:]:

@@ -3,14 +3,14 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
-    codex::{
+    areas::agents::codex::{
         self, Context,
         config::{self, Activity, Scope},
         mcp::{self, Auth, EndpointKind, Severity, Status, Transport},
     },
     inventory,
-    presentation::Destination,
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use std::{
     fs,
@@ -601,7 +601,7 @@ fn search_and_tools_column_for_codex_only_servers() {
     let sources = a.agent_sources();
     let row = a.agents.rows(&sources).remove(0);
     assert_eq!(
-        sources.cells(den::agents::Section::Mcp, &row),
+        sources.cells(den::areas::agents::Section::Mcp, &row),
         ("Codex only".into(), "Off".into())
     );
     a.agents.query.clear();

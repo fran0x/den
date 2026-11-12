@@ -6,7 +6,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use den::{
     app::App,
     inventory::{Inventory, ResourceKind, safe_text},
-    source, ui,
+    source,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 

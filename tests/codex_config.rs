@@ -3,14 +3,14 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
-    codex::{
+    areas::agents::codex::{
         self, Context,
         config::{self, Activity, Trust},
         instructions::Status,
     },
     inventory,
-    presentation::Destination,
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use std::{
     fs,
@@ -145,7 +145,7 @@ fn incomplete_configuration_is_provisional_in_inventory_and_overview() {
             );
             a.codex.requested = false;
         }
-        a.navigate(den::presentation::Destination::Settings);
+        a.navigate(den::tui::presentation::Destination::Settings);
         let c = &a.codex.inventory.as_ref().unwrap().configuration;
         assert_eq!(value(c, "sandbox_mode"), "read-only");
         assert_eq!(value(c, "project_doc_max_bytes"), "32768");
@@ -164,7 +164,7 @@ fn incomplete_configuration_is_provisional_in_inventory_and_overview() {
         );
         {
             let sources = a.agent_sources();
-            let section = den::agents::Section::Settings;
+            let section = den::areas::agents::Section::Settings;
             assert!(
                 sources
                     .rows(section)
@@ -231,7 +231,7 @@ fn complete_and_inactive_configuration_keep_normal_presentation() {
             t.write("project/.codex/config.toml", project);
         }
         let mut a = app(&t);
-        a.navigate(den::presentation::Destination::Settings);
+        a.navigate(den::tui::presentation::Destination::Settings);
         search(&mut a, "sandbox_mode");
         assert_eq!(
             value(
@@ -256,7 +256,7 @@ fn configuration_refresh_updates_provisional_presentation() {
     t.trust("trusted", "sandbox_mode='read-only'");
     t.write("project/.codex/config.toml", "sandbox_mode=[invalid");
     let mut a = app(&t);
-    a.navigate(den::presentation::Destination::Settings);
+    a.navigate(den::tui::presentation::Destination::Settings);
     search(&mut a, "sandbox_mode");
     assert!(draw(&mut a, 80, 24).contains("Provisional value: read-only"));
 

@@ -4,10 +4,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
+    areas::toolchains::{self, Section},
     inventory::Inventory,
-    presentation::Destination,
-    toolchains::{self, Section},
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};

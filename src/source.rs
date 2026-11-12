@@ -9,7 +9,7 @@ use std::{
 use crate::inventory::Inventory;
 
 pub const MAX_SNAPSHOT_BYTES: u64 = 1_048_576;
-const DEMO: &str = include_str!("../fixtures/demo.json");
+const DEMO: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/demo.json"));
 
 pub fn demo() -> io::Result<Inventory> {
     parse(DEMO.as_bytes())

@@ -4,10 +4,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, CloudSection, Module},
+    areas::cloud::kube,
     inventory::Inventory,
-    kube,
-    presentation::Destination,
-    ui,
+    tui::presentation::Destination,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{

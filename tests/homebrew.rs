@@ -3,11 +3,11 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, CollectionStatus, Focus},
-    homebrew::{self, CollectionError},
+    areas::homebrew::{self, CollectionError},
     inventory::{
         HomebrewMetadata, InstallationIntent as Intent, ResourceKind, installation_intent,
     },
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::io::Cursor;

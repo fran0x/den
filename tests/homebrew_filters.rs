@@ -3,10 +3,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, CollectionStatus, Focus, HomebrewCounts},
-    graph::Evidence,
-    homebrew::{self, CollectionError},
+    areas::homebrew::graph::Evidence,
+    areas::homebrew::{self, CollectionError},
     inventory::Inventory,
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 

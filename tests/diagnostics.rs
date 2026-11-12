@@ -3,11 +3,11 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::App,
-    diagnostics::{Cause, Check, Health, Item, Report, Status, Tab, describe},
-    graph::{Graph, Resolution},
-    homebrew::{self, CollectionError, CommandOutput},
+    areas::homebrew::diagnostics::{Cause, Check, Health, Item, Report, Status, Tab, describe},
+    areas::homebrew::graph::{Graph, Resolution},
+    areas::homebrew::{self, CollectionError, CommandOutput},
     inventory::{InstallationIntent, Inventory},
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -368,7 +368,7 @@ fn pending_checks_do_not_block_keys_or_confuse_search_text() {
     key(&mut app, KeyCode::Char('8'));
     key(&mut app, KeyCode::Char('c'));
     assert!(
-        matches!(&app.presentation.page,den::presentation::Page::Inspector{query,..} if query=="8c")
+        matches!(&app.presentation.page,den::tui::presentation::Page::Inspector{query,..} if query=="8c")
     );
     assert_eq!(app.check_requested, None);
 }

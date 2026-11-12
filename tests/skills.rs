@@ -3,9 +3,9 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Module},
+    areas::agents::skills::{self, Config, Scope, Severity, Validity},
     inventory,
-    skills::{self, Config, Scope, Severity, Validity},
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::{
@@ -83,7 +83,7 @@ fn rows(a: &App) -> Vec<String> {
 fn files(a: &App) -> Vec<std::path::PathBuf> {
     let sources = a.agent_sources();
     let row = a.agents.selected_row(&sources).unwrap();
-    den::agents::skill(&sources, &row)
+    den::areas::agents::skill(&sources, &row)
         .unwrap()
         .files
         .iter()

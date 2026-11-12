@@ -1,6 +1,6 @@
 // Integration tests: unwrap and expect report failures here.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-use den::{app::App, codex, homebrew, ui};
+use den::{app::App, areas::agents::codex, areas::homebrew, tui::ui};
 use ratatui::{Terminal, backend::TestBackend};
 use std::{path::Path, sync::atomic::AtomicBool};
 
@@ -42,12 +42,15 @@ fn draw(a: &mut App, w: u16, h: u16) -> String {
 }
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use den::{app::Focus, presentation::Destination};
+use den::{app::Focus, tui::presentation::Destination};
 /// Supporting file count of the selected skill.
 fn files(a: &App) -> usize {
     let sources = a.agent_sources();
     let row = a.agents.selected_row(&sources).unwrap();
-    den::agents::skill(&sources, &row).unwrap().files.len()
+    den::areas::agents::skill(&sources, &row)
+        .unwrap()
+        .files
+        .len()
 }
 fn key(a: &mut App, code: KeyCode) {
     a.handle_key(KeyEvent::new(code, KeyModifiers::NONE));

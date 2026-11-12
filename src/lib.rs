@@ -7,44 +7,17 @@
 //! release, including patch releases, so do not depend on it.
 
 #[doc(hidden)]
-pub mod agents;
-#[doc(hidden)]
 pub mod app;
 #[doc(hidden)]
-pub mod aws;
-#[doc(hidden)]
-pub mod claude;
-#[doc(hidden)]
-pub mod codex;
-#[doc(hidden)]
-pub mod diagnostics;
-#[doc(hidden)]
-pub mod docker;
-#[doc(hidden)]
-pub mod explorer;
-#[doc(hidden)]
-pub mod graph;
-#[doc(hidden)]
-pub mod homebrew;
+pub mod areas;
 #[doc(hidden)]
 pub mod inventory;
-mod keys;
-#[doc(hidden)]
-pub mod kube;
 #[doc(hidden)]
 pub mod listing;
-#[doc(hidden)]
-pub mod presentation;
-#[doc(hidden)]
-pub mod skills;
 #[doc(hidden)]
 pub mod source;
 #[doc(hidden)]
 pub mod status;
 #[doc(hidden)]
-pub mod terminal;
-#[doc(hidden)]
-pub mod toolchains;
-#[doc(hidden)]
-pub mod ui;
+pub mod tui;
 mod worker;

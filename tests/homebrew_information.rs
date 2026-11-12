@@ -3,11 +3,11 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     app::{App, Focus},
-    explorer::Explorer,
-    graph::{Evidence, Graph},
-    homebrew,
+    areas::homebrew,
+    areas::homebrew::explorer::Explorer,
+    areas::homebrew::graph::{Evidence, Graph},
     inventory::Inventory,
-    ui,
+    tui::ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 
