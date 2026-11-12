@@ -95,12 +95,19 @@ session has loaded.
 **AWS** lists your profiles and SSO sessions. For each: how it gets credentials (Role, SSO,
 Process, Static keys or None set) and whether it is **Ready**, with its region, or has a
 **Problem**, with what is wrong. The panel shows the account, role, role chain and the file
-that defines it. The profile in `AWS_PROFILE` is marked active.
+that defines it.
+
+The **active** profile, the one the AWS CLI uses when you don't pass `--profile`, comes
+first, with a `*` before its name and **active** in its status. It is the profile named
+by `AWS_PROFILE`, or `default` when that is not set. If `AWS_PROFILE` names a profile that
+doesn't exist, that shows up as a Problem. Den sees the `AWS_PROFILE` of the terminal you
+started it from.
 
 **Kubernetes** lists your contexts from `KUBECONFIG` or `~/.kube/config`, the current one
-first. For each: how it signs in (Exec, an auth provider, Client cert, Token, Basic auth)
-and whether it is **Ready** or has a **Problem**, such as a missing cluster or user, TLS
-verification turned off, a password stored in the file, or a file other people can read.
+first with a `*`, as in kubectl. For each: how it signs in (Exec, an auth provider, Client
+cert, Token, Basic auth) and whether it is **Ready** or has a **Problem**, such as a
+missing cluster or user, TLS verification turned off, a password stored in the file, or a
+file other people can read.
 
 Den never contacts AWS or a cluster, so it cannot tell you whether credentials still work.
 

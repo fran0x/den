@@ -265,6 +265,9 @@ fn shift_tab_switches_cloud_sections_and_each_keeps_its_place() {
         screen.contains("7 contexts · 4 problems · current: prod-eks"),
         "{screen}"
     );
+    // The current context is starred, as in kubectl; the others are not.
+    assert!(screen.contains("* prod-eks"), "{screen}");
+    assert_eq!(screen.matches("* ").count(), 1, "{screen}");
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     let chosen = a.kube.selected_row().unwrap().key.clone();

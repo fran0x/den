@@ -5,6 +5,10 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Cloud › AWS:** the active profile (from `AWS_PROFILE`, or `default`) comes first, starred
+  (`*`), and its status says `active`. The current Kubernetes context is starred too. An `AWS_PROFILE` naming a profile that doesn't exist is a
+  Problem row, and the status line names the variable that chose the profile.
+
 ## [0.1.0] - 2026-11-12
 
 First public release. Den is a read-only terminal inspector with five areas:

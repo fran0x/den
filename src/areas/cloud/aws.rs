@@ -21,8 +21,8 @@ const FILE_LIMIT: usize = 1024 * 1024;
 pub struct Context {
     pub config: PathBuf,
     pub credentials: PathBuf,
-    /// `AWS_PROFILE` (or `AWS_DEFAULT_PROFILE`): a profile name, not a secret.
-    pub active: Option<String>,
+    /// The profile `AWS_PROFILE` (or `AWS_DEFAULT_PROFILE`) names: not a secret.
+    pub active: Option<Selected>,
     pub home: Option<PathBuf>,
     /// Fixture root: nothing outside it is read.
     pub boundary: Option<PathBuf>,
@@ -38,9 +38,13 @@ impl Context {
                 .ok_or_else(|| io::Error::other("HOME unavailable"))
         };
         let active = ["AWS_PROFILE", "AWS_DEFAULT_PROFILE"]
-            .iter()
-            .find_map(|v| std::env::var(v).ok())
-            .filter(|p| !p.is_empty() && p.len() <= 128);
+            .into_iter()
+            .find_map(|variable| {
+                std::env::var(variable)
+                    .ok()
+                    .filter(|name| !name.is_empty() && name.len() <= 128)
+                    .map(|name| Selected { name, variable })
+            });
         Ok(Self {
             config: file("AWS_CONFIG_FILE", "config")?,
             credentials: file("AWS_SHARED_CREDENTIALS_FILE", "credentials")?,
@@ -159,11 +163,54 @@ pub enum Kind {
     Profile,
     SsoSession,
     File,
+    /// `AWS_PROFILE` naming a profile no file defines.
+    Variable,
+}
+
+/// A profile named by an environment variable.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Selected {
+    pub name: String,
+    pub variable: &'static str,
+}
+
+/// The profile the AWS CLI uses when a command names none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Active {
+    /// Named by a variable; `defined` is false when no file defines it.
+    Named { selected: Selected, defined: bool },
+    /// No variable is set, and a `default` profile exists.
+    Default,
+    /// No variable is set, and there is no `default` profile.
+    None,
+}
+impl Active {
+    /// The active profile's name, when one is defined.
+    pub fn profile(&self) -> Option<&str> {
+        match self {
+            Self::Named {
+                selected,
+                defined: true,
+            } => Some(&selected.name),
+            Self::Default => Some("default"),
+            _ => None,
+        }
+    }
+    /// For the status line, for example `dev (AWS_PROFILE)`.
+    pub fn label(&self) -> String {
+        match self {
+            Self::Named { selected, .. } => {
+                format!("{} ({})", safe_text(&selected.name), selected.variable)
+            }
+            Self::Default => "default (AWS_PROFILE not set)".into(),
+            Self::None => "none (AWS_PROFILE not set, no default profile)".into(),
+        }
+    }
 }
 
 pub struct Inventory {
     pub rows: Vec<Row>,
-    pub active: Option<String>,
+    pub active: Active,
     pub sso_sessions: usize,
     pub coverage: Vec<String>,
     /// False when neither the config nor the credentials file exists.
@@ -305,10 +352,47 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     for (name, section) in &credentials {
         profiles.entry(name.clone()).or_default().1 = Some(section);
     }
+    let active = match &context.active {
+        Some(selected) => Active::Named {
+            defined: profiles.contains_key(&selected.name),
+            selected: selected.clone(),
+        },
+        None if profiles.contains_key("default") => Active::Default,
+        None => Active::None,
+    };
+    if let Active::Named {
+        selected,
+        defined: false,
+    } = &active
+    {
+        let name = safe_text(&selected.name);
+        rows.push(Row {
+            name: selected.variable.into(),
+            kind: Kind::Variable,
+            auth: "Environment".into(),
+            status: Status::problem(format!("'{name}' is not defined")),
+            detail: format!(
+                "{}\n\n{} names '{name}', but neither {} nor {} defines a profile with that name. AWS CLI commands without --profile fail.",
+                selected.variable,
+                selected.variable,
+                context.short(&context.config),
+                context.short(&context.credentials),
+            ),
+            key: format!("variable:{}", selected.variable),
+        });
+    }
+    // The active profile first, then `default`, then by name.
     let mut ordered: Vec<_> = profiles.keys().cloned().collect();
-    ordered.sort_by_key(|n| (n != "default", n.clone()));
+    ordered.sort_by_key(|n| {
+        (
+            active.profile() != Some(n.as_str()),
+            n != "default",
+            n.clone(),
+        )
+    });
     for name in &ordered {
-        rows.push(profile_row(context, name, &profiles, &sso));
+        let is_active = active.profile() == Some(name.as_str());
+        rows.push(profile_row(context, name, is_active, &profiles, &sso));
     }
     for (name, section) in &sso {
         let users: Vec<_> = profiles
@@ -366,7 +450,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     Ok(Inventory {
         found,
         rows,
-        active: context.active.clone(),
+        active,
         sso_sessions: sso.len(),
         coverage: vec![
             format!(
@@ -407,6 +491,7 @@ pub(crate) fn too_open_file(boundary: Option<&Path>, path: &Path) -> Option<&'st
 fn profile_row(
     context: &Context,
     name: &str,
+    active: bool,
     profiles: &BTreeMap<String, (Option<&Section>, Option<&Section>)>,
     sso: &BTreeMap<String, &Section>,
 ) -> Row {
@@ -430,10 +515,13 @@ fn profile_row(
     };
     let mut problems = vec![];
     let mut lines = vec![safe_text(name), String::new()];
-    if context.active.as_deref() == Some(name) {
-        lines.push("Active: AWS_PROFILE selects this profile".into());
-    } else if name == "default" && context.active.is_none() {
-        lines.push("Active: the default profile (AWS_PROFILE is not set)".into());
+    match &context.active {
+        Some(selected) if active => lines.push(format!(
+            "Active: {} selects this profile",
+            selected.variable
+        )),
+        None if active => lines.push("Active: the default profile (AWS_PROFILE is not set)".into()),
+        _ => {}
     }
     lines.push(format!("Auth: {}", auth.label()));
     match auth {
@@ -545,9 +633,10 @@ fn profile_row(
         "Not shown: credential values, SSO tokens, and whether these credentials currently work."
             .into(),
     );
+    let mark = if active { "active · " } else { "" };
     let status = match problems.first() {
-        Some(p) => Status::problem(p.as_str()),
-        None => Status::ready(region.unwrap_or("no region")),
+        Some(p) => Status::problem(format!("{mark}{p}")),
+        None => Status::ready(format!("{mark}{}", region.unwrap_or("no region"))),
     };
     Row {
         name: safe_text(name),

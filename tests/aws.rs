@@ -14,8 +14,23 @@ use std::{path::Path, sync::atomic::AtomicBool};
 const FIXTURE: &str = "fixtures/aws";
 
 fn collect(root: &Path) -> aws::Inventory {
-    let context = aws::Context::fixture(root).unwrap();
+    collect_as(root, None)
+}
+/// Collects as if `AWS_PROFILE` (or the given variable) named a profile.
+fn collect_as(root: &Path, active: Option<(&str, &'static str)>) -> aws::Inventory {
+    let mut context = aws::Context::fixture(root).unwrap();
+    context.active = active.map(|(name, variable)| aws::Selected {
+        name: name.into(),
+        variable,
+    });
     aws::discover(&context, &AtomicBool::new(false)).unwrap()
+}
+fn profile_names(i: &aws::Inventory) -> Vec<&str> {
+    i.rows
+        .iter()
+        .filter(|r| r.kind == Kind::Profile)
+        .map(|r| r.name.as_str())
+        .collect()
 }
 /// A copy of the fixture with the credentials file at the given mode.
 struct Temp(std::path::PathBuf);
@@ -110,7 +125,7 @@ fn profiles_come_from_both_files_and_auth_follows_sdk_order() {
     );
     assert_eq!(
         row(&i, "default", Kind::Profile).status,
-        "Ready · eu-west-1"
+        "Ready · active · eu-west-1"
     );
     let dev = &row(&i, "dev", Kind::Profile).detail;
     assert!(dev.contains("Role: arn:aws:iam::111122223333:role/Developer"));
@@ -249,4 +264,101 @@ fn unconfigured_and_tiny_screens_render() {
     for (w, h) in [(30, 10), (45, 20)] {
         draw(&mut a, w, h);
     }
+}
+
+#[test]
+fn the_active_profile_comes_first_and_says_so() {
+    let t = Temp::new("active", 0o600);
+    // No variable set: the default profile is active.
+    let i = collect(&t.0);
+    assert_eq!(i.active, aws::Active::Default);
+    assert_eq!(i.active.label(), "default (AWS_PROFILE not set)");
+    assert_eq!(profile_names(&i)[0], "default");
+    assert_eq!(row(&i, "base", Kind::Profile).status, "Ready · us-east-1");
+
+    let i = collect_as(&t.0, Some(("dev", "AWS_PROFILE")));
+    assert_eq!(profile_names(&i)[..2], ["dev", "default"]);
+    let dev = row(&i, "dev", Kind::Profile);
+    assert_eq!(dev.status, "Ready · active · eu-central-1");
+    assert!(
+        dev.detail
+            .contains("Active: AWS_PROFILE selects this profile")
+    );
+    assert_eq!(
+        row(&i, "default", Kind::Profile).status,
+        "Ready · eu-west-1"
+    );
+    assert_eq!(i.active.label(), "dev (AWS_PROFILE)");
+
+    // The variable that chose it is named, and a problem keeps the mark.
+    let i = collect_as(&t.0, Some(("broken", "AWS_DEFAULT_PROFILE")));
+    let broken = row(&i, "broken", Kind::Profile);
+    assert_eq!(
+        broken.status,
+        "Problem · active · source_profile 'nowhere' is not defined"
+    );
+    assert!(
+        broken
+            .detail
+            .contains("Active: AWS_DEFAULT_PROFILE selects this profile")
+    );
+    assert_eq!(i.active.label(), "broken (AWS_DEFAULT_PROFILE)");
+
+    let mut a = app(&t.0);
+    a.aws
+        .finish(Ok(collect_as(&t.0, Some(("dev", "AWS_PROFILE")))));
+    for (w, h) in [(80, 24), (120, 32)] {
+        let screen = draw(&mut a, w, h);
+        assert!(screen.contains("active: dev (AWS_PROFILE)"), "{screen}");
+        // "active" comes first in the status, so narrow columns still show it.
+        assert!(screen.contains("Ready · active"), "{screen}");
+        assert!(screen.contains("* dev "), "{screen}");
+        assert!(!screen.contains("* default"), "{screen}");
+    }
+}
+
+#[test]
+fn a_variable_naming_no_profile_is_a_problem() {
+    let t = Temp::new("undefined", 0o600);
+    let i = collect_as(&t.0, Some(("prod\u{1b}[31m", "AWS_PROFILE")));
+    let first = &i.rows[0];
+    assert_eq!(first.kind, Kind::Variable);
+    assert_eq!(first.name, "AWS_PROFILE");
+    assert!(first.status.is_problem());
+    assert!(first.status.to_string().contains("is not defined"));
+    assert!(
+        first
+            .detail
+            .contains("AWS CLI commands without --profile fail")
+    );
+    assert!(!format!("{} {}", first.status, first.detail).contains('\u{1b}'));
+    // No profile is marked active, and the profile count is unchanged.
+    assert_eq!(i.active.profile(), None);
+    assert!(
+        i.rows
+            .iter()
+            .all(|r| !r.status.to_string().contains("active"))
+    );
+    assert_eq!(profile_names(&i).len(), 12);
+    let mut a = app(&t.0);
+    a.aws.finish(Ok(i));
+    let screen = draw(&mut a, 120, 32);
+    assert!(!screen.contains("* "), "no row is starred: {screen}");
+}
+
+#[test]
+fn without_a_variable_or_a_default_profile_none_is_active() {
+    let root = std::env::temp_dir().join(format!("den-aws-none-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("home/.aws")).unwrap();
+    std::fs::write(
+        root.join("home/.aws/config"),
+        "[profile a]\nregion = eu-west-1\n",
+    )
+    .unwrap();
+    let i = collect(&root);
+    std::fs::remove_dir_all(&root).unwrap();
+    assert_eq!(i.active, aws::Active::None);
+    assert!(i.active.label().starts_with("none"));
+    assert_eq!(row(&i, "a", Kind::Profile).status, "Ready · eu-west-1");
 }
