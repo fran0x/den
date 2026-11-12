@@ -5,7 +5,7 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
-## [0.1.0]
+## [0.1.0] - 2026-11-12
 
 First public release. Den is a read-only terminal inspector with five areas:
 
