@@ -1,14 +1,18 @@
 name: Release
 
-# Releasing: bump `version` in Cargo.toml, move the CHANGELOG notes under it, run
-# `just check`, `just smoke` and `cargo publish --dry-run`, then push a tag such as v0.1.0.
-# This workflow checks the tag matches Cargo.toml, builds macOS and Linux binaries and
-# creates the GitHub release.
+# Releasing:
+#   1. Bump `version` in Cargo.toml and move the CHANGELOG notes under it, with the date.
+#   2. Run `just ci` and `cargo publish --dry-run --locked`; push and let CI pass.
+#   3. Push a tag such as v0.2.0 on that commit.
+# This workflow checks the tag matches Cargo.toml, builds den and dew for macOS and Linux,
+# creates the GitHub release, and publishes den-tui to crates.io.
 #
-# crates.io: the crate is `den-tui` (it installs `den`). Publish the first version by hand
-# with `cargo publish`. Then add a trusted publisher on crates.io (repository fran0x/den,
-# workflow release.yml, environment crates-io), create the `crates-io` environment here
-# and set the repository variable PUBLISH_CRATE=true; later tags publish without a token.
+# crates.io uses trusted publishing: no token is stored anywhere. crates.io trusts this
+# repository (fran0x/den), this workflow (release.yml) and the GitHub environment
+# `crates-io`, which accepts only `v*` tags. The environment name must match crates.io's
+# trusted-publisher entry exactly (a hyphen, not "crates.io"). Publishing runs only while
+# the repository variable PUBLISH_CRATE is true. If it fails, fix the cause and re-run the
+# failed job: a re-run uses the workflow from the tagged commit.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
@@ -86,8 +90,7 @@ jobs:
             --title "Den $GITHUB_REF_NAME" \
             --generate-notes
 
-  # The first crates.io release is published by hand; after configuring trusted publishing
-  # for den-tui on crates.io, set the repository variable PUBLISH_CRATE to true.
+  # Trusted publishing: a short-lived crates.io token in exchange for this job's identity.
   crates-io:
     name: Publish to crates.io
     needs: release

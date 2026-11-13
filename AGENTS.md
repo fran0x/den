@@ -50,6 +50,9 @@ every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `
   requires the release build, uses synthetic data and runs the ignored terminal lifecycle tests.
   Pass a binary path as the first argument when using a separate `CARGO_TARGET_DIR`.
 
+Releases: follow the steps at the top of `.github/workflows/release.yml`; pushing a
+`v*` tag builds both binaries, creates the GitHub release and publishes to crates.io.
+
 `just check` composes formatting, Clippy, tests and release build. `just smoke` builds
 and runs the offline PTY harness. `just ci` runs what CI runs (locked checks, smoke, Rust
 1.90 and `cargo deny`); `just tools` verifies its prerequisites and installs nothing. Use `just smoke /path/to/release/den` with an external

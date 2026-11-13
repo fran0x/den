@@ -573,3 +573,33 @@ mod tests {
         );
     }
 }
+
+/// Spinner frames, as Homebrew draws them while it works.
+const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// The frame for now: one step every 80 ms while Den redraws during work.
+pub(super) fn spinner() -> char {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    frame(millis)
+}
+
+fn frame(millis: u128) -> char {
+    SPINNER[(millis / 80 % SPINNER.len() as u128) as usize]
+}
+
+#[cfg(test)]
+mod spinner_tests {
+    use super::*;
+
+    #[test]
+    fn the_spinner_turns_every_80_ms() {
+        assert_eq!(frame(0), '⠋');
+        assert_eq!(frame(79), '⠋');
+        assert_eq!(frame(80), '⠙');
+        assert_eq!(frame(80 * 10), '⠋');
+        let frames: std::collections::HashSet<_> = (0..10).map(|i| frame(i * 80)).collect();
+        assert_eq!(frames.len(), 10);
+    }
+}

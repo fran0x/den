@@ -105,7 +105,7 @@ fn screen(frame: &mut Frame, app: &mut App) {
     let status = if nothing {
         String::new()
     } else if app.live {
-        app.collection_message()
+        loading(app, app.collection_message())
     } else {
         format!("{}{}", app.source_label, app.outdated_text())
     };
@@ -164,7 +164,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.visible.is_empty() {
         frame.render_widget(
             Paragraph::new(if app.live && app.inventory.resources.is_empty() {
-                app.collection_message()
+                loading(app, app.collection_message())
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
             } else if app.tools_only() && app.query.is_empty() && app.homebrew_counts().all > 0 {
@@ -298,4 +298,16 @@ fn overview(app: &App) -> String {
             ""
         }
     )
+}
+
+/// A spinner before the message while Homebrew is loading or refreshing.
+fn loading(app: &App, message: String) -> String {
+    if matches!(
+        app.collection_status,
+        crate::app::CollectionStatus::Loading { .. }
+    ) {
+        format!("{} {message}", spinner())
+    } else {
+        message
+    }
 }
