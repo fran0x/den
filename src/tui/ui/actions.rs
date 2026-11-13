@@ -97,11 +97,7 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, rect);
     let block = Block::bordered()
         .title(format!(" {} ", safe_text(&title)))
-        .border_style(if app.actions.allowed() {
-            theme().bad()
-        } else {
-            heading()
-        });
+        .border_style(border(dialog));
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
     let [body_area, _, footer_area] = Layout::vertical([
@@ -121,6 +117,16 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
         Paragraph::new(safe_text(&footer)).style(theme().key()),
         footer_area,
     );
+}
+
+/// Blue while choosing or running, green when it worked, red only when it failed or was
+/// stopped. The WRITE tag in the top bar says writes are possible.
+fn border(dialog: &Dialog) -> Style {
+    match dialog {
+        Dialog::Done { summary, .. } if summary == "Done" => theme().ok(),
+        Dialog::Done { .. } => theme().bad(),
+        Dialog::Menu { .. } | Dialog::Running { .. } => heading(),
+    }
 }
 
 fn menu(
@@ -156,7 +162,10 @@ fn menu(
     };
     body.push(Line::raw(""));
     if let Some(why) = &item.blocked {
-        body.push(Line::styled(format!("Not available: {why}"), theme().bad()));
+        body.push(Line::styled(
+            format!("Not available: {why}"),
+            theme().warn(),
+        ));
     } else if let Some(note) = note(&item.action) {
         body.push(Line::styled(note.to_owned(), muted()));
     }
@@ -224,6 +233,27 @@ fn frame(millis: u128) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn red_only_means_it_failed() {
+        let done = |summary: &str| Dialog::Done {
+            action: crate::actions::Action::BrewUpdate,
+            summary: summary.into(),
+            output: String::new(),
+            log: Err(String::new()),
+        };
+        let menu = Dialog::Menu {
+            package: None,
+            items: vec![],
+            selected: 0,
+            preview: Preview::None,
+        };
+        assert_eq!(border(&menu), heading());
+        assert_eq!(border(&done("Done")), theme().ok());
+        assert_eq!(border(&done("Failed: exit 1")), theme().bad());
+        assert_eq!(border(&done("Stopped before it finished")), theme().bad());
+        assert_ne!(heading(), theme().bad());
+    }
 
     #[test]
     fn the_spinner_turns_every_80_ms() {
