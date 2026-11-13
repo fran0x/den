@@ -414,8 +414,8 @@ impl App {
             match key.code {
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
-                    let items = self.action_items();
-                    self.actions.open(items);
+                    let (details, items) = self.action_menu();
+                    self.actions.open(details, items);
                     return;
                 }
                 _ => {}
@@ -536,43 +536,26 @@ impl App {
                     self.actions.stop();
                 }
             }
-            Some(Dialog::Menu { items, selected }) => match key.code {
-                KeyCode::Down | KeyCode::Char('j') => {
-                    *selected = (*selected + 1).min(items.len().saturating_sub(1));
-                }
-                KeyCode::Up | KeyCode::Char('k') => *selected = selected.saturating_sub(1),
-                KeyCode::Home => *selected = 0,
-                KeyCode::End => *selected = items.len().saturating_sub(1),
-                KeyCode::Enter => {
-                    if let Some(item) = items.get(*selected).cloned() {
-                        self.actions.choose(item);
+            Some(Dialog::Menu {
+                items, selected, ..
+            }) => {
+                let (selected, last) = (*selected, items.len().saturating_sub(1));
+                match key.code {
+                    KeyCode::Down | KeyCode::Char('j') => self.actions.select(selected + 1),
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.actions.select(selected.saturating_sub(1))
                     }
-                }
-                KeyCode::Char('c') if !ctrl_c => {
-                    if let Some(action) = items.get(*selected).map(|i| i.action.clone()) {
-                        self.actions.copy(&action);
+                    KeyCode::Home => self.actions.select(0),
+                    KeyCode::End => self.actions.select(last),
+                    KeyCode::Enter => self.actions.run_selected(),
+                    KeyCode::Esc | KeyCode::Char('q') => self.actions.close(),
+                    _ if ctrl_c => {
+                        self.actions.close();
+                        self.quit = true;
                     }
+                    _ => {}
                 }
-                KeyCode::Esc | KeyCode::Char('q') => self.actions.close(),
-                _ if ctrl_c => {
-                    self.actions.close();
-                    self.quit = true;
-                }
-                _ => {}
-            },
-            Some(Dialog::Confirm { item, .. }) => match key.code {
-                KeyCode::Char('y') => self.actions.confirm(),
-                KeyCode::Char('c') if !ctrl_c => {
-                    let action = item.action.clone();
-                    self.actions.copy(&action);
-                }
-                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('q') => self.actions.close(),
-                _ if ctrl_c => {
-                    self.actions.close();
-                    self.quit = true;
-                }
-                _ => {}
-            },
+            }
             Some(Dialog::Done { .. }) => {
                 if ctrl_c {
                     self.quit = true;
@@ -586,12 +569,15 @@ impl App {
         }
     }
 
-    /// What the actions menu offers here: the selected package's upgrade and uninstall
-    /// (Packages only), then Homebrew-wide maintenance.
-    pub fn action_items(&self) -> Vec<crate::actions::Item> {
+    /// What the actions dialog shows here: details of the selected package (Packages
+    /// only), then its upgrade, Homebrew-wide maintenance, and its uninstall last, so
+    /// opening the dialog and pressing Enter never removes a package.
+    pub fn action_menu(&self) -> (Vec<String>, Vec<crate::actions::Item>) {
         use crate::actions::{Action, Item, Package};
         use crate::inventory::HomebrewMetadata;
+        let mut details = vec![];
         let mut items = vec![];
+        let mut uninstall = None;
         let package = (self.destination() == crate::tui::presentation::Destination::Homebrew)
             .then(|| self.selected_node().zip(self.resource()))
             .flatten();
@@ -606,6 +592,9 @@ impl App {
                     (full_token.as_deref().unwrap_or(&resource.name), true)
                 }
             };
+            let users = self.graph.recorded_users(index);
+            let needed = users > 0 || self.graph.needed(index);
+            details = self.action_details(resource, meta, users, needed);
             if let Some(package) = Package::new(name, cask) {
                 if meta.update().is_some() {
                     items.push(Item {
@@ -615,14 +604,17 @@ impl App {
                             .then(|| "it is pinned; unpin it with brew unpin first".into()),
                     });
                 }
-                let users = self.graph.recorded_users(index);
-                items.push(Item {
+                uninstall = Some(Item {
                     action: Action::BrewUninstall(package),
-                    blocked: (users > 0).then(|| {
-                        format!(
-                            "required by {}; uninstall those first",
-                            crate::inventory::count(users, "installed package")
-                        )
+                    blocked: needed.then(|| {
+                        if users > 0 {
+                            format!(
+                                "required by {}; uninstall those first",
+                                crate::inventory::count(users, "installed package")
+                            )
+                        } else {
+                            "another installed package needs it".into()
+                        }
                     }),
                 });
             }
@@ -637,7 +629,53 @@ impl App {
                 blocked: None,
             });
         }
-        items
+        items.extend(uninstall);
+        (details, items)
+    }
+
+    /// The package, as in its information panel: version, intent, newer version, what
+    /// needs it, and its description.
+    fn action_details(
+        &self,
+        resource: &Resource,
+        meta: &crate::inventory::HomebrewMetadata,
+        users: usize,
+        needed: bool,
+    ) -> Vec<String> {
+        let cask = resource.kind == ResourceKind::Cask;
+        let mut lines = vec![
+            format!(
+                "{} · {} {}",
+                resource.display_name(),
+                if cask {
+                    "recorded version"
+                } else {
+                    "installed"
+                },
+                resource.version.as_deref().unwrap_or("unknown")
+            ),
+            format!("Installation intent: {}", meta.intent_label()),
+        ];
+        if let Some(latest) = meta.update() {
+            lines.push(format!(
+                "↑ {latest} available · as of last brew update{}",
+                if meta.pinned() { " · pinned" } else { "" }
+            ));
+        }
+        lines.push(if users > 0 {
+            format!(
+                "Required by {}",
+                crate::inventory::count(users, "installed package")
+            )
+        } else if needed {
+            "Another installed package declares that it needs it".into()
+        } else {
+            "Nothing installed needs it".into()
+        });
+        if !resource.description.is_empty() {
+            lines.push(resource.description.clone());
+        }
+        lines.iter().map(|l| safe_text(l)).collect()
     }
 
     /// An action finished: log it, show it, and reload Homebrew, which it may have changed.

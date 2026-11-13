@@ -484,7 +484,7 @@ else:
     print("PASS: responsive on-demand diagnostics, expected missing exit, cleanup failure, freshness and exact dry-run argv")
 
     # Write actions: a fake brew records every argv. In den nothing but `info` may run;
-    # in dew, x, the preview and y run exactly the chosen command.
+    # in dew, x, the dry run and Enter run exactly the chosen command.
     calls.unlink()
     state = Path(temporary) / "state"
     fake.write_text(f"#!{sys.executable}\n" + """
@@ -508,7 +508,7 @@ else:
     sys.exit(3)
 """)
     write_env = dict(isolated_env, XDG_STATE_HOME=str(state))
-    # den has no actions: W, x, Enter and y do nothing.
+    # den has no actions: x and Enter do nothing.
     output = run_pty([binary], env=write_env, steps=[
         (b"Loaded 8", b"Wx\ryq"),
     ])
@@ -516,11 +516,12 @@ else:
     assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
     assert not state.exists(), "nothing ran, so nothing is logged"
     calls.unlink()
-    run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
-        (b"WRITE", b"x"),
-        (b"Actions", [b"\x1b[F", b"\r"]),
-        # Enter never confirms; only y does.
-        (b"Would remove: old-download", b"\ry"),
+    output = run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
+        (b"Loaded 8", b"x"),
+        # Uninstall is last; the item above it is cleanup.
+        (b"Actions", [b"\x1b[F", b"\x1b[A"]),
+        # Enter runs the selected action once its dry run is shown.
+        (b"Would remove: old-download", b"\r"),
         (b"Done", b"\r"),
         (b"Loaded 7", b"q"),
     ])
@@ -530,9 +531,10 @@ else:
         ["cleanup"],
         ["info", "--json=v2", "--installed"],
     ], calls.read_text()
+    assert b"WRITE" in output, "dew shows WRITE"
     log = (state / "den" / "actions.log").read_text()
     assert log.endswith("\tbrew cleanup\tDone\n") and "old-download" not in log, log
-    print("PASS: write actions need dew and y; exact argv, preview first, logged without output")
+    print("PASS: write actions only in dew; exact argv, dry run first, logged without output")
 
 build = subprocess.run(["cargo", "test", "--lib", "--no-run", "--message-format=json"],
                        check=True, capture_output=True, text=True)

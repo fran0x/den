@@ -95,7 +95,8 @@ terminal screenshots for visible layout changes.
 Den is read-only by default. Writes live only in `src/actions.rs`: a closed `Action` enum
 whose command lines are built from names checked by `Package::new`, a preview (dry run)
 where the tool has one, and a run that needs a `Permit` (created only for the `dew` binary, in `cli`)
-after an explicit `y`. Writes use `homebrew::run_write`:
+after an explicit Enter on the chosen action (uninstall
+is always listed last). Writes use `homebrew::run_write`:
 no shell, closed stdin, own process group, timeout, SIGTERM with a grace period before
 SIGKILL. Never add `--force`, `--ignore-dependencies`, `--zap`, sudo or free-form
 arguments; each new action needs known-answer tests of its command line, a smoke step

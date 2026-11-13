@@ -12,22 +12,14 @@ All notable changes to Den are recorded here. Versions follow
   casks, so every cask showed as Unknown and appeared only under All. A cask now counts as
   a tool unless another installed package needs it, and says **No request record**
   instead of Unknown.
-- **Write actions, opt-in:** run `dew` instead of `den` (`den` stays read-only; `dew`
-  shows WRITE in the top bar), then `x` in Homebrew: upgrade or uninstall the selected
-  package, update Homebrew's data, remove unneeded dependencies, or clean up. Each
-  action shows its exact command and a dry run where Homebrew has one, and runs only on
-  `y`. Uninstall is refused while something needs the package; pinned packages are not
-  upgraded. Esc or Ctrl-C stops a running action, giving Homebrew 10 seconds to clean
-  up. Results are logged to `~/.local/state/den/actions.log` (time, command, result). `den`
-  offers no actions at all.
-- **Updates, offline:** Agents names a newer Codex or Claude Code when Homebrew installed
-  it, from Homebrew's data or Codex's own update check (`~/.codex/version.json`).
-  Toolchains marks commands Homebrew can update (`↑ 22.12.0`), and Homebrew's status line
-  says how old its data is. Nothing is fetched.
-- **Cloud › AWS:** the active profile (from `AWS_PROFILE`, or `default`) comes first, starred
-  (`*`), and its status says `active`. An `AWS_PROFILE` naming a profile that doesn't
-  exist is a Problem row, and the status line names the variable that chose the profile.
-  The current Kubernetes context is starred too.
+- **Write actions, opt-in:** run `dew` instead of `den` (`den` stays read-only and offers
+  no actions; `dew` shows WRITE in the top bar). In Homebrew, `x` shows the selected
+  package and its actions: upgrade it, update Homebrew's data, remove unneeded
+  dependencies, clean up, and, always last, uninstall it. The chosen action shows its
+  exact command and a dry run where Homebrew has one, and `Enter` runs it. Uninstall is
+  refused while something needs the package; pinned packages are not upgraded. Esc or
+  Ctrl-C stops a running action, giving Homebrew 10 seconds to clean up. Results are
+  logged to `~/.local/state/den/actions.log` (time, command, result).
 
 ## [0.1.0] - 2026-11-12
 

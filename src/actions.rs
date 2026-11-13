@@ -1,10 +1,11 @@
 //! Write actions: off by default, confirmed one at a time, and limited to a closed list.
 //!
-//! `den` is always read-only. Actions can run only in `dew`, which creates the [`Permit`]
-//! and shows WRITE in the top bar; each one is confirmed with `y` after its preview. Every action is a
-//! fixed command line built from a checked name: no shell, no sudo, stdin closed (a
-//! password prompt fails instead of waiting), and never `--force`, `--ignore-dependencies`
-//! or `--zap`. `den` has no actions at all: no menu, not even commands to copy.
+//! `den` is always read-only. Actions can run only in `dew`, which creates the
+//! [`Permit`] and shows WRITE in the top bar; each one runs on Enter, after its dry run.
+//! Every action is a fixed command line built from a checked name: no shell, no sudo,
+//! stdin closed (a password prompt fails instead of waiting), and never `--force`,
+//! `--ignore-dependencies` or `--zap`. `den` has no actions at all: no menu, not even
+//! commands to copy.
 use crate::{
     areas::homebrew::{CollectionError, CommandOutput},
     inventory::safe_text,
@@ -204,10 +205,8 @@ pub struct Item {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Preview {
-    /// The tool has no dry run for this action.
+    /// The tool has no dry run for this action, or it is blocked.
     None,
-    /// Not run: writes are off.
-    Skipped,
     Waiting,
     Ready(String),
     Failed(String),
@@ -215,12 +214,12 @@ pub enum Preview {
 
 #[derive(Debug)]
 pub enum Dialog {
+    /// What the selected package is, the actions, and the selected one's dry run.
+    /// Enter runs the selected action.
     Menu {
+        details: Vec<String>,
         items: Vec<Item>,
         selected: usize,
-    },
-    Confirm {
-        item: Item,
         preview: Preview,
     },
     Running {
@@ -250,8 +249,6 @@ pub struct State {
     pub dialog: Option<Dialog>,
     pub request: Option<Request>,
     pub cancel_requested: bool,
-    /// Text for the terminal to place on the clipboard (OSC 52).
-    pub clipboard: Option<String>,
     /// A one-line message for the dialog footer.
     pub notice: Option<String>,
 }
@@ -272,31 +269,58 @@ impl State {
     pub fn running(&self) -> bool {
         matches!(self.dialog, Some(Dialog::Running { .. }))
     }
-    pub fn open(&mut self, items: Vec<Item>) {
-        self.notice = None;
-        self.dialog = Some(Dialog::Menu { items, selected: 0 });
+    /// Opens the actions with the first one selected and its dry run started.
+    pub fn open(&mut self, details: Vec<String>, items: Vec<Item>) {
+        self.dialog = Some(Dialog::Menu {
+            details,
+            items,
+            selected: 0,
+            preview: Preview::None,
+        });
+        self.select(0);
     }
-    /// Copies the command; nothing runs.
-    pub fn copy(&mut self, action: &Action) {
-        let line = action.command_line();
-        self.notice = Some(format!("Copied: {line} (if your terminal allows it)"));
-        self.clipboard = Some(line);
-    }
-    /// Menu → confirmation; the preview starts only where writes are allowed.
-    pub fn choose(&mut self, item: Item) {
-        let preview = match (&item.blocked, item.action.preview_args(), self.allowed()) {
-            (Some(_), _, _) | (_, None, _) => Preview::None,
-            (None, Some(_), false) => Preview::Skipped,
-            (None, Some(_), true) => {
+    /// Selects an action and starts its dry run, where Homebrew has one. Only dew runs
+    /// previews: den never opens the menu.
+    pub fn select(&mut self, index: usize) {
+        let allowed = self.permit.is_some();
+        let Some(Dialog::Menu {
+            items,
+            selected,
+            preview,
+            ..
+        }) = &mut self.dialog
+        else {
+            return;
+        };
+        *selected = index.min(items.len().saturating_sub(1));
+        *preview = match items.get(*selected) {
+            Some(item)
+                if allowed && item.blocked.is_none() && item.action.preview_args().is_some() =>
+            {
                 self.request = Some(Request::Preview(item.action.clone()));
                 Preview::Waiting
             }
+            _ => {
+                self.request = None;
+                Preview::None
+            }
         };
         self.notice = None;
-        self.dialog = Some(Dialog::Confirm { item, preview });
     }
-    pub fn finish_preview(&mut self, result: Result<CommandOutput, CollectionError>) {
-        if let Some(Dialog::Confirm { preview, .. }) = &mut self.dialog {
+    /// A dry run finished; kept only if its action is still the selected one.
+    pub fn finish_preview(
+        &mut self,
+        action: &Action,
+        result: Result<CommandOutput, CollectionError>,
+    ) {
+        if let Some(Dialog::Menu {
+            items,
+            selected,
+            preview,
+            ..
+        }) = &mut self.dialog
+            && items.get(*selected).is_some_and(|i| i.action == *action)
+        {
             *preview = match result {
                 Ok(output) if output.code == Some(0) => Preview::Ready(tail(&output)),
                 Ok(output) => Preview::Failed(format!("{}\n{}", exit(output.code), tail(&output))),
@@ -304,12 +328,21 @@ impl State {
             };
         }
     }
-    /// `y` in the confirmation: runs only in dew, unblocked, after the preview.
-    pub fn confirm(&mut self) {
-        let Some(Dialog::Confirm { item, preview }) = &self.dialog else {
+    /// Enter: runs the selected action, only in dew, unblocked, after its dry run.
+    pub fn run_selected(&mut self) {
+        let Some(Dialog::Menu {
+            items,
+            selected,
+            preview,
+            ..
+        }) = &self.dialog
+        else {
             return;
         };
-        let refusal = if !self.allowed() {
+        let Some(item) = items.get(*selected) else {
+            return;
+        };
+        let refusal = if self.permit.is_none() {
             Some("Writes are off: den is read-only; dew makes changes".into())
         } else if let Some(why) = &item.blocked {
             Some(format!("Not available: {why}"))
@@ -367,6 +400,7 @@ impl State {
     }
     pub fn close(&mut self) {
         self.dialog = None;
+        self.request = None;
         self.notice = None;
     }
 }
@@ -473,33 +507,6 @@ fn utc(when: SystemTime) -> String {
     )
 }
 
-/// OSC 52: asks the terminal to put `text` on the clipboard. Terminals that do not
-/// support it ignore the sequence.
-pub fn clipboard_sequence(text: &str) -> String {
-    format!("\x1b]52;c;{}\x07", base64(text.as_bytes()))
-}
-
-fn base64(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b = [
-            chunk[0],
-            chunk.get(1).copied().unwrap_or(0),
-            chunk.get(2).copied().unwrap_or(0),
-        ];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(char::from(TABLE[(n >> (18 - 6 * i) & 63) as usize]));
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -602,52 +609,67 @@ mod tests {
     }
 
     #[test]
-    fn only_dew_runs_actions_after_their_preview_and_y() {
+    fn only_dew_runs_the_selected_action_after_its_preview() {
         let upgrade = Action::BrewUpgrade(formula("node"));
-        // Without a permit (den): no preview runs, and y refuses.
+        let items = || vec![item(upgrade.clone()), item(Action::BrewUpdate)];
+        // Without a permit (den): no preview runs, and Enter refuses.
         let mut s = State::new(None);
-        assert!(!s.allowed() && s.permit().is_none());
-        s.choose(item(upgrade.clone()));
+        s.open(vec![], items());
         assert_eq!(s.request, None);
-        assert!(matches!(
-            s.dialog,
-            Some(Dialog::Confirm {
-                preview: Preview::Skipped,
-                ..
-            })
-        ));
-        s.confirm();
+        s.run_selected();
         assert_eq!(s.request, None);
         assert!(s.notice.as_deref().unwrap().contains("dew makes changes"));
 
-        // With a permit (dew): the preview runs first, then y runs the action.
+        // With a permit (dew): opening starts the first action's dry run.
         let mut s = State::new(Permit::granted(true));
-        assert!(s.allowed() && s.permit().is_some());
-        s.choose(item(upgrade.clone()));
+        s.open(vec![], items());
         assert_eq!(s.request.take(), Some(Request::Preview(upgrade.clone())));
-        s.confirm();
+        s.run_selected();
         assert_eq!(s.request, None, "not before the preview finishes");
-        s.finish_preview(Ok(CommandOutput {
-            code: Some(0),
-            stdout: b"Would upgrade node 26.13 -> 26.14\n".to_vec(),
-            stderr: vec![],
-        }));
-        s.confirm();
+        // A late preview of another action is ignored.
+        s.finish_preview(
+            &Action::BrewCleanup,
+            Ok(CommandOutput {
+                code: Some(0),
+                stdout: b"other\n".to_vec(),
+                stderr: vec![],
+            }),
+        );
+        s.run_selected();
+        assert_eq!(s.request, None);
+        s.finish_preview(
+            &upgrade,
+            Ok(CommandOutput {
+                code: Some(0),
+                stdout: b"Would upgrade node 26.13 -> 26.14\n".to_vec(),
+                stderr: vec![],
+            }),
+        );
+        s.run_selected();
         assert_eq!(s.request.take(), Some(Request::Run(upgrade.clone())));
         assert!(s.running());
-        s.copy(&upgrade);
-        assert_eq!(s.clipboard.as_deref(), Some("brew upgrade --formula node"));
+
+        // An action without a dry run runs straight away.
+        let mut s = State::new(Permit::granted(true));
+        s.open(vec![], items());
+        s.select(1);
+        assert_eq!(s.request, None);
+        s.run_selected();
+        assert_eq!(s.request, Some(Request::Run(Action::BrewUpdate)));
     }
 
     #[test]
     fn blocked_actions_never_run() {
         let mut s = State::new(Permit::granted(true));
-        s.choose(Item {
-            action: Action::BrewUninstall(formula("openssl@3")),
-            blocked: Some("required by 12 installed packages".into()),
-        });
+        s.open(
+            vec![],
+            vec![Item {
+                action: Action::BrewUninstall(formula("openssl@3")),
+                blocked: Some("required by 12 installed packages".into()),
+            }],
+        );
         assert_eq!(s.request, None);
-        s.confirm();
+        s.run_selected();
         assert_eq!(s.request, None);
         assert!(s.notice.as_deref().unwrap().contains("required by 12"));
     }
@@ -658,8 +680,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let log = dir.join("state/den/actions.log");
         let mut s = State::new(Permit::granted(true));
-        s.choose(item(Action::BrewUpdate));
-        s.confirm();
+        s.open(vec![], vec![item(Action::BrewUpdate)]);
+        s.run_selected();
         s.finish(
             Ok(CommandOutput {
                 code: Some(1),
@@ -696,12 +718,6 @@ mod tests {
 
     #[test]
     fn known_answers() {
-        assert_eq!(base64(b""), "");
-        assert_eq!(base64(b"f"), "Zg==");
-        assert_eq!(base64(b"fo"), "Zm8=");
-        assert_eq!(base64(b"foo"), "Zm9v");
-        assert_eq!(base64(b"brew update"), "YnJldyB1cGRhdGU=");
-        assert_eq!(clipboard_sequence("hi"), "\x1b]52;c;aGk=\x07");
         let at = |s| utc(SystemTime::UNIX_EPOCH + Duration::from_secs(s));
         assert_eq!(at(0), "1970-01-01T00:00:00Z");
         assert_eq!(at(951_782_400), "2000-02-29T00:00:00Z");

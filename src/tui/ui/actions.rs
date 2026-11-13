@@ -1,5 +1,5 @@
-//! The actions dialog, drawn over the current screen: the menu, the confirmation with its
-//! preview, the running action and its result.
+//! The actions dialog, drawn over the current screen: the package, the actions and the
+//! selected one's dry run; then the running action and its result.
 use super::theme::theme;
 use super::*;
 use crate::actions::{Action, Dialog, Preview};
@@ -10,10 +10,12 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
         return;
     };
     let (title, body, footer) = match dialog {
-        Dialog::Menu { items, selected } => menu(items, *selected),
-        Dialog::Confirm { item, preview } => {
-            confirm(app, &item.action, item.blocked.as_deref(), preview)
-        }
+        Dialog::Menu {
+            details,
+            items,
+            selected,
+            preview,
+        } => menu(details, items, *selected, preview),
         Dialog::Running {
             action,
             started,
@@ -120,16 +122,27 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
     );
 }
 
-fn mode_line() -> Line<'static> {
+fn menu(
+    details: &[String],
+    items: &[crate::actions::Item],
+    selected: usize,
+    preview: &Preview,
+) -> (String, Vec<Line<'static>>, String) {
     // The dialog opens only in dew, where writes are on.
-    Line::styled(
-        "WRITE: each action shows what it will do and runs only on y.",
-        theme().bad(),
-    )
-}
-
-fn menu(items: &[crate::actions::Item], selected: usize) -> (String, Vec<Line<'static>>, String) {
-    let mut body = vec![mode_line(), Line::raw("")];
+    let mut body = vec![
+        Line::styled(
+            "WRITE: Enter runs the selected action, after its dry run.",
+            theme().bad(),
+        ),
+        Line::raw(""),
+    ];
+    if !details.is_empty() {
+        for (i, line) in details.iter().enumerate() {
+            let style = if i == 0 { heading() } else { Style::default() };
+            body.push(Line::from(status_spans(line, style)));
+        }
+        body.push(Line::raw(""));
+    }
     let column = items
         .iter()
         .map(|i| i.action.title().chars().count())
@@ -138,73 +151,47 @@ fn menu(items: &[crate::actions::Item], selected: usize) -> (String, Vec<Line<'s
         + 2;
     for (i, item) in items.iter().enumerate() {
         let marker = if i == selected { "> " } else { "  " };
-        let detail = match &item.blocked {
-            Some(why) => format!("not available: {why}"),
-            None => item.action.command_line(),
-        };
         let style = if item.blocked.is_some() {
             muted()
         } else if i == selected {
-            theme().selected_text()
+            theme().selected_text().add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
         body.push(Line::from(vec![
             Span::styled(format!("{marker}{:<column$}", item.action.title()), style),
-            Span::styled(detail, muted()),
+            Span::styled(item.action.command_line(), muted()),
         ]));
     }
-    (
-        "Actions".into(),
-        body,
-        "Enter: details · c: copy the command · Esc: close".into(),
-    )
-}
-
-fn confirm(
-    app: &App,
-    action: &Action,
-    blocked: Option<&str>,
-    preview: &Preview,
-) -> (String, Vec<Line<'static>>, String) {
-    let mut body = vec![mode_line(), Line::raw("")];
-    body.push(Line::from(vec![
-        Span::styled("Runs: ", muted()),
-        Span::raw(action.command_line()),
-    ]));
-    if let Some(note) = note(action) {
+    let Some(item) = items.get(selected) else {
+        return ("Actions".into(), body, "Esc: close".into());
+    };
+    body.push(Line::raw(""));
+    if let Some(why) = &item.blocked {
+        body.push(Line::styled(format!("Not available: {why}"), theme().bad()));
+    } else if let Some(note) = note(&item.action) {
         body.push(Line::styled(note.to_owned(), muted()));
     }
-    if let Some(why) = blocked {
-        body.push(Line::raw(""));
-        body.push(Line::styled(format!("Not available: {why}"), theme().bad()));
-    }
-    if let Some(line) = action.preview_line()
-        && blocked.is_none()
+    if let Some(line) = item.action.preview_line()
+        && item.blocked.is_none()
     {
-        body.push(Line::raw(""));
-        body.push(Line::styled(format!("Preview: {line}"), heading()));
-        let text = match preview {
-            Preview::Waiting => "Checking…".to_owned(),
-            Preview::Skipped => "Not run: writes are off.".to_owned(),
-            Preview::Ready(text) | Preview::Failed(text) => text.clone(),
-            Preview::None => String::new(),
-        };
-        let style = if matches!(preview, Preview::Failed(_)) {
-            theme().bad()
-        } else {
-            Style::default()
+        body.push(Line::styled(format!("Dry run: {line}"), heading()));
+        let (text, style) = match preview {
+            Preview::Waiting => ("Checking…".to_owned(), muted()),
+            Preview::Ready(text) => (text.clone(), Style::default()),
+            Preview::Failed(text) => (text.clone(), theme().bad()),
+            Preview::None => (String::new(), Style::default()),
         };
         body.extend(text.lines().map(|l| Line::styled(l.to_owned(), style)));
     }
-    let footer = if blocked.is_some() {
-        "c: copy the command · Esc: back"
-    } else if app.actions.allowed() {
-        "y: run it · c: copy the command · Esc: cancel"
+    let footer = if item.blocked.is_some() {
+        "↑↓: choose · Esc: close"
+    } else if *preview == Preview::Waiting {
+        "Checking… · ↑↓: choose · Esc: close"
     } else {
-        "c: copy the command · Esc: cancel"
+        "Enter: run it · ↑↓: choose · Esc: close"
     };
-    (action.title(), body, footer.into())
+    ("Actions".into(), body, footer.into())
 }
 
 /// What a command without a dry run will and won't do.
@@ -214,8 +201,8 @@ fn note(action: &Action) -> Option<&'static str> {
             Some("Downloads Homebrew's latest package data. No installed package changes.")
         }
         Action::BrewUninstall(_) => Some(
-            "Homebrew has no dry run for this. Den found nothing installed that needs it, \
-             and Homebrew refuses anyway if something does.",
+            "Homebrew has no dry run for uninstall. Den found nothing installed that needs \
+             it, and Homebrew refuses anyway if something does.",
         ),
         _ => None,
     }

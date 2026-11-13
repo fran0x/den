@@ -152,12 +152,14 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
 actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 
-1. In Homebrew, press `x` for the actions. The selected package can be upgraded (when a
-   newer version is known) or uninstalled; Homebrew as a whole can update its package data,
-   remove dependencies nothing needs, and clean up old versions and downloads.
-2. `Enter` shows what an action will do: the exact command and, where Homebrew has one,
-   a dry run of it.
-3. `y` runs it. Nothing else does: not `Enter`, not a second `x`.
+1. In Homebrew, press `x`. The dialog shows the selected package (version, newer version,
+   what needs it) and its actions: upgrade it (when a newer version is known), update
+   Homebrew's package data, remove dependencies nothing needs, clean up old versions and
+   downloads, and, last, uninstall it.
+2. Choose with `↑` `↓`. Below the list, the selected action shows its exact command and,
+   where Homebrew has one, a dry run.
+3. `Enter` runs it, once its dry run is shown. Uninstall is always last, so `x` then
+   `Enter` never removes a package.
 
 While an action runs, `Esc` or `Ctrl-C` stops it, giving Homebrew 10 seconds to clean up.
 Afterwards Den reloads Homebrew and logs the action to `~/.local/state/den/actions.log`:
@@ -170,8 +172,7 @@ What Den will not do:
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.
 
-In `den` there are no actions at all: `x` does nothing. In `dew`, `c` in the actions copies
-a command to the clipboard, if your terminal allows it, so you can run it yourself.
+In `den` there are no actions at all: `x` does nothing.
 
 ## What Den reads, and what it never does
 
