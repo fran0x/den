@@ -150,16 +150,14 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 ## Making changes
 
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
-actions allowed. It still starts read-only. Then:
+actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 
-1. Press `W` to turn writes on. The top bar shows a red **WRITE** while they are on; `W`
-   again turns them off.
-2. In Homebrew, press `x` for the actions. The selected package can be upgraded (when a
+1. In Homebrew, press `x` for the actions. The selected package can be upgraded (when a
    newer version is known) or uninstalled; Homebrew as a whole can update its package data,
    remove dependencies nothing needs, and clean up old versions and downloads.
-3. `Enter` shows what an action will do: the exact command and, where Homebrew has one,
+2. `Enter` shows what an action will do: the exact command and, where Homebrew has one,
    a dry run of it.
-4. `y` runs it. Nothing else does: not `Enter`, not a second `x`.
+3. `y` runs it. Nothing else does: not `Enter`, not a second `x`.
 
 While an action runs, `Esc` or `Ctrl-C` stops it, giving Homebrew 10 seconds to clean up.
 Afterwards Den reloads Homebrew and logs the action to `~/.local/state/den/actions.log`:
@@ -195,8 +193,7 @@ Files that link elsewhere are reported with their target, not followed.
 
 ## Small print
 
-- **Write mode:** `W` turns it on and off, in `dew` only; see
-  [Making changes](#making-changes).
+- **Making changes:** only in `dew`; see [Making changes](#making-changes).
 - **Searching:** `Backspace` deletes, `Ctrl-U` clears, `Enter` or `Esc` finishes and keeps
   the search. `Tab` and `Shift+Tab` also finish it.
 - **Going back:** `Esc` (or `Backspace`) steps back through your earlier selections and

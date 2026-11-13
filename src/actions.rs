@@ -1,7 +1,7 @@
 //! Write actions: off by default, confirmed one at a time, and limited to a closed list.
 //!
-//! `den` is always read-only. Actions can run only in `dew` (which creates the [`Permit`]) and write mode is switched on with `W` (shown as WRITE in
-//! the top bar), and each one is confirmed with `y` after its preview. Every action is a
+//! `den` is always read-only. Actions can run only in `dew`, which creates the [`Permit`]
+//! and shows WRITE in the top bar; each one is confirmed with `y` after its preview. Every action is a
 //! fixed command line built from a checked name: no shell, no sudo, stdin closed (a
 //! password prompt fails instead of waiting), and never `--force`, `--ignore-dependencies`
 //! or `--zap`. `den` has no actions at all: no menu, not even commands to copy.
@@ -247,7 +247,6 @@ pub enum Request {
 #[derive(Debug, Default)]
 pub struct State {
     permit: Option<Permit>,
-    on: bool,
     pub dialog: Option<Dialog>,
     pub request: Option<Request>,
     pub cancel_requested: bool,
@@ -263,27 +262,12 @@ impl State {
             ..Self::default()
         }
     }
+    /// Writes are allowed: this is `dew`.
     pub fn allowed(&self) -> bool {
         self.permit.is_some()
     }
-    /// Write mode: permitted and switched on.
-    pub fn on(&self) -> bool {
-        self.permit.is_some() && self.on
-    }
     pub fn permit(&self) -> Option<&Permit> {
-        self.permit.as_ref().filter(|_| self.on)
-    }
-    /// `W`: switches write mode; without the flag, says how to get it.
-    pub fn toggle(&mut self) -> String {
-        if self.permit.is_none() {
-            return "Writes are off in den: run dew to make changes, then press W".into();
-        }
-        self.on = !self.on;
-        if self.on {
-            "WRITE mode on: x opens actions; each one asks before it runs".into()
-        } else {
-            "WRITE mode off: Den is read-only again".into()
-        }
+        self.permit.as_ref()
     }
     pub fn running(&self) -> bool {
         matches!(self.dialog, Some(Dialog::Running { .. }))
@@ -298,9 +282,9 @@ impl State {
         self.notice = Some(format!("Copied: {line} (if your terminal allows it)"));
         self.clipboard = Some(line);
     }
-    /// Menu → confirmation; the preview starts only in write mode.
+    /// Menu → confirmation; the preview starts only where writes are allowed.
     pub fn choose(&mut self, item: Item) {
-        let preview = match (&item.blocked, item.action.preview_args(), self.on()) {
+        let preview = match (&item.blocked, item.action.preview_args(), self.allowed()) {
             (Some(_), _, _) | (_, None, _) => Preview::None,
             (None, Some(_), false) => Preview::Skipped,
             (None, Some(_), true) => {
@@ -320,13 +304,13 @@ impl State {
             };
         }
     }
-    /// `y` in the confirmation: runs only in write mode, unblocked, after the preview.
+    /// `y` in the confirmation: runs only in dew, unblocked, after the preview.
     pub fn confirm(&mut self) {
         let Some(Dialog::Confirm { item, preview }) = &self.dialog else {
             return;
         };
-        let refusal = if !self.on() {
-            Some(self.toggle_hint())
+        let refusal = if !self.allowed() {
+            Some("Writes are off: den is read-only; dew makes changes".into())
         } else if let Some(why) = &item.blocked {
             Some(format!("Not available: {why}"))
         } else if *preview == Preview::Waiting {
@@ -346,13 +330,6 @@ impl State {
             started: Instant::now(),
             stopping: false,
         });
-    }
-    fn toggle_hint(&self) -> String {
-        if self.permit.is_none() {
-            "Writes are off in den: run dew to make changes. c copies the command".into()
-        } else {
-            "WRITE mode is off: press W first".into()
-        }
     }
     /// Esc or Ctrl-C while running: ask the process to stop.
     pub fn stop(&mut self) {
@@ -625,12 +602,11 @@ mod tests {
     }
 
     #[test]
-    fn nothing_runs_without_the_flag_and_write_mode() {
+    fn only_dew_runs_actions_after_their_preview_and_y() {
         let upgrade = Action::BrewUpgrade(formula("node"));
-        // No flag: the menu copies, previews do not run, and y refuses.
+        // Without a permit (den): no preview runs, and y refuses.
         let mut s = State::new(None);
-        assert!(s.toggle().contains("run dew"));
-        assert!(!s.on());
+        assert!(!s.allowed() && s.permit().is_none());
         s.choose(item(upgrade.clone()));
         assert_eq!(s.request, None);
         assert!(matches!(
@@ -642,21 +618,11 @@ mod tests {
         ));
         s.confirm();
         assert_eq!(s.request, None);
-        assert!(s.notice.as_deref().unwrap().contains("run dew"));
-        s.copy(&upgrade);
-        assert_eq!(s.clipboard.as_deref(), Some("brew upgrade --formula node"));
+        assert!(s.notice.as_deref().unwrap().contains("dew makes changes"));
 
-        // The flag alone is not enough: write mode must be on.
+        // With a permit (dew): the preview runs first, then y runs the action.
         let mut s = State::new(Permit::granted(true));
-        s.choose(item(upgrade.clone()));
-        s.confirm();
-        assert_eq!(s.request, None);
-        assert!(s.notice.as_deref().unwrap().contains("press W"));
-        assert!(s.permit().is_none());
-
-        // Flag and write mode: the preview runs first, then y runs the action.
-        s.toggle();
-        assert!(s.on() && s.permit().is_some());
+        assert!(s.allowed() && s.permit().is_some());
         s.choose(item(upgrade.clone()));
         assert_eq!(s.request.take(), Some(Request::Preview(upgrade.clone())));
         s.confirm();
@@ -667,14 +633,15 @@ mod tests {
             stderr: vec![],
         }));
         s.confirm();
-        assert_eq!(s.request.take(), Some(Request::Run(upgrade)));
+        assert_eq!(s.request.take(), Some(Request::Run(upgrade.clone())));
         assert!(s.running());
+        s.copy(&upgrade);
+        assert_eq!(s.clipboard.as_deref(), Some("brew upgrade --formula node"));
     }
 
     #[test]
     fn blocked_actions_never_run() {
         let mut s = State::new(Permit::granted(true));
-        s.toggle();
         s.choose(Item {
             action: Action::BrewUninstall(formula("openssl@3")),
             blocked: Some("required by 12 installed packages".into()),
@@ -691,7 +658,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let log = dir.join("state/den/actions.log");
         let mut s = State::new(Permit::granted(true));
-        s.toggle();
         s.choose(item(Action::BrewUpdate));
         s.confirm();
         s.finish(

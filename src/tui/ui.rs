@@ -25,7 +25,7 @@ use crate::{
 };
 
 pub fn render(frame: &mut Frame, app: &mut App) {
-    set_write_mode(app.actions.on());
+    set_write_mode(app.actions.allowed());
     screen(frame, app);
     let area = frame.area();
     if area.width < 30 || area.height < 10 {

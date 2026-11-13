@@ -484,7 +484,7 @@ else:
     print("PASS: responsive on-demand diagnostics, expected missing exit, cleanup failure, freshness and exact dry-run argv")
 
     # Write actions: a fake brew records every argv. In den nothing but `info` may run;
-    # in dew, W, x, the preview and y run exactly the chosen command.
+    # in dew, x, the preview and y run exactly the chosen command.
     calls.unlink()
     state = Path(temporary) / "state"
     fake.write_text(f"#!{sys.executable}\n" + """
@@ -508,17 +508,15 @@ else:
     sys.exit(3)
 """)
     write_env = dict(isolated_env, XDG_STATE_HOME=str(state))
-    # den has no actions: W only points to dew, and x, Enter and y do nothing.
+    # den has no actions: W, x, Enter and y do nothing.
     output = run_pty([binary], env=write_env, steps=[
-        (b"Loaded 8", b"W"),
-        (b"run dew", b"x\ryq"),
+        (b"Loaded 8", b"Wx\ryq"),
     ])
-    assert b"Actions" not in output and b"x:actions" not in output
+    assert b"Actions" not in output and b"x:actions" not in output and b"WRITE" not in output
     assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
     assert not state.exists(), "nothing ran, so nothing is logged"
     calls.unlink()
     run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
-        (b"Loaded 8", b"W"),
         (b"WRITE", b"x"),
         (b"Actions", [b"\x1b[F", b"\r"]),
         # Enter never confirms; only y does.
@@ -534,7 +532,7 @@ else:
     ], calls.read_text()
     log = (state / "den" / "actions.log").read_text()
     assert log.endswith("\tbrew cleanup\tDone\n") and "old-download" not in log, log
-    print("PASS: write actions need dew, W and y; exact argv, preview first, logged without output")
+    print("PASS: write actions need dew and y; exact argv, preview first, logged without output")
 
 build = subprocess.run(["cargo", "test", "--lib", "--no-run", "--message-format=json"],
                        check=True, capture_output=True, text=True)

@@ -18,7 +18,7 @@ default:
 den *args:
     cargo run --bin den -- "$@"
 
-# Run dew: den with Homebrew write actions allowed (W turns them on, y confirms each).
+# Run dew: den with Homebrew write actions allowed (y confirms each).
 dew *args:
     cargo run --bin dew -- "$@"
 

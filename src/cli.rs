@@ -18,7 +18,7 @@ use crate::{
 pub enum Program {
     /// Read-only, always.
     Den,
-    /// Den with Homebrew write actions allowed; each is still switched on and confirmed.
+    /// Den with Homebrew write actions allowed; each is still confirmed.
     Dew,
 }
 impl Program {
@@ -51,9 +51,9 @@ run dew instead."
             }
             Self::Dew => {
                 "\
-dew is den with write actions allowed. It starts read-only: W turns writes on (the top bar \
-shows WRITE), x in Homebrew opens the actions, and each one shows its command and a dry run \
-and runs only after you confirm it with y. dew takes no offline source: it only changes \
+dew is den with write actions allowed (the top bar shows WRITE): x in Homebrew opens the \
+actions, and each one shows its command and a dry run and runs only after you confirm it \
+with y. dew takes no offline source: it only changes \
 this machine."
             }
         }

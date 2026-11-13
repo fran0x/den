@@ -53,8 +53,8 @@ system `python3` hiding Homebrew's.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
 - **Writes are opt-in.** `den` never changes anything. Upgrading, uninstalling and cleaning
-  up Homebrew packages needs `dew`, then `W` to turn writes on (the top bar shows WRITE),
-  then `y` to confirm each action after its preview. `den` offers no actions at all.
+  up Homebrew packages needs `dew` (the top bar shows WRITE), and `y` to confirm each
+  action after its preview. `den` offers no actions at all.
 
 Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
 actions are in [Making changes](docs/GUIDE.md#making-changes).

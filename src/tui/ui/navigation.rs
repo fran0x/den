@@ -125,7 +125,7 @@ pub(super) fn help(app: &App) -> String {
 Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed] and in their own colour.\n\
 Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update.\n\
 The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
-In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. W turns writes on, and y runs one after its preview; den has no actions.\n\
+In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Each runs only on y, after its preview; den has no actions.\n\
 Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Enter opens a group or jumps to a package (Esc comes back), Space shows the full finding, o Homebrew's original report, c runs the check now (read-only)."
         }
     };
@@ -142,6 +142,6 @@ q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
 {context}\n\n\
 F2 is Tab and F3 is Shift+Tab. Esc closes this help.\n\
-Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. Changes happen only in dew, with W and a confirmation (y)."
+Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. Changes happen only in dew, each after a confirmation (y)."
     )
 }

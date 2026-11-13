@@ -58,7 +58,7 @@ pub struct HomebrewCounts {
 }
 
 pub struct App {
-    /// Write actions: only in `dew`, and only once switched on with `W`.
+    /// Write actions: only in `dew`.
     pub actions: crate::actions::State,
     pub presentation: crate::tui::presentation::Presentation,
     pub module: Module,
@@ -412,11 +412,6 @@ impl App {
         }
         if !self.active_searching() && !self.presentation.menu_searching {
             match key.code {
-                KeyCode::Char('W') => {
-                    let notice = self.actions.toggle();
-                    self.actions.notice = Some(notice);
-                    return;
-                }
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
                     let items = self.action_items();

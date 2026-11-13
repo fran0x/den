@@ -127,29 +127,18 @@ fn den_has_no_actions_at_all() {
     ] {
         assert!(!screen.contains(command), "{screen}");
     }
-    // W only says where writes live.
+    // W is just a letter: there is no write mode to switch on.
     key(&mut a, KeyCode::Char('W'));
-    assert!(!a.actions.on());
-    let screen = draw(&mut a, 120, 30);
-    assert!(screen.contains("run dew"), "{screen}");
-    assert!(!screen.contains(" WRITE "));
+    assert!(!a.actions.allowed());
+    assert!(!draw(&mut a, 120, 30).contains(" WRITE "));
     assert_eq!(a.actions.request, None);
 }
 
 #[test]
-fn with_the_flag_write_mode_then_y_runs_it() {
+fn dew_previews_then_y_runs_it() {
     let mut a = app(true);
     select(&mut a, "ripgrep");
-    // The flag alone does not run anything.
-    key(&mut a, KeyCode::Char('x'));
-    key(&mut a, KeyCode::Enter);
-    key(&mut a, KeyCode::Char('y'));
-    assert_eq!(a.actions.request, None);
-    key(&mut a, KeyCode::Esc);
-    key(&mut a, KeyCode::Esc);
-
-    key(&mut a, KeyCode::Char('W'));
-    assert!(a.actions.on());
+    // dew shows WRITE from the start; there is no switch to turn on first.
     assert!(draw(&mut a, 120, 30).contains(" WRITE "));
     key(&mut a, KeyCode::Char('x'));
     key(&mut a, KeyCode::Enter);
@@ -192,7 +181,6 @@ fn with_the_flag_write_mode_then_y_runs_it() {
 #[test]
 fn a_blocked_uninstall_cannot_be_confirmed() {
     let mut a = app(true);
-    key(&mut a, KeyCode::Char('W'));
     select(&mut a, "pcre2");
     key(&mut a, KeyCode::Char('x'));
     pick(&mut a, "brew uninstall --formula pcre2");
@@ -220,7 +208,6 @@ fn ctrl_c_quits_from_menus_but_not_mid_action() {
 #[test]
 fn dialogs_fit_small_and_large_screens() {
     let mut a = app(true);
-    key(&mut a, KeyCode::Char('W'));
     select(&mut a, "ripgrep");
     key(&mut a, KeyCode::Char('x'));
     for (w, h) in [(30, 10), (45, 20), (80, 24), (160, 45)] {

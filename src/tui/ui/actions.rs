@@ -10,7 +10,7 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
         return;
     };
     let (title, body, footer) = match dialog {
-        Dialog::Menu { items, selected } => menu(app, items, *selected),
+        Dialog::Menu { items, selected } => menu(items, *selected),
         Dialog::Confirm { item, preview } => {
             confirm(app, &item.action, item.blocked.as_deref(), preview)
         }
@@ -94,7 +94,7 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, rect);
     let block = Block::bordered()
         .title(format!(" {} ", safe_text(&title)))
-        .border_style(if app.actions.on() {
+        .border_style(if app.actions.allowed() {
             theme().bad()
         } else {
             heading()
@@ -120,27 +120,16 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
     );
 }
 
-fn mode_line(app: &App) -> Line<'static> {
-    if app.actions.on() {
-        Line::styled(
-            "WRITE mode is on: each action shows what it will do and runs only on y.",
-            theme().bad(),
-        )
-    } else {
-        // The dialog opens only in dew; den has no actions.
-        Line::styled(
-            "Writes are off: press W to turn them on. c copies a command.",
-            theme().warn(),
-        )
-    }
+fn mode_line() -> Line<'static> {
+    // The dialog opens only in dew, where writes are on.
+    Line::styled(
+        "WRITE: each action shows what it will do and runs only on y.",
+        theme().bad(),
+    )
 }
 
-fn menu(
-    app: &App,
-    items: &[crate::actions::Item],
-    selected: usize,
-) -> (String, Vec<Line<'static>>, String) {
-    let mut body = vec![mode_line(app), Line::raw("")];
+fn menu(items: &[crate::actions::Item], selected: usize) -> (String, Vec<Line<'static>>, String) {
+    let mut body = vec![mode_line(), Line::raw("")];
     let column = items
         .iter()
         .map(|i| i.action.title().chars().count())
@@ -178,7 +167,7 @@ fn confirm(
     blocked: Option<&str>,
     preview: &Preview,
 ) -> (String, Vec<Line<'static>>, String) {
-    let mut body = vec![mode_line(app), Line::raw("")];
+    let mut body = vec![mode_line(), Line::raw("")];
     body.push(Line::from(vec![
         Span::styled("Runs: ", muted()),
         Span::raw(action.command_line()),
@@ -210,7 +199,7 @@ fn confirm(
     }
     let footer = if blocked.is_some() {
         "c: copy the command · Esc: back"
-    } else if app.actions.on() {
+    } else if app.actions.allowed() {
         "y: run it · c: copy the command · Esc: cancel"
     } else {
         "c: copy the command · Esc: cancel"
