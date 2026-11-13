@@ -1,7 +1,7 @@
 [package]
 # `den` is taken on crates.io; the library and the command keep the name `den`.
 name = "den-tui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.90"
 default-run = "den"
