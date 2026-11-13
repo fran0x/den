@@ -5,11 +5,18 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 - **Docker clean-up in `dew`:** `x` in Docker stops a running container, or removes a
   stopped container or an image or volume nothing uses (in Images, also every unused
   untagged image at once). One `docker` command on an exact ID or name, never `-f` or
   `prune`. Docker has no dry run, so the dialog says exactly what goes before Enter runs
   it. Docker is listed again afterwards.
+- **Actions dialog:** opens with the first action selected in every area, so `x` then
+  `Enter` runs it.
+- **Loading:** Docker and Toolchains show the same spinner as Homebrew while they load.
+- **README:** shorter, with one section for `den` and one for `dew`; the list of commands
+  `den` runs moved to the guide.
 
 ## [0.2.0] - 2026-11-13
 
@@ -55,6 +62,7 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/fran0x/den/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fran0x/den/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fran0x/den/releases/tag/v0.1.0
