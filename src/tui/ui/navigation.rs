@@ -138,7 +138,6 @@ PgUp PgDn  scroll the panel\n\
 /          search; Enter or Esc finishes and keeps the search\n\
 Esc        go back\n\
 r          refresh\n\
-!          problems across every area; Enter goes to one\n\
 q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
 {context}\n\n\

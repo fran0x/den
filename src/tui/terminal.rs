@@ -73,9 +73,8 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.finish_check(*check, result, *epoch);
                 diagnostic = None;
             }
-            // Opening Agents collects Codex and Claude Code; each has its own worker. The
-            // Problems overview reads every file-based area too (not Docker, which runs docker).
-            if (app.module == crate::app::Module::Agents || app.problems.is_some())
+            // Opening Agents collects Codex and Claude Code; each has its own worker.
+            if app.module == crate::app::Module::Agents
                 && app.codex.requested
                 && codex.is_none()
                 && let Some(context) = app.codex.context.clone()
@@ -98,7 +97,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.skills.running = false;
                 codex = None;
             }
-            if (app.module == crate::app::Module::Agents || app.problems.is_some())
+            if app.module == crate::app::Module::Agents
                 && app.claude.requested
                 && claude.is_none()
                 && let Some(context) = app.claude.context.clone()
@@ -112,7 +111,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                     Err(error) => app.finish_claude(Err(error)),
                 }
             }
-            if (app.module == crate::app::Module::Cloud || app.problems.is_some())
+            if app.module == crate::app::Module::Cloud
                 && app.aws.requested
                 && aws.is_none()
                 && let Some(context) = app.aws.context.clone()
@@ -126,7 +125,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                     Err(error) => app.aws.finish(Err(error)),
                 }
             }
-            if (app.module == crate::app::Module::Cloud || app.problems.is_some())
+            if app.module == crate::app::Module::Cloud
                 && app.kube.requested
                 && kube.is_none()
                 && let Some(context) = app.kube.context.clone()
@@ -148,7 +147,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 kube = None;
             }
             // Toolchains are read only when their area is open.
-            if (app.module == crate::app::Module::Toolchains || app.problems.is_some())
+            if app.module == crate::app::Module::Toolchains
                 && app.toolchains.requested
                 && toolchains.is_none()
                 && let Some(context) = app.toolchains.context.clone()
@@ -209,7 +208,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.finish_claude(result);
                 claude = None;
             }
-            if (app.module == crate::app::Module::Agents || app.problems.is_some())
+            if app.module == crate::app::Module::Agents
                 && app.codex.context.is_none()
                 && app.skills.requested
                 && skills.is_none()

@@ -9,7 +9,6 @@ Keep changes within the requested scope.
 | Location | Responsibility |
 | --- | --- |
 | `src/main.rs` | CLI arguments and choosing live or offline sources |
-| `src/problems.rs` | The Problems overview (`!`): every area's Problem rows, then updates; it reads file-based areas when opened, and Docker only once its area was opened |
 | `src/app.rs`, `src/listing.rs`, `src/status.rs` | Application state; shared list state (selection, search, refresh); the typed row status (Ready, Problem, Off, Installed) |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
 | `src/tui/` | Terminal lifecycle and event loop (`terminal`), split escape sequences (`keys`), section/inspector navigation and Back history (`presentation`), rendering and help (`ui/`) |

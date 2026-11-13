@@ -470,3 +470,21 @@ fn empty_recorded_version_is_incomplete_metadata_not_a_historical_version() {
         2
     );
 }
+
+#[test]
+fn unresolved_references_say_how_many_are_needed_at_run_time() {
+    // One absent reference of every kind: only the recorded and the required runtime
+    // ones are needed at run time; build, test, optional and version gaps are normal.
+    let mut app = App::new(inventory(), "Homebrew snapshot");
+    assert_eq!(app.health.runtime_missing(), 2);
+    key(&mut app, KeyCode::Char('5'));
+    let screen = draw(&mut app, 140, 30);
+    assert!(screen.contains("(2 needed at run time)"), "{screen}");
+    // Only a build-only dependency is absent here: nothing needed at run time.
+    let brew =
+        den::areas::homebrew::load_snapshot(std::path::Path::new("fixtures/brew.json")).unwrap();
+    let mut app = App::new(brew, "Homebrew snapshot");
+    assert_eq!(app.health.runtime_missing(), 0);
+    key(&mut app, KeyCode::Char('5'));
+    assert!(draw(&mut app, 140, 30).contains("(0 needed at run time)"));
+}

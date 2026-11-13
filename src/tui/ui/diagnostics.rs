@@ -57,13 +57,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App, area: Rect) {
         .map_or("Not checked / unavailable".into(), |n| n.to_string());
     let header = if tab == Tab::Unresolved {
         format!(
-            "{}{} unresolved references · {} target-keg gaps\nMissing references confirmed by Homebrew: {missing}. Enter: drill down; Space: explanation.",
+            "{}{} unresolved references ({} needed at run time) · {} target-keg gaps\nMissing references confirmed by Homebrew: {missing}. Enter: drill down; Space: explanation.",
             if app.health.partial {
                 "PARTIAL GRAPH: "
             } else {
                 ""
             },
             app.health.unresolved,
+            app.health.runtime_missing(),
             app.health.keg_gaps
         )
     } else {

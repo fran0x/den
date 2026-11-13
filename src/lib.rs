@@ -19,8 +19,6 @@ pub mod inventory;
 #[doc(hidden)]
 pub mod listing;
 #[doc(hidden)]
-pub mod problems;
-#[doc(hidden)]
 pub mod source;
 #[doc(hidden)]
 pub mod status;

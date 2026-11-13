@@ -1,6 +1,5 @@
 mod actions;
 mod common;
-mod problems;
 mod theme;
 pub use theme::{Theme, set_theme};
 mod homebrew;
@@ -27,7 +26,6 @@ use crate::{
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     set_write_mode(app.actions.allowed());
-    set_problems(crate::problems::problems(app));
     screen(frame, app);
     let area = frame.area();
     if area.width < 30 || area.height < 10 {
@@ -73,10 +71,6 @@ fn screen(frame: &mut Frame, app: &mut App) {
         app.help_scroll = app.help_scroll.min(app.help_max);
         frame.render_widget(block, reading_area(body));
         frame.render_widget(paragraph.scroll((app.help_scroll, 0)), inner);
-        return;
-    }
-    if app.problems.is_some() {
-        problems::render(frame, app);
         return;
     }
     if app.inspecting() {

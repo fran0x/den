@@ -16,7 +16,6 @@ everything Den knows about it.
 | `/` | Search the list |
 | `Esc` | Go back |
 | `r` | Refresh |
-| `!` | Problems across every area |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -37,17 +36,6 @@ add their own keys; they are listed below.
 Statuses are coloured: **Ready** and **Running** in green, **Needs approval** in yellow,
 **Problem** in red. If a tool is not installed or not configured (no `brew`, no `docker`,
 no `~/.aws`, …), its list says so and `r` tries again.
-
-## Problems
-
-`!` lists everything that needs attention, from every area at once: Problem rows from
-Agents, Cloud, Docker and Toolchains and missing Homebrew runtime dependencies first, then
-available updates. `Enter` takes you to the entry in its own area, selected; `Esc` closes
-the list. The top bar shows how many problems there are, like **! 4**.
-
-Opening the list reads the areas Den reads from files (Agents, Cloud, Toolchains) if you
-have not opened them yet. Docker is listed once you have opened the Docker area, because
-only then does Den run `docker`.
 
 ## Homebrew
 

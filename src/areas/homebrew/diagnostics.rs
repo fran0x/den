@@ -73,6 +73,16 @@ pub struct Health {
     pub partial: bool,
 }
 impl Health {
+    /// Unresolved references that installed packages need at run time. The others (build,
+    /// test or optional dependencies, versions since upgraded, unclear identities) are
+    /// normal and need nothing done.
+    pub fn runtime_missing(&self) -> usize {
+        self.groups
+            .iter()
+            .filter(|((cause, _), _)| matches!(cause, Cause::AbsentRecorded | Cause::AbsentCurrent))
+            .map(|(_, items)| items.len())
+            .sum()
+    }
     pub fn build(graph: &Graph) -> Self {
         let mut health = Self {
             partial: graph.truncated,
