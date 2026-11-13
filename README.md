@@ -9,8 +9,9 @@
 Den shows what is installed and how it is configured: Homebrew packages and their
 dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
 toolchains. `den` only reads: it never installs, removes, logs in or runs what it finds.
-`dew` is the same tool with Homebrew changes allowed (upgrade, uninstall, clean up), each
-one chosen by you and shown with its dry run first.
+`dew` is the same tool with changes allowed: upgrade, uninstall and clean up Homebrew
+packages, and stop or remove Docker containers, images and volumes nothing uses. Each one
+is chosen by you and shows what it will do first.
 
 ![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
 
@@ -19,7 +20,7 @@ one chosen by you and shown with its dry run first.
 ```sh
 cargo install --locked den-tui   # installs both commands
 den                              # read-only
-dew                              # the same, with Homebrew changes allowed
+dew                              # the same, with changes allowed
 ```
 
 Or download a binary for macOS or Linux from
@@ -55,9 +56,10 @@ system `python3` hiding Homebrew's.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
 - **Writes are opt-in.** `den` never changes anything and offers no actions. In `dew` (the
-  top bar shows WRITE), `x` in Homebrew shows the actions and `Enter` runs the one you
-  choose, after its dry run: `brew upgrade`, `uninstall`, `update`, `autoremove` or
-  `cleanup`, never with `--force`, a shell or sudo.
+  top bar shows WRITE), `x` shows the actions and `Enter` runs the one you choose: in
+  Homebrew `brew upgrade`, `uninstall`, `update`, `autoremove` or `cleanup` after its dry
+  run; in Docker `docker container stop`, `container rm`, `image rm` or `volume rm` on
+  something nothing uses. Never with `--force`, `prune`, a shell or sudo.
 
 ![dew showing ripgrep's actions and the upgrade's dry run](docs/images/dew.svg)
 

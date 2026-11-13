@@ -413,8 +413,15 @@ impl App {
         if !self.active_searching() && !self.presentation.menu_searching {
             match key.code {
                 // In den there are no actions at all, not even commands to copy.
-                KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
-                    let (package, items) = self.action_menu();
+                KeyCode::Char('x')
+                    if matches!(self.module, Module::Homebrew | Module::Docker)
+                        && self.actions.allowed() =>
+                {
+                    let (package, items) = if self.module == Module::Docker {
+                        self.docker_menu()
+                    } else {
+                        self.action_menu()
+                    };
                     self.actions.open(package, items);
                     return;
                 }
@@ -602,6 +609,7 @@ impl App {
                         blocked: meta
                             .pinned()
                             .then(|| "it is pinned; unpin it with brew unpin first".into()),
+                        note: None,
                     });
                 }
                 uninstall = Some(Item {
@@ -616,6 +624,7 @@ impl App {
                             "another installed package needs it".into()
                         }
                     }),
+                    note: None,
                 });
             }
         }
@@ -624,23 +633,124 @@ impl App {
             Action::BrewAutoremove,
             Action::BrewCleanup,
         ] {
-            items.push(Item {
-                action,
-                blocked: None,
-            });
+            items.push(Item::new(action));
         }
         items.extend(uninstall);
         (title, items)
     }
 
-    /// An action finished: log it, show it, and reload Homebrew, which it may have changed.
+    /// What the actions dialog offers for the selected Docker row: stop a running
+    /// container, remove a stopped one, or remove an image or volume nothing uses; in
+    /// Images, also every untagged image nothing uses. Docker has no dry run, so each note
+    /// says what goes. Nothing in use is offered: Docker would refuse it without `-f`.
+    pub fn docker_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
+        use crate::actions::{Action, DockerObject, Item};
+        use crate::areas::docker::Section;
+        let mut items = vec![];
+        let row = self.docker.selected_row();
+        let item = |action: Action, note: String| Item {
+            action,
+            blocked: None,
+            note: Some(note),
+        };
+        if let Some(row) = row {
+            match self.docker.section {
+                Section::Containers => match row.state.as_str() {
+                    "Running" | "Restarting" => {
+                        if let Some(o) = DockerObject::id(&row.target, &row.name) {
+                            items.push(item(
+                                Action::DockerStopContainer(o),
+                                format!(
+                                    "Stops {}: Docker asks it to stop, then ends it after 10 \
+                                     seconds. It can be started again.",
+                                    row.name
+                                ),
+                            ));
+                        }
+                    }
+                    "Stopped" | "Created" | "Dead" => {
+                        if let Some(o) = DockerObject::id(&row.target, &row.name) {
+                            items.push(item(
+                                Action::DockerRemoveContainer(o),
+                                format!(
+                                    "Removes the container {}. Its image and named volumes stay.",
+                                    row.name
+                                ),
+                            ));
+                        }
+                    }
+                    _ => {}
+                },
+                Section::Images if row.status.starts_with("Unused") => {
+                    let object = if row.status.ends_with("dangling") {
+                        DockerObject::id(&row.target, &row.name)
+                    } else {
+                        DockerObject::image(&row.target, &row.name)
+                    };
+                    if let Some(o) = object {
+                        items.push(item(
+                            Action::DockerRemoveImages(vec![o]),
+                            format!(
+                                "Removes the image {} ({}). No container uses it.",
+                                row.name, row.state
+                            ),
+                        ));
+                    }
+                }
+                Section::Volumes if row.status == "Unused" => {
+                    if let Some(o) = DockerObject::volume(&row.target, &row.name) {
+                        items.push(item(
+                            Action::DockerRemoveVolume(o),
+                            format!(
+                                "Removes the volume {} and everything in it. No container uses it.",
+                                row.name
+                            ),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+        if self.docker.section == Section::Images
+            && let Some(inventory) = &self.docker.inventory
+        {
+            let dangling: Vec<_> = inventory
+                .images
+                .iter()
+                .filter(|r| r.status == "Unused · dangling")
+                .filter_map(|r| DockerObject::id(&r.target, &r.name).map(|o| (o, r)))
+                .collect();
+            if dangling.len() > 1 {
+                let list: Vec<_> = dangling
+                    .iter()
+                    .map(|(_, r)| format!("{} ({})", r.name, r.state))
+                    .collect();
+                items.push(item(
+                    Action::DockerRemoveImages(dangling.into_iter().map(|(o, _)| o).collect()),
+                    format!(
+                        "Removes every untagged image no container uses: {}.",
+                        list.join(", ")
+                    ),
+                ));
+            }
+        }
+        (row.map(|r| r.name.clone()), items)
+    }
+
+    /// An action finished: log it, show it, and reload what it may have changed.
     pub fn finish_action(
         &mut self,
         result: Result<crate::areas::homebrew::CommandOutput, CollectionError>,
         log: Option<&std::path::Path>,
     ) {
+        let docker = matches!(
+            &self.actions.dialog,
+            Some(crate::actions::Dialog::Running { action, .. }) if action.docker()
+        );
         self.actions.finish(result, log);
-        if self.live && !matches!(self.collection_status, CollectionStatus::Loading { .. }) {
+        if docker {
+            self.docker.requested = self.docker.context.is_some();
+        } else if self.live && !matches!(self.collection_status, CollectionStatus::Loading { .. }) {
             self.refresh_requested = true;
         }
     }

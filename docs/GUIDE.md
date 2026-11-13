@@ -160,14 +160,21 @@ actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 3. `Enter` runs it, once its dry run is shown. Uninstall is always last, so `x` then
    `Enter` never removes a package.
 
+In Docker, `x` offers what Docker allows without forcing: stop a running container,
+remove a stopped one, or remove an image or volume no container uses (in Images, also
+every untagged image nothing uses, at once). Docker has no dry run, so nothing is chosen
+when the dialog opens: choose with `↑` `↓`, read what will be removed (its name and, for
+images, its size), then press `Enter`.
+
 While a dry run or an action runs, a spinner shows it is working, with the seconds so far.
 `Esc` or `Ctrl-C` stops a running action, giving Homebrew 10 seconds to clean up.
-Afterwards Den reloads Homebrew and logs the action to `~/.local/state/den/actions.log`:
+Afterwards Den reloads Homebrew or Docker and logs the action to `~/.local/state/den/actions.log`:
 the time, the command and whether it worked, never its output.
 
 What Den will not do:
 
 - Uninstall a package something else needs, or upgrade a pinned one.
+- Remove a container, image or volume something uses, or run `docker … prune` or `-f`.
 - Run `brew update` on its own: refreshing Homebrew's data is an action you choose.
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.

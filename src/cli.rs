@@ -51,8 +51,8 @@ run dew instead."
             }
             Self::Dew => {
                 "\
-dew is den with write actions allowed (the top bar shows WRITE): x in Homebrew shows the \
-package's actions, each with its command and a dry run, and Enter runs the chosen \
+dew is den with write actions allowed (the top bar shows WRITE): x in Homebrew or Docker \
+shows the actions, each with its command and a dry run, and Enter runs the chosen \
 one. dew takes no offline source: it only changes this machine."
             }
         }

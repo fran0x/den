@@ -7,8 +7,9 @@ security bug.
 
 `den` is always read-only. Changes need the `dew` command (the top bar then shows WRITE),
 and even there each action runs only when you choose it and press Enter, after its dry run
-where Homebrew has one. Actions are a fixed list of Homebrew commands built from checked
-names, run without a shell, sudo or a terminal for input.
+where the tool has one. Actions are a fixed list of Homebrew and Docker commands built
+from checked names and IDs, run without a shell, sudo or a terminal for input, and never
+with force.
 
 ## Reporting
 

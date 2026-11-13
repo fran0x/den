@@ -5,6 +5,12 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Docker clean-up in `dew`:** `x` in Docker stops a running container, or removes a
+  stopped container or an image or volume nothing uses (in Images, also every unused
+  untagged image at once). One `docker` command on an exact ID or name, never `-f` or
+  `prune`. Docker has no dry run, so the dialog opens with nothing chosen: choose with ↑↓,
+  read what goes, then Enter. Docker is listed again afterwards.
+
 ## [0.2.0] - 2026-11-13
 
 - **Write actions, opt-in:** run `dew` instead of `den` (`den` stays read-only and offers

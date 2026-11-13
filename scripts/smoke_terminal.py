@@ -401,6 +401,51 @@ print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
         ])
         assert b"PRIVATE-DOCKER-ERROR" not in output
     print("PASS: Docker runs only the four listing commands, only when opened; a stopped daemon is explained")
+    with tempfile.TemporaryDirectory(prefix="den-docker-dew-") as docker_dir:
+        db = "bbbbbbbbbbbb2222222222222222222222222222222222222222222222222222"
+        fake_docker = Path(docker_dir) / "docker"
+        # dew may add exactly one command: removing the stopped container it was asked to.
+        fake_docker.write_text(f"#!{sys.executable}\n" + """
+import os, pathlib, sys
+here = pathlib.Path(__file__).parent
+allowed = {
+    ('container', 'ls', '--all', '--no-trunc', '--format', '{{json .}}'): 'containers',
+    ('image', 'ls', '--no-trunc', '--format', '{{json .}}'): 'images',
+    ('volume', 'ls', '--format', '{{json .}}'): 'volumes',
+    ('system', 'df', '--format', '{{json .}}'): 'disk',
+}
+args = tuple(sys.argv[1:])
+with open(here / 'docker-calls', 'a') as f:
+    f.write(' '.join(args) + '\\n')
+assert os.environ.get('DOCKER_CLI_HINTS') == 'false'
+if args == ('container', 'rm', '""" + db + """'):
+    (here / 'removed').write_text('')
+    print(args[2])
+    sys.exit(0)
+assert args in allowed, args
+lines = pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text().splitlines()
+if allowed[args] == 'containers' and (here / 'removed').exists():
+    lines = [l for l in lines if 'web-db-1' not in l]
+print('\\n'.join(lines))
+""")
+        fake_docker.chmod(0o700)
+        state = Path(docker_dir) / "state"
+        docker_env = dict(os.environ, PATH=docker_dir, XDG_STATE_HOME=str(state))
+        run_pty([str(Path(binary).with_name("dew"))], env=docker_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t"),
+            # web-db-1 is stopped: x, then choose (Home), then Enter.
+            (b"3 containers", b"jx"),
+            (b"to see exactly what it removes", b"\x1b[H"),
+            (b"Removes the container web-db-1", b"\r"),
+            (b"Done", b"\r"),
+            (b"2 containers", b"q"),
+        ])
+        log = (Path(docker_dir) / "docker-calls").read_text().splitlines()
+        assert log.count(f"container rm {db}") == 1, log
+        assert all(l.split()[1] in ("ls", "df") or l == f"container rm {db}" for l in log), log
+        actions = (state / "den" / "actions.log").read_text()
+        assert actions.endswith(f"\tdocker container rm {db}\tDone\n"), actions
+    print("PASS: dew removes a stopped container: x, a choice, Enter; one exact docker rm, then a refresh")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
         (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
         (b"7 servers", b"/docs\r"),

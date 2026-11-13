@@ -54,6 +54,49 @@ impl Package {
     }
 }
 
+/// A Docker container, image or volume, by an ID or name checked before any command is
+/// built, with the name shown for it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DockerObject {
+    target: String,
+    label: String,
+}
+impl DockerObject {
+    /// A container or untagged image by ID: hex, optionally `sha256:`-prefixed.
+    pub fn id(id: &str, label: &str) -> Option<Self> {
+        let hex = id.strip_prefix("sha256:").unwrap_or(id);
+        ((12..=64).contains(&hex.len()) && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+            .then(|| Self::with(id, label))
+    }
+    /// A tagged image: `repo:tag`, `registry:5000/team/app:1.2`.
+    pub fn image(reference: &str, label: &str) -> Option<Self> {
+        let valid = reference.len() <= 255
+            && reference.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && reference.chars().all(|c| {
+                c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | ':' | '@')
+            });
+        valid.then(|| Self::with(reference, label))
+    }
+    /// A volume, by Docker's own naming rule.
+    pub fn volume(name: &str, label: &str) -> Option<Self> {
+        let valid = (2..=255).contains(&name.len())
+            && name.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        valid.then(|| Self::with(name, label))
+    }
+    fn with(target: &str, label: &str) -> Self {
+        Self {
+            target: target.to_owned(),
+            label: safe_text(label),
+        }
+    }
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+}
+
 /// Everything Den can change. Adding an action means adding a variant here, with its
 /// command line, preview and tests.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -66,19 +109,54 @@ pub enum Action {
     BrewAutoremove,
     /// Remove old versions and downloads.
     BrewCleanup,
+    DockerStopContainer(DockerObject),
+    /// A container that is not running; Docker refuses a running one without `-f`.
+    DockerRemoveContainer(DockerObject),
+    /// Images nothing uses; Docker refuses one a container uses without `-f`.
+    DockerRemoveImages(Vec<DockerObject>),
+    /// A volume nothing uses; Docker refuses one in use.
+    DockerRemoveVolume(DockerObject),
 }
 impl Action {
     pub fn program(&self) -> &'static str {
-        "brew"
+        if self.docker() { "docker" } else { "brew" }
+    }
+    /// A Docker action: Docker is refreshed afterwards instead of Homebrew.
+    pub fn docker(&self) -> bool {
+        matches!(
+            self,
+            Self::DockerStopContainer(_)
+                | Self::DockerRemoveContainer(_)
+                | Self::DockerRemoveImages(_)
+                | Self::DockerRemoveVolume(_)
+        )
+    }
+    /// Removes or stops something. When the first action in the dialog is one of these,
+    /// Enter waits until you choose with ↑↓, so x then Enter never removes anything.
+    pub fn destructive(&self) -> bool {
+        !matches!(self, Self::BrewUpdate | Self::BrewUpgrade(_))
     }
     pub fn args(&self) -> Vec<String> {
         let words = |w: &[&str]| w.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        let with = |w: &[&str], o: &DockerObject| {
+            let mut v = words(w);
+            v.push(o.target.clone());
+            v
+        };
         match self {
             Self::BrewUpdate => words(&["update"]),
             Self::BrewUpgrade(p) => words(&["upgrade", p.kind(), p.name()]),
             Self::BrewUninstall(p) => words(&["uninstall", p.kind(), p.name()]),
             Self::BrewAutoremove => words(&["autoremove"]),
             Self::BrewCleanup => words(&["cleanup"]),
+            Self::DockerStopContainer(o) => with(&["container", "stop"], o),
+            Self::DockerRemoveContainer(o) => with(&["container", "rm"], o),
+            Self::DockerRemoveImages(images) => {
+                let mut v = words(&["image", "rm"]);
+                v.extend(images.iter().map(|o| o.target.clone()));
+                v
+            }
+            Self::DockerRemoveVolume(o) => with(&["volume", "rm"], o),
         }
     }
     /// The dry run shown before confirming, when the tool has one.
@@ -88,7 +166,7 @@ impl Action {
             Self::BrewUpgrade(p) => Some(words(&["upgrade", "--dry-run", p.kind(), p.name()])),
             Self::BrewAutoremove => Some(words(&["autoremove", "--dry-run"])),
             Self::BrewCleanup => Some(words(&["cleanup", "--dry-run"])),
-            Self::BrewUpdate | Self::BrewUninstall(_) => None,
+            _ => None,
         }
     }
     /// The command as you would type it, for the dialog, the clipboard and the log.
@@ -105,11 +183,19 @@ impl Action {
             Self::BrewUninstall(p) => format!("Uninstall {}", p.name()),
             Self::BrewAutoremove => "Remove dependencies nothing needs".into(),
             Self::BrewCleanup => "Clean up old versions and downloads".into(),
+            Self::DockerStopContainer(o) => format!("Stop {}", o.label),
+            Self::DockerRemoveContainer(o) => format!("Remove {}", o.label),
+            Self::DockerRemoveImages(images) => match images.as_slice() {
+                [one] => format!("Remove {}", one.label),
+                many => format!("Remove {} unused untagged images", many.len()),
+            },
+            Self::DockerRemoveVolume(o) => format!("Remove volume {}", o.label),
         }
     }
     fn timeout(&self) -> Duration {
         Duration::from_secs(match self {
             Self::BrewUpgrade(_) => 30 * 60,
+            _ if self.docker() => 2 * 60,
             _ => 10 * 60,
         })
     }
@@ -125,13 +211,17 @@ fn line(program: &str, args: &[String]) -> String {
 #[cfg(unix)]
 fn command(program: &str, args: &[String]) -> std::process::Command {
     let mut command = std::process::Command::new(program);
-    command
-        .args(args)
-        .env("HOMEBREW_NO_AUTO_UPDATE", "1")
-        .env("HOMEBREW_NO_ANALYTICS", "1")
-        .env("HOMEBREW_NO_ENV_HINTS", "1")
-        .env("HOMEBREW_NO_EMOJI", "1")
-        .env("HOMEBREW_NO_COLOR", "1");
+    command.args(args);
+    if program == "docker" {
+        command.env("DOCKER_CLI_HINTS", "false");
+    } else {
+        command
+            .env("HOMEBREW_NO_AUTO_UPDATE", "1")
+            .env("HOMEBREW_NO_ANALYTICS", "1")
+            .env("HOMEBREW_NO_ENV_HINTS", "1")
+            .env("HOMEBREW_NO_EMOJI", "1")
+            .env("HOMEBREW_NO_COLOR", "1");
+    }
     command
 }
 
@@ -201,6 +291,17 @@ fn execute(action: &Action, cancel: &AtomicBool) -> Result<CommandOutput, Collec
 pub struct Item {
     pub action: Action,
     pub blocked: Option<String>,
+    /// What it will do, for actions without a dry run: "Removes … (142 MB)".
+    pub note: Option<String>,
+}
+impl Item {
+    pub fn new(action: Action) -> Self {
+        Self {
+            action,
+            blocked: None,
+            note: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -221,6 +322,9 @@ pub enum Dialog {
         items: Vec<Item>,
         selected: usize,
         preview: Preview,
+        /// False until you choose with ↑↓ when the first action removes or stops
+        /// something: Enter does nothing until then.
+        armed: bool,
     },
     Running {
         action: Action,
@@ -271,13 +375,18 @@ impl State {
     }
     /// Opens the actions with the first one selected and its dry run started.
     pub fn open(&mut self, package: Option<String>, items: Vec<Item>) {
+        let armed = items.first().is_some_and(|i| !i.action.destructive());
         self.dialog = Some(Dialog::Menu {
             package,
             items,
             selected: 0,
             preview: Preview::None,
+            armed,
         });
         self.select(0);
+        if let Some(Dialog::Menu { armed: a, .. }) = &mut self.dialog {
+            *a = armed;
+        }
     }
     /// Selects an action and starts its dry run, where Homebrew has one. Only dew runs
     /// previews: den never opens the menu.
@@ -287,11 +396,13 @@ impl State {
             items,
             selected,
             preview,
+            armed,
             ..
         }) = &mut self.dialog
         else {
             return;
         };
+        *armed = true;
         *selected = index.min(items.len().saturating_sub(1));
         *preview = match items.get(*selected) {
             Some(item)
@@ -324,7 +435,7 @@ impl State {
             *preview = match result {
                 Ok(output) if output.code == Some(0) => Preview::Ready(tail(&output)),
                 Ok(output) => Preview::Failed(format!("{}\n{}", exit(output.code), tail(&output))),
-                Err(error) => Preview::Failed(failure(&error)),
+                Err(error) => Preview::Failed(failure(&error, action.program())),
             };
         }
     }
@@ -334,11 +445,16 @@ impl State {
             items,
             selected,
             preview,
+            armed,
             ..
         }) = &self.dialog
         else {
             return;
         };
+        if !armed {
+            self.notice = Some("Choose an action with ↑↓ first".into());
+            return;
+        }
         let Some(item) = items.get(*selected) else {
             return;
         };
@@ -383,7 +499,7 @@ impl State {
             Err(CollectionError::Cancelled) => {
                 ("Stopped before it finished".to_owned(), String::new())
             }
-            Err(error) => (failure(error), String::new()),
+            Err(error) => (failure(error, action.program()), String::new()),
         };
         let log = match log {
             Some(log) => append_log(log, SystemTime::now(), &action, &summary)
@@ -409,9 +525,9 @@ fn exit(code: Option<i32>) -> String {
     code.map_or_else(|| "stopped by a signal".into(), |c| format!("exit {c}"))
 }
 
-fn failure(error: &CollectionError) -> String {
+fn failure(error: &CollectionError, program: &str) -> String {
     match error {
-        CollectionError::Unavailable => "brew is not on PATH".into(),
+        CollectionError::Unavailable => format!("{program} is not on PATH"),
         CollectionError::Timeout => "Stopped: it took too long".into(),
         CollectionError::OutputLimit => "Stopped: too much output".into(),
         CollectionError::Cancelled => "Stopped".into(),
@@ -601,11 +717,118 @@ mod tests {
         assert!(Package::new(&"a".repeat(129), false).is_none());
     }
 
-    fn item(action: Action) -> Item {
-        Item {
-            action,
-            blocked: None,
+    #[test]
+    fn docker_command_lines_are_fixed() {
+        let id = "aaaaaaaaaaaa1111111111111111111111111111111111111111111111111111";
+        let container = DockerObject::id(id, "web-nginx-1").unwrap();
+        let image = DockerObject::image("redis:7", "redis:7").unwrap();
+        let untagged = DockerObject::id("sha256:888888888888", "<none> 888888888888").unwrap();
+        let volume = DockerObject::volume("web_data", "web_data").unwrap();
+        let cases = [
+            (
+                Action::DockerStopContainer(container.clone()),
+                format!("docker container stop {id}"),
+                "Stop web-nginx-1",
+            ),
+            (
+                Action::DockerRemoveContainer(container),
+                format!("docker container rm {id}"),
+                "Remove web-nginx-1",
+            ),
+            (
+                Action::DockerRemoveImages(vec![image.clone()]),
+                "docker image rm redis:7".into(),
+                "Remove redis:7",
+            ),
+            (
+                Action::DockerRemoveImages(vec![untagged.clone(), image]),
+                "docker image rm sha256:888888888888 redis:7".into(),
+                "Remove 2 unused untagged images",
+            ),
+            (
+                Action::DockerRemoveVolume(volume),
+                "docker volume rm web_data".into(),
+                "Remove volume web_data",
+            ),
+        ];
+        for (action, line, title) in cases {
+            assert_eq!(action.command_line(), line);
+            assert_eq!(action.title(), title);
+            assert!(action.docker() && action.destructive());
+            assert_eq!(action.preview_args(), None, "Docker has no dry run");
+            for word in action.args() {
+                assert!(
+                    !["-f", "--force", "prune", "--all", "-a"].contains(&word.as_str()),
+                    "{line}"
+                );
+            }
         }
+        // Only upgrading and updating Homebrew's data remove nothing.
+        assert!(!Action::BrewUpdate.destructive());
+        assert!(!Action::BrewUpgrade(formula("node")).destructive());
+        assert!(Action::BrewCleanup.destructive() && !Action::BrewCleanup.docker());
+    }
+
+    #[test]
+    fn only_docker_ids_and_names_become_commands() {
+        assert!(DockerObject::id("0123456789ab", "x").is_some());
+        assert!(DockerObject::id(&format!("sha256:{}", "f".repeat(64)), "x").is_some());
+        for bad in [
+            "",
+            "abc",
+            "-f",
+            "0123456789ag",
+            &"a".repeat(65),
+            "sha256:",
+            "../x",
+        ] {
+            assert!(DockerObject::id(bad, "x").is_none(), "{bad:?}");
+        }
+        for good in [
+            "redis:7",
+            "nginx",
+            "registry:5000/team/app:1.2",
+            "app@sha256:abcd",
+        ] {
+            assert!(DockerObject::image(good, "x").is_some(), "{good}");
+        }
+        for bad in ["", "-f", "--force", "a b", "a;rm", "$(x)", "\u{1b}[31m"] {
+            assert!(DockerObject::image(bad, "x").is_none(), "{bad:?}");
+            assert!(DockerObject::volume(bad, "x").is_none(), "{bad:?}");
+        }
+        assert!(DockerObject::volume("web_data", "x").is_some());
+        assert!(
+            DockerObject::volume("a", "x").is_none(),
+            "Docker needs two characters"
+        );
+        assert!(DockerObject::volume("a/b", "x").is_none());
+        // The label shown is made safe; the target is used as given.
+        let o = DockerObject::image("redis:7", "redis\u{1b}[31m").unwrap();
+        assert!(!o.label().contains('\u{1b}'));
+    }
+
+    #[test]
+    fn enter_waits_for_a_choice_when_the_first_action_removes_something() {
+        let id = "bbbbbbbbbbbb2222222222222222222222222222222222222222222222222222";
+        let remove = Action::DockerRemoveContainer(DockerObject::id(id, "web-db-1").unwrap());
+        let mut s = State::new(Permit::granted(true));
+        s.open(None, vec![item(remove.clone())]);
+        s.run_selected();
+        assert_eq!(s.request, None);
+        assert!(s.notice.as_deref().unwrap().contains("Choose an action"));
+        // Choosing it, even where it already was, arms Enter.
+        s.select(0);
+        s.run_selected();
+        assert_eq!(s.request, Some(Request::Run(remove)));
+        // A harmless first action runs straight away, as before.
+        let mut s = State::new(Permit::granted(true));
+        s.open(None, vec![item(Action::BrewUpdate)]);
+        s.run_selected();
+        assert_eq!(s.request, Some(Request::Run(Action::BrewUpdate)));
+    }
+
+    fn item(action: Action) -> Item {
+        Item::new(action)
     }
 
     #[test]
@@ -666,9 +889,11 @@ mod tests {
             vec![Item {
                 action: Action::BrewUninstall(formula("openssl@3")),
                 blocked: Some("required by 12 installed packages".into()),
+                note: None,
             }],
         );
         assert_eq!(s.request, None);
+        s.select(0);
         s.run_selected();
         assert_eq!(s.request, None);
         assert!(s.notice.as_deref().unwrap().contains("required by 12"));

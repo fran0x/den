@@ -114,8 +114,10 @@ Reads use the existing bounded Homebrew runner:
 `brew autoremove --dry-run`. Keep fixed arguments, time/output limits and cancellation;
 never add removal/repair commands or execute inspected scripts, MCP servers or helpers.
 Docker uses the same runner (`homebrew::run_bounded`) for exactly the four listings in
-`docker::COMMANDS`, only when the Docker area is opened; never add commands that change
-state or read container internals (`inspect`, `logs`, `exec`).
+`docker::COMMANDS`, only when the Docker area is opened; never read container internals
+(`inspect`, `logs`, `exec`). Docker writes are `dew` actions only (`container stop`,
+`container rm`, `image rm`, `volume rm`), on IDs and names checked by `DockerObject`,
+offered only for what nothing uses, and never with `-f`, `--force` or `prune`.
 Homebrew may fetch metadata despite disabled auto-update/analytics. Den reads only the
 modification times of `*.jws.json` in Homebrew's API cache (how old "outdated" is), never
 their contents. Update notices use data already on the machine (Homebrew's, Codex's

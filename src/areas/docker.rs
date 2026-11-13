@@ -1,6 +1,7 @@
 //! Docker containers, images and volumes, from four fixed read-only `docker` commands.
 //!
-//! Nothing is started, stopped, pulled, inspected or removed. Container commands, labels
+//! Reading starts, stops, pulls, inspects and removes nothing (removals are `dew` actions,
+//! in `crate::actions`). Container commands, labels
 //! (except the Compose project name) and environment are withheld. From
 //! `~/.docker/config.json` only the current context, registry names and credential helper
 //! names are kept; saved logins are dropped while parsing. `DOCKER_HOST` is noted, not shown.
@@ -94,6 +95,9 @@ pub struct Row {
     pub status: String,
     pub detail: String,
     pub key: String,
+    /// What a `dew` action names: the container ID, the image's `repo:tag` (its ID when
+    /// untagged) or the volume name. Unchecked here: actions check it before use.
+    pub target: String,
 }
 
 #[derive(Default)]
@@ -285,11 +289,12 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
                 } else {
                     String::new()
                 },
-                "Not shown: image history, layers and labels. Nothing is pulled or removed.".into(),
+                "Not shown: image history, layers and labels. Nothing is pulled.".into(),
             ]
             .join("\n")
             .replace("\n\n\n", "\n\n"),
             key: format!("image:{id}:{name}"),
+            target: if dangling { id.clone() } else { name.clone() },
             status,
             name,
         });
@@ -331,10 +336,11 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
                     }
                 ),
                 String::new(),
-                "Not shown: volume contents and labels. Nothing is removed.".into(),
+                "Not shown: volume contents and labels.".into(),
             ]
             .join("\n"),
             key: format!("volume:{name}"),
+            target: name.clone(),
             status,
             name: display,
         });
@@ -389,10 +395,7 @@ fn container_row(c: &Map<String, Value>) -> Row {
         text(c, "ID").chars().take(12).collect::<String>()
     ));
     detail.push(String::new());
-    detail.push(
-        "Not shown: the command, environment, labels and logs. Nothing is started, stopped or removed."
-            .into(),
-    );
+    detail.push("Not shown: the command, environment, labels and logs. Nothing is started.".into());
     Row {
         state: label.into(),
         status: format!(
@@ -401,6 +404,7 @@ fn container_row(c: &Map<String, Value>) -> Row {
         ),
         detail: detail.join("\n"),
         key: format!("container:{}", text(c, "ID")),
+        target: text(c, "ID"),
         name,
     }
 }
