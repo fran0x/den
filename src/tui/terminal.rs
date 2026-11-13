@@ -237,7 +237,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 let run = matches!(request, Request::Run(_));
                 let started = match request {
                     Request::Preview(a) => crate::actions::start_preview(a),
-                    // Only `--allow-writes` creates a permit, and only write mode lends it.
+                    // Only dew creates a permit, and only write mode lends it.
                     Request::Run(a) => match app.actions.permit() {
                         Some(permit) => crate::actions::start(a, permit),
                         None => Err(crate::areas::homebrew::CollectionError::Invalid(

@@ -4,6 +4,7 @@ name = "den-tui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
+default-run = "den"
 description = "A read-only terminal inspector for your developer machine: Homebrew, Codex and Claude Code, AWS, Kubernetes, Docker and toolchains"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fran0x/den"
@@ -30,6 +31,11 @@ path = "src/lib.rs"
 [[bin]]
 name = "den"
 path = "src/main.rs"
+
+# den with Homebrew write actions allowed; den itself stays read-only.
+[[bin]]
+name = "dew"
+path = "src/bin/dew.rs"
 
 [dependencies]
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }

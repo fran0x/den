@@ -133,7 +133,7 @@ fn mode_line(app: &App) -> Line<'static> {
         )
     } else {
         Line::styled(
-            "Read-only: c copies a command. To run them, start Den with --allow-writes.",
+            "Read-only: c copies a command. To run them, use dew instead of den.",
             muted(),
         )
     }

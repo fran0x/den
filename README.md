@@ -16,7 +16,7 @@ what it finds.
 ## Install
 
 ```sh
-cargo install --locked den-tui   # installs the `den` command
+cargo install --locked den-tui   # installs den, and dew for changes
 den
 ```
 
@@ -52,9 +52,9 @@ system `python3` hiding Homebrew's.
   as they are read or kept only as "set". Untrusted text is sanitized before display.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
-- **Writes are opt-in.** Upgrading, uninstalling and cleaning up Homebrew packages needs
-  `den --allow-writes`, then `W` to turn writes on (the top bar shows WRITE), then `y` to
-  confirm each action after its preview. Without the flag, `x` only copies the commands.
+- **Writes are opt-in.** `den` never changes anything. Upgrading, uninstalling and cleaning
+  up Homebrew packages needs `dew`, then `W` to turn writes on (the top bar shows WRITE),
+  then `y` to confirm each action after its preview. In `den`, `x` only copies commands.
 
 Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
 actions are in [Making changes](docs/GUIDE.md#making-changes).
@@ -63,6 +63,9 @@ actions are in [Making changes](docs/GUIDE.md#making-changes).
 
 `Tab` switches areas, `Shift+Tab` sections, `/` searches, `?` shows help for where you
 are and `q` quits. [The guide](docs/GUIDE.md) covers each area and its extra keys.
+
+To upgrade, uninstall or clean up Homebrew packages, run `dew` instead of `den`: see
+[Making changes](docs/GUIDE.md#making-changes).
 
 To look around first without Den reading anything on your machine:
 
@@ -75,7 +78,6 @@ den --demo
 | `--project DIR` | Project for Agents (default: the current folder) |
 | `--codex-profile NAME` | Inspect `$CODEX_HOME/NAME.config.toml` |
 | `--skills` | Start in Agents; Homebrew loads when opened |
-| `--allow-writes` | Allow Homebrew actions; `W` turns them on, `y` confirms each one |
 | `--demo` | Built-in sample data; nothing on this machine is read |
 | `--help` | All flags, including the offline sources |
 

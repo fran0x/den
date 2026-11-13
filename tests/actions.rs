@@ -1,7 +1,7 @@
 // Integration tests: unwrap and expect report failures here.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Write actions through the app: what the menu offers, which keys run what, and that
-//! nothing runs without `--allow-writes`, write mode and a confirmation.
+//! nothing runs outside `dew`, without write mode, or without a confirmation.
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     actions::{Action, Dialog, Permit, Preview, Request, State},
@@ -15,7 +15,7 @@ use std::path::Path;
 fn app(allow_writes: bool) -> App {
     let inventory = homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap();
     let mut a = App::new(inventory, "Homebrew snapshot");
-    a.actions = State::new(Permit::from_flag(allow_writes));
+    a.actions = State::new(Permit::granted(allow_writes));
     a
 }
 fn key(a: &mut App, code: KeyCode) {
@@ -114,7 +114,7 @@ fn without_the_flag_commands_are_copied_never_run() {
     select(&mut a, "ripgrep");
     key(&mut a, KeyCode::Char('W'));
     assert!(!a.actions.on());
-    assert!(draw(&mut a, 120, 30).contains("--allow-writes"));
+    assert!(draw(&mut a, 120, 30).contains("run dew"));
     key(&mut a, KeyCode::Char('x'));
     key(&mut a, KeyCode::Char('c'));
     assert_eq!(

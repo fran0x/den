@@ -1,7 +1,6 @@
 //! Write actions: off by default, confirmed one at a time, and limited to a closed list.
 //!
-//! Den starts read-only. Actions can run only when Den was started with `--allow-writes`
-//! (which creates the [`Permit`]) and write mode is switched on with `W` (shown as WRITE in
+//! `den` is always read-only. Actions can run only in `dew` (which creates the [`Permit`]) and write mode is switched on with `W` (shown as WRITE in
 //! the top bar), and each one is confirmed with `y` after its preview. Every action is a
 //! fixed command line built from a checked name: no shell, no sudo, stdin closed (a
 //! password prompt fails instead of waiting), and never `--force`, `--ignore-dependencies`
@@ -135,13 +134,13 @@ fn command(program: &str, args: &[String]) -> std::process::Command {
     command
 }
 
-/// Proof that Den was started with `--allow-writes`. Running an action needs one.
+/// Proof that Den runs as `dew`. Running an action needs one.
 #[derive(Debug)]
 pub struct Permit(());
 impl Permit {
-    /// The only way to get a permit: the command-line flag.
-    pub fn from_flag(allow_writes: bool) -> Option<Self> {
-        allow_writes.then_some(Self(()))
+    /// A permit when writes are allowed: only the command line creates one, for `dew`.
+    pub fn granted(allowed: bool) -> Option<Self> {
+        allowed.then_some(Self(()))
     }
 }
 
@@ -277,7 +276,7 @@ impl State {
     /// `W`: switches write mode; without the flag, says how to get it.
     pub fn toggle(&mut self) -> String {
         if self.permit.is_none() {
-            return "Writes are off: start Den with --allow-writes, then press W".into();
+            return "Writes are off in den: run dew to make changes, then press W".into();
         }
         self.on = !self.on;
         if self.on {
@@ -350,8 +349,7 @@ impl State {
     }
     fn toggle_hint(&self) -> String {
         if self.permit.is_none() {
-            "Writes are off: start Den with --allow-writes, then press W. c copies the command"
-                .into()
+            "Writes are off in den: run dew to make changes. c copies the command".into()
         } else {
             "WRITE mode is off: press W first".into()
         }
@@ -631,7 +629,7 @@ mod tests {
         let upgrade = Action::BrewUpgrade(formula("node"));
         // No flag: the menu copies, previews do not run, and y refuses.
         let mut s = State::new(None);
-        assert!(s.toggle().contains("--allow-writes"));
+        assert!(s.toggle().contains("run dew"));
         assert!(!s.on());
         s.choose(item(upgrade.clone()));
         assert_eq!(s.request, None);
@@ -644,12 +642,12 @@ mod tests {
         ));
         s.confirm();
         assert_eq!(s.request, None);
-        assert!(s.notice.as_deref().unwrap().contains("--allow-writes"));
+        assert!(s.notice.as_deref().unwrap().contains("run dew"));
         s.copy(&upgrade);
         assert_eq!(s.clipboard.as_deref(), Some("brew upgrade --formula node"));
 
         // The flag alone is not enough: write mode must be on.
-        let mut s = State::new(Permit::from_flag(true));
+        let mut s = State::new(Permit::granted(true));
         s.choose(item(upgrade.clone()));
         s.confirm();
         assert_eq!(s.request, None);
@@ -675,7 +673,7 @@ mod tests {
 
     #[test]
     fn blocked_actions_never_run() {
-        let mut s = State::new(Permit::from_flag(true));
+        let mut s = State::new(Permit::granted(true));
         s.toggle();
         s.choose(Item {
             action: Action::BrewUninstall(formula("openssl@3")),
@@ -692,7 +690,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("den-actions-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let log = dir.join("state/den/actions.log");
-        let mut s = State::new(Permit::from_flag(true));
+        let mut s = State::new(Permit::granted(true));
         s.toggle();
         s.choose(item(Action::BrewUpdate));
         s.confirm();

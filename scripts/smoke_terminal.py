@@ -483,8 +483,8 @@ else:
     assert history.count(['info', '--json=v2', '--installed']) == 2
     print("PASS: responsive on-demand diagnostics, expected missing exit, cleanup failure, freshness and exact dry-run argv")
 
-    # Write actions: a fake brew records every argv. Without --allow-writes nothing but
-    # `info` may run; with it, W, x, the preview and y run exactly the chosen command.
+    # Write actions: a fake brew records every argv. In den nothing but `info` may run;
+    # in dew, W, x, the preview and y run exactly the chosen command.
     calls.unlink()
     state = Path(temporary) / "state"
     fake.write_text(f"#!{sys.executable}\n" + """
@@ -510,16 +510,16 @@ else:
     write_env = dict(isolated_env, XDG_STATE_HOME=str(state))
     run_pty([binary], env=write_env, steps=[
         (b"Loaded 8", b"W"),
-        (b"--allow-writes", b"x"),
+        (b"run dew", b"x"),
         (b"Actions", [b"\x1b[F", b"\r"]),
         (b"Not run: writes are off", b"y"),
-        (b"--allow-writes", b"\x1b"),
+        (b"run dew", b"\x1b"),
         (b"Loaded 8", b"q"),
     ])
     assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
     assert not state.exists(), "nothing ran, so nothing is logged"
     calls.unlink()
-    run_pty([binary, "--allow-writes"], env=write_env, steps=[
+    run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
         (b"Loaded 8", b"W"),
         (b"WRITE", b"x"),
         (b"Actions", [b"\x1b[F", b"\r"]),
@@ -536,7 +536,7 @@ else:
     ], calls.read_text()
     log = (state / "den" / "actions.log").read_text()
     assert log.endswith("\tbrew cleanup\tDone\n") and "old-download" not in log, log
-    print("PASS: write actions need --allow-writes, W and y; exact argv, preview first, logged without output")
+    print("PASS: write actions need dew, W and y; exact argv, preview first, logged without output")
 
 build = subprocess.run(["cargo", "test", "--lib", "--no-run", "--message-format=json"],
                        check=True, capture_output=True, text=True)

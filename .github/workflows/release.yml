@@ -55,7 +55,7 @@ jobs:
         run: |
           name="den-$GITHUB_REF_NAME-${{ matrix.target }}"
           mkdir "$name"
-          cp "target/${{ matrix.target }}/release/den" README.md LICENSE-MIT LICENSE-APACHE CHANGELOG.md "$name/"
+          cp "target/${{ matrix.target }}/release/den" "target/${{ matrix.target }}/release/dew" README.md LICENSE-MIT LICENSE-APACHE CHANGELOG.md "$name/"
           tar -czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
 

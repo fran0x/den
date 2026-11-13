@@ -58,7 +58,7 @@ pub struct HomebrewCounts {
 }
 
 pub struct App {
-    /// Write actions: off unless started with `--allow-writes` and switched on with `W`.
+    /// Write actions: only in `dew`, and only once switched on with `W`.
     pub actions: crate::actions::State,
     pub presentation: crate::tui::presentation::Presentation,
     pub module: Module,

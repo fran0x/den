@@ -149,7 +149,8 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 
 ## Making changes
 
-Den is read-only unless you start it with `den --allow-writes`. Then:
+`den` is always read-only. To make changes, run `dew` instead: the same Den, with write
+actions allowed. It still starts read-only. Then:
 
 1. Press `W` to turn writes on. The top bar shows a red **WRITE** while they are on; `W`
    again turns them off.
@@ -171,7 +172,7 @@ What Den will not do:
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.
 
-Without `--allow-writes`, `x` still works: `c` copies an action's command to the clipboard,
+In `den`, `x` still works: `c` copies an action's command to the clipboard,
 if your terminal allows it, so you can run it yourself.
 
 ## What Den reads, and what it never does
@@ -194,8 +195,8 @@ Files that link elsewhere are reported with their target, not followed.
 
 ## Small print
 
-- **Write mode:** `W` turns it on and off, only when Den was started with
-  `--allow-writes`; see [Making changes](#making-changes).
+- **Write mode:** `W` turns it on and off, in `dew` only; see
+  [Making changes](#making-changes).
 - **Searching:** `Backspace` deletes, `Ctrl-U` clears, `Enter` or `Esc` finishes and keeps
   the search. `Tab` and `Shift+Tab` also finish it.
 - **Going back:** `Esc` (or `Backspace`) steps back through your earlier selections and
