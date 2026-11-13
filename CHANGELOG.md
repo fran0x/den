@@ -7,6 +7,9 @@ All notable changes to Den are recorded here. Versions follow
 
 - **Homebrew:** `brew install fran0x/tap/den` installs `den` and `dew` from the release
   binaries.
+- **Faster loading:** Homebrew and Docker output is read as soon as it arrives instead of
+  every 20 ms. Homebrew now loads about as fast as `brew info` runs on its own (about
+  0.55 s instead of 0.7 s on a machine with 625 KB of package data).
 
 ## [0.3.0] - 2026-11-13
 

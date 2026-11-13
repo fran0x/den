@@ -123,7 +123,6 @@ mod unix {
         os::{fd::AsRawFd, unix::process::CommandExt},
         process::{Child, Command, Stdio},
         sync::atomic::{AtomicBool, Ordering},
-        thread,
         time::{Duration, Instant},
     };
 
@@ -208,6 +207,26 @@ mod unix {
             }
         }
         Ok(false)
+    }
+
+    /// Waits until an open pipe has output or closes, at most `limit`, so the loop reacts to
+    /// output at once instead of sleeping a fixed time. With no pipe open it just waits.
+    fn wait_for_output(pipes: &[i32], limit: Duration) {
+        let mut polls: Vec<libc::pollfd> = pipes
+            .iter()
+            .map(|&fd| libc::pollfd {
+                fd,
+                events: libc::POLLIN,
+                revents: 0,
+            })
+            .collect();
+        let count = libc::nfds_t::try_from(polls.len()).unwrap_or(0);
+        let millis = i32::try_from(limit.as_millis()).unwrap_or(i32::MAX);
+        // SAFETY: `polls` holds `count` initialized pollfd entries and outlives the call.
+        // An error (EINTR) or timeout only ends the wait early; the caller loops anyway.
+        unsafe {
+            libc::poll(polls.as_mut_ptr(), count, millis);
+        }
     }
 
     pub(super) fn execute(
@@ -304,14 +323,25 @@ mod unix {
                     stderr: diagnostics,
                 });
             }
-            thread::sleep(Duration::from_millis(20));
+            let open: Vec<i32> = [
+                (stdout_done, stdout.as_raw_fd()),
+                (stderr_done, stderr.as_raw_fd()),
+            ]
+            .into_iter()
+            .filter_map(|(done, fd)| (!done).then_some(fd))
+            .collect();
+            // Output wakes the loop at once; at most 20 ms passes between checks for
+            // cancellation and the time limit. Once both pipes are closed, only the exit
+            // status is left, so check again soon.
+            let limit = if open.is_empty() { 1 } else { 20 };
+            wait_for_output(&open, Duration::from_millis(limit));
         }
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
-        use std::io::Write;
+        use std::{io::Write, thread};
 
         // A test executable serves as the fake child; no shell, Homebrew or network needed.
         #[test]
