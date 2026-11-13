@@ -14,9 +14,13 @@ mod live 'just/live.just'
 default:
     @just --list
 
-# Run Den; forward optional CLI arguments.
-run *args:
-    cargo run -- "$@"
+# Run den, read-only; forward optional CLI arguments.
+den *args:
+    cargo run --bin den -- "$@"
+
+# Run dew: den with Homebrew write actions allowed (W turns them on, y confirms each).
+dew *args:
+    cargo run --bin dew -- "$@"
 
 # Build the release binary.
 build:

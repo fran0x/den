@@ -89,12 +89,12 @@ just smoke    # offline terminal checks in a real PTY
 just ci       # everything CI runs (needs cargo-deny and Rust 1.90; see `just tools`)
 ```
 
-From a checkout, `just run` starts Den and `just fixtures` lists synthetic setups for every
-area (Codex and Claude Code, AWS, Kubernetes, Docker, toolchains) that never touch your
-machine. CI runs on Ubuntu and macOS, and `cargo deny` checks dependencies for advisories,
-licenses and sources. Live checks against your own machine are opt-in
-(`just live`). Contributor rules, including what Den may run and read, are in
-[AGENTS.md](AGENTS.md).
+From a checkout, `just den` starts Den, `just dew` starts it with writes allowed, and
+`just fixtures` lists synthetic setups for every area (Codex and Claude Code, AWS,
+Kubernetes, Docker, toolchains) that never touch your machine. CI runs on Ubuntu and
+macOS, and `cargo deny` checks dependencies for advisories, licenses and sources. Live
+checks against your own machine are opt-in (`just live`). Contributor rules, including
+what Den may run and read, are in [AGENTS.md](AGENTS.md).
 
 ## License
 
