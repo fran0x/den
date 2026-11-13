@@ -1,7 +1,7 @@
 // Integration tests: unwrap and expect report failures here.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
-//! Docker clean-up in dew: what each row offers, that nothing in use is offered, that Enter
-//! waits for a choice, and that Docker (not Homebrew) is refreshed afterwards.
+//! Docker clean-up in dew: what each row offers, that nothing in use is offered, that x
+//! selects the first action and Enter runs it, and that Docker (not Homebrew) is refreshed.
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     actions::{Dialog, Permit, Request, State},
@@ -117,21 +117,13 @@ fn each_row_offers_only_what_docker_allows_without_force() {
 }
 
 #[test]
-fn x_then_enter_never_removes_and_docker_refreshes_after() {
+fn x_selects_the_first_action_and_docker_refreshes_after() {
     let mut a = app(true);
     a.navigate(Destination::Containers);
     a.docker.select_key(&format!("container:{DB}"));
     assert!(draw(&mut a, 140, 32).contains("x:actions"));
+    // x selects the first action and says what goes; Enter runs it.
     key(&mut a, KeyCode::Char('x'));
-    let screen = draw(&mut a, 140, 32);
-    assert!(
-        screen.contains("to see exactly what it removes"),
-        "{screen}"
-    );
-    key(&mut a, KeyCode::Enter);
-    assert_eq!(a.actions.request, None, "Enter waits for a choice");
-    // Choosing shows what goes; only then does Enter run it.
-    key(&mut a, KeyCode::Home);
     let screen = draw(&mut a, 140, 32);
     assert!(
         screen.contains("Removes the container web-db-1"),

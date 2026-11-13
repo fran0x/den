@@ -131,11 +131,6 @@ impl Action {
                 | Self::DockerRemoveVolume(_)
         )
     }
-    /// Removes or stops something. When the first action in the dialog is one of these,
-    /// Enter waits until you choose with ↑↓, so x then Enter never removes anything.
-    pub fn destructive(&self) -> bool {
-        !matches!(self, Self::BrewUpdate | Self::BrewUpgrade(_))
-    }
     pub fn args(&self) -> Vec<String> {
         let words = |w: &[&str]| w.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
         let with = |w: &[&str], o: &DockerObject| {
@@ -322,9 +317,6 @@ pub enum Dialog {
         items: Vec<Item>,
         selected: usize,
         preview: Preview,
-        /// False until you choose with ↑↓ when the first action removes or stops
-        /// something: Enter does nothing until then.
-        armed: bool,
     },
     Running {
         action: Action,
@@ -375,18 +367,13 @@ impl State {
     }
     /// Opens the actions with the first one selected and its dry run started.
     pub fn open(&mut self, package: Option<String>, items: Vec<Item>) {
-        let armed = items.first().is_some_and(|i| !i.action.destructive());
         self.dialog = Some(Dialog::Menu {
             package,
             items,
             selected: 0,
             preview: Preview::None,
-            armed,
         });
         self.select(0);
-        if let Some(Dialog::Menu { armed: a, .. }) = &mut self.dialog {
-            *a = armed;
-        }
     }
     /// Selects an action and starts its dry run, where Homebrew has one. Only dew runs
     /// previews: den never opens the menu.
@@ -396,13 +383,11 @@ impl State {
             items,
             selected,
             preview,
-            armed,
             ..
         }) = &mut self.dialog
         else {
             return;
         };
-        *armed = true;
         *selected = index.min(items.len().saturating_sub(1));
         *preview = match items.get(*selected) {
             Some(item)
@@ -445,16 +430,11 @@ impl State {
             items,
             selected,
             preview,
-            armed,
             ..
         }) = &self.dialog
         else {
             return;
         };
-        if !armed {
-            self.notice = Some("Choose an action with ↑↓ first".into());
-            return;
-        }
         let Some(item) = items.get(*selected) else {
             return;
         };
@@ -754,7 +734,7 @@ mod tests {
         for (action, line, title) in cases {
             assert_eq!(action.command_line(), line);
             assert_eq!(action.title(), title);
-            assert!(action.docker() && action.destructive());
+            assert!(action.docker());
             assert_eq!(action.preview_args(), None, "Docker has no dry run");
             for word in action.args() {
                 assert!(
@@ -763,10 +743,7 @@ mod tests {
                 );
             }
         }
-        // Only upgrading and updating Homebrew's data remove nothing.
-        assert!(!Action::BrewUpdate.destructive());
-        assert!(!Action::BrewUpgrade(formula("node")).destructive());
-        assert!(Action::BrewCleanup.destructive() && !Action::BrewCleanup.docker());
+        assert!(!Action::BrewCleanup.docker());
     }
 
     #[test]
@@ -808,23 +785,14 @@ mod tests {
     }
 
     #[test]
-    fn enter_waits_for_a_choice_when_the_first_action_removes_something() {
+    fn the_first_action_is_selected_and_enter_runs_it() {
         let id = "bbbbbbbbbbbb2222222222222222222222222222222222222222222222222222";
         let remove = Action::DockerRemoveContainer(DockerObject::id(id, "web-db-1").unwrap());
         let mut s = State::new(Permit::granted(true));
-        s.open(None, vec![item(remove.clone())]);
-        s.run_selected();
-        assert_eq!(s.request, None);
-        assert!(s.notice.as_deref().unwrap().contains("Choose an action"));
-        // Choosing it, even where it already was, arms Enter.
-        s.select(0);
+        s.open(None, vec![item(remove.clone()), item(Action::BrewUpdate)]);
+        assert!(matches!(s.dialog, Some(Dialog::Menu { selected: 0, .. })));
         s.run_selected();
         assert_eq!(s.request, Some(Request::Run(remove)));
-        // A harmless first action runs straight away, as before.
-        let mut s = State::new(Permit::granted(true));
-        s.open(None, vec![item(Action::BrewUpdate)]);
-        s.run_selected();
-        assert_eq!(s.request, Some(Request::Run(Action::BrewUpdate)));
     }
 
     fn item(action: Action) -> Item {

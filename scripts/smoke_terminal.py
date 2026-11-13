@@ -433,9 +433,8 @@ print('\\n'.join(lines))
         docker_env = dict(os.environ, PATH=docker_dir, XDG_STATE_HOME=str(state))
         run_pty([str(Path(binary).with_name("dew"))], env=docker_env, steps=[
             (b"Homebrew unavailable", b"\t\t\t"),
-            # web-db-1 is stopped: x, then choose (Home), then Enter.
+            # web-db-1 is stopped: x selects its removal, Enter runs it.
             (b"3 containers", b"jx"),
-            (b"to see exactly what it removes", b"\x1b[H"),
             (b"Removes the container web-db-1", b"\r"),
             (b"Done", b"\r"),
             (b"2 containers", b"q"),
@@ -445,7 +444,7 @@ print('\\n'.join(lines))
         assert all(l.split()[1] in ("ls", "df") or l == f"container rm {db}" for l in log), log
         actions = (state / "den" / "actions.log").read_text()
         assert actions.endswith(f"\tdocker container rm {db}\tDone\n"), actions
-    print("PASS: dew removes a stopped container: x, a choice, Enter; one exact docker rm, then a refresh")
+    print("PASS: dew removes a stopped container: x, Enter; one exact docker rm, then a refresh")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
         (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
         (b"7 servers", b"/docs\r"),

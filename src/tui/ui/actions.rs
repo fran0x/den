@@ -15,8 +15,7 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
             items,
             selected,
             preview,
-            armed,
-        } => menu(package.as_deref(), items, *selected, preview, *armed),
+        } => menu(package.as_deref(), items, *selected, preview),
         Dialog::Running {
             action,
             started,
@@ -135,11 +134,8 @@ fn menu(
     items: &[crate::actions::Item],
     selected: usize,
     preview: &Preview,
-    armed: bool,
 ) -> (String, Vec<Line<'static>>, String) {
     let title = package.map_or_else(|| "Actions".to_owned(), |p| format!("Actions · {p}"));
-    // Nothing is chosen yet when every action removes or stops something.
-    let selected_shown = armed.then_some(selected);
     let mut body = vec![];
     let column = items
         .iter()
@@ -148,14 +144,10 @@ fn menu(
         .unwrap_or(0)
         + 2;
     for (i, item) in items.iter().enumerate() {
-        let marker = if selected_shown == Some(i) {
-            "> "
-        } else {
-            "  "
-        };
+        let marker = if selected == i { "> " } else { "  " };
         let style = if item.blocked.is_some() {
             muted()
-        } else if selected_shown == Some(i) {
+        } else if selected == i {
             theme().selected_text().add_modifier(Modifier::BOLD)
         } else {
             Style::default()
@@ -165,22 +157,13 @@ fn menu(
             Span::styled(item.action.command_line(), muted()),
         ]));
     }
-    let Some(item) = selected_shown.and_then(|s| items.get(s)) else {
+    let Some(item) = items.get(selected) else {
         body.push(Line::raw(""));
         body.push(Line::styled(
-            if items.is_empty() {
-                "Nothing here can be changed without force: it is in use or paused."
-            } else {
-                "Choose an action with ↑↓ to see exactly what it removes or stops."
-            },
+            "Nothing here can be changed without force: it is in use or paused.",
             muted(),
         ));
-        let footer = if items.is_empty() {
-            "Nothing to do here · Esc: close"
-        } else {
-            "↑↓: choose an action · Esc: close"
-        };
-        return (title, body, footer.into());
+        return (title, body, "Nothing to do here · Esc: close".into());
     };
     body.push(Line::raw(""));
     if let Some(why) = &item.blocked {
@@ -254,7 +237,6 @@ mod tests {
             items: vec![],
             selected: 0,
             preview: Preview::None,
-            armed: true,
         };
         assert_eq!(border(&menu), heading());
         assert_eq!(border(&done("Done")), theme().ok());
