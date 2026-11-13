@@ -5,6 +5,9 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Homebrew:** `brew install fran0x/tap/den` installs `den` and `dew` from the release
+  binaries.
+
 ## [0.3.0] - 2026-11-13
 
 - **Docker clean-up in `dew`:** `x` in Docker stops a running container, or removes a

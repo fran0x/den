@@ -55,6 +55,8 @@ them (`examples/screenshot.rs`); never edit the SVGs by hand.
 
 Releases: follow the steps at the top of `.github/workflows/release.yml`; pushing a
 `v*` tag builds both binaries, creates the GitHub release and publishes to crates.io.
+Then `just tap` writes the Homebrew formula into a `fran0x/homebrew-tap` checkout; commit
+and push it there.
 
 `just check` composes formatting, Clippy, tests and release build. `just smoke` builds
 and runs the offline PTY harness. `just ci` runs what CI runs (locked checks, smoke, Rust

@@ -4,6 +4,7 @@ name: Release
 #   1. Bump `version` in Cargo.toml and move the CHANGELOG notes under it, with the date.
 #   2. Run `just ci` and `cargo publish --dry-run --locked`; push and let CI pass.
 #   3. Push a tag such as v0.2.0 on that commit.
+#   4. Once it is published, run `just tap` and push the formula in fran0x/homebrew-tap.
 # This workflow checks the tag matches Cargo.toml, builds den and dew for macOS and Linux,
 # creates the GitHub release, and publishes den-tui to crates.io.
 #

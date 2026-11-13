@@ -12,12 +12,13 @@
 ## Install
 
 ```sh
-cargo install --locked den-tui   # installs den and dew
+brew install fran0x/tap/den      # Homebrew: installs den and dew
+cargo install --locked den-tui   # or from crates.io (Rust 1.90+)
 ```
 
 Or download a binary for macOS or Linux from
-[Releases](https://github.com/fran0x/den/releases). Needs Rust 1.90+ to build. `brew`
-and `docker` are optional.
+[Releases](https://github.com/fran0x/den/releases). `brew` and `docker` are optional: an
+area whose tool is missing says so.
 
 ## den: read-only
 

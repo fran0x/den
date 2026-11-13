@@ -26,6 +26,12 @@ dew *args:
 screenshots:
     for screen in toolchains agents-mcp dew; do cargo run --quiet --example screenshot -- "$screen" > "docs/images/$screen.svg"; done
 
+# Write the Homebrew formula for the current version into a fran0x/homebrew-tap checkout,
+# after the release is published; review, commit and push it there.
+tap tap_dir="../homebrew-tap":
+    scripts/formula.sh "$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" > "{{tap_dir}}/Formula/den.rb"
+    git -C "{{tap_dir}}" diff --stat
+
 # Build the release binary.
 build:
     cargo build --release
