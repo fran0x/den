@@ -57,7 +57,7 @@ pub enum Section {
 impl Section {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Path => "On PATH",
+            Self::Path => "PATH",
             Self::Rust => "Rust",
             Self::Packages => "Packages",
         }
@@ -382,7 +382,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
 }
 
 // ---------------------------------------------------------------------------------------
-// On PATH
+// PATH
 
 /// One copy of a command on PATH.
 struct Found {

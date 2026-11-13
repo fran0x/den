@@ -33,7 +33,7 @@ pub enum Destination {
     Containers,
     Images,
     Volumes,
-    /// Toolchains › On PATH, Rust and Packages.
+    /// Toolchains › PATH, Rust and Packages.
     OnPath,
     Rust,
     Packages,
@@ -56,7 +56,7 @@ impl Destination {
             Self::Containers => "Docker / Containers",
             Self::Images => "Docker / Images",
             Self::Volumes => "Docker / Volumes",
-            Self::OnPath => "Toolchains / On PATH",
+            Self::OnPath => "Toolchains / PATH",
             Self::Rust => "Toolchains / Rust",
             Self::Packages => "Toolchains / Packages",
         }

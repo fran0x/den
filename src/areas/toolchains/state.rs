@@ -1,4 +1,4 @@
-//! Toolchains collection and browsing state: On PATH, Rust and Packages sections.
+//! Toolchains collection and browsing state: PATH, Rust and Packages sections.
 use super::{Context, Inventory, Row, Section};
 use crate::inventory::safe_text;
 use std::io;

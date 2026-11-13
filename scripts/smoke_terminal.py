@@ -184,13 +184,13 @@ print(pathlib.Path('fixtures/brew.json').read_text())
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             (b"> [widget]", b"\x1b[Z"),
             (b"Diagnostics", b"\t"),
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             (b"Diagnostics", b"\x1b[Z"),
             (b"> [widget]", b"q"),
         ])
@@ -203,7 +203,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             (b"required by 1", b"/zzz\r"),
             (b"No matches", b"a"),
             (b"No matching tools", b"q"),
@@ -245,7 +245,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         (b"Codex discovery coverage", b"\t"),
         ("Cloud  › AWS".encode(), b"\t"),
         ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
         (b"fixture (Homebrew unavailable)", b"\x1b[Z\t"),
         ("Agents  › Skills".encode(), b"\x1b/alpha\r1rq"),
     ])
@@ -299,7 +299,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
             (b"Codex: Used", b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             ("Homebrew  › Packages".encode(), b"\t"),
             ("Agents  › Instructions".encode(), b"\x1b[Z"),
             ("Agents  › Settings".encode(), b"\x1b[Z"),
@@ -316,7 +316,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
             (b"source_profile 'nowhere'", b"\x15\x1b/\x15\r\x1b[F"),
             (b"SSO session", b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             ("Homebrew  › Packages".encode(), b"\t\t"),
             ("Cloud  › AWS".encode(), b"q"),
         ])
@@ -345,14 +345,14 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         ])
         assert b"PRIVATE" not in output
     assert not calls.exists(), "Toolchains inspection must not invoke Homebrew"
-    print("PASS: Toolchains On PATH, Rust and Packages, search and area switching; nothing run")
+    print("PASS: Toolchains PATH, Rust and Packages, search and area switching; nothing run")
     for size in [(80, 24), (120, 32)]:
         output = run_pty([binary, "--docker-fixture", "fixtures/docker"], env=isolated_env, size=size, steps=[
             (b"3 containers", b"\x1b[Z"),
             (b"5 images", b"\x1b[Z"),
             (b"3 volumes", b"/unused\r"),
             (b"anonymous", b"\t"),
-            ("Toolchains  › On PATH".encode(), b"\t"),
+            ("Toolchains  › PATH".encode(), b"\t"),
             ("Homebrew  › Packages".encode(), b"q"),
         ])
         assert b"PRIVATE-" not in output

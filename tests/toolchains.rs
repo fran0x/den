@@ -222,7 +222,7 @@ fn toolchains_is_the_fifth_area_with_three_sections() {
     let mut a = app();
     assert_eq!(a.module, Module::Toolchains);
     let screen = draw(&mut a);
-    assert!(screen.contains("Toolchains  › On PATH"), "{screen}");
+    assert!(screen.contains("Toolchains  › PATH"), "{screen}");
     assert!(
         screen.contains("7 commands on PATH · 4 problems"),
         "{screen}"

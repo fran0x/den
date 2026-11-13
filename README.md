@@ -32,7 +32,7 @@ newer. `brew` and `docker` are optional: an area whose tool is missing says so.
 | **Agents** | Skills · Instructions · Settings · MCP · Hooks · Plugins | Codex and Claude Code compared row by row, with one status vocabulary |
 | **Cloud** | AWS · Kubernetes | AWS profiles and SSO sessions; kubeconfig contexts, how each signs in, and what is broken |
 | **Docker** | Containers · Images · Volumes | State, usage and reclaimable space, refreshed while you watch |
-| **Toolchains** | On PATH · Rust · Packages | Which `node`, `python3` or `cargo` wins and from where; rustup toolchains, `cargo install`, npm, uv, pipx, bun and go globals |
+| **Toolchains** | PATH · Rust · Packages | Which `node`, `python3` or `cargo` wins and from where; rustup toolchains, `cargo install`, npm, uv, pipx, bun and go globals |
 
 Every row has a status, and when something is wrong the panel beside it says why: a role
 chain that loops, a context whose cluster is gone, a `java` that is only a macOS stub, a

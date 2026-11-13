@@ -133,7 +133,7 @@ running, the status line says so and the last results stay.
 
 ## Toolchains
 
-- **On PATH:** for about twenty common commands (`node`, `python3`, `go`, `java`, `cargo`,
+- **PATH:** for about twenty common commands (`node`, `python3`, `go`, `java`, `cargo`,
   …), the copy your shell runs, who installed it (Homebrew, rustup, uv, nvm, mise, the
   system, …), its version, and any copies it hides. Problems include a manager's folder
   missing from PATH, a system copy hiding yours, and macOS placeholders such as `java`

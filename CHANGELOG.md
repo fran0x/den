@@ -5,6 +5,7 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Toolchains:** the first section is called **PATH** (was On PATH).
 - **Colours:** casks have their own colour in Homebrew lists (italic without colour), and
   the active AWS profile and current Kubernetes context are highlighted (underlined
   without colour), alongside their `*`.
