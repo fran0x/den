@@ -17,9 +17,10 @@ All notable changes to Den are recorded here. Versions follow
   package's actions: upgrade it, update Homebrew's data, remove unneeded dependencies,
   clean up, and, always last, uninstall it. The chosen action shows its exact command
   and a dry run where Homebrew has one, and `Enter` runs it. Uninstall is refused while
-  something needs the package; pinned packages are not upgraded. Esc or Ctrl-C stops a
-  running action, giving Homebrew 10 seconds to clean up. Results are logged to
-  `~/.local/state/den/actions.log` (time, command, result).
+  something needs the package; pinned packages are not upgraded. A spinner shows a dry
+  run or an action at work; Esc or Ctrl-C stops a running action, giving Homebrew 10
+  seconds to clean up. Results are logged to `~/.local/state/den/actions.log` (time,
+  command, result).
 
 ## [0.1.0] - 2026-11-12
 

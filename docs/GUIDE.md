@@ -160,7 +160,8 @@ actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 3. `Enter` runs it, once its dry run is shown. Uninstall is always last, so `x` then
    `Enter` never removes a package.
 
-While an action runs, `Esc` or `Ctrl-C` stops it, giving Homebrew 10 seconds to clean up.
+While a dry run or an action runs, a spinner shows it is working, with the seconds so far.
+`Esc` or `Ctrl-C` stops a running action, giving Homebrew 10 seconds to clean up.
 Afterwards Den reloads Homebrew and logs the action to `~/.local/state/den/actions.log`:
 the time, the command and whether it worked, never its output.
 

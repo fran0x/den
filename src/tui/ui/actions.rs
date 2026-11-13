@@ -24,7 +24,8 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
             action.title(),
             vec![
                 Line::raw(format!(
-                    "Running: {} · {} s",
+                    "{} Running: {} · {} s",
+                    spinner(),
                     action.command_line(),
                     started.elapsed().as_secs()
                 )),
@@ -164,7 +165,7 @@ fn menu(
     {
         body.push(Line::styled(format!("Dry run: {line}"), heading()));
         let (text, style) = match preview {
-            Preview::Waiting => ("Checking…".to_owned(), muted()),
+            Preview::Waiting => (format!("{} Checking…", spinner()), muted()),
             Preview::Ready(text) => (text.clone(), Style::default()),
             Preview::Failed(text) => (text.clone(), theme().bad()),
             Preview::None => (String::new(), Style::default()),
@@ -202,5 +203,35 @@ fn home(path: &std::path::Path) -> String {
             format!("~{}", &text[home.len()..])
         }
         _ => text,
+    }
+}
+
+/// Spinner frames, as Homebrew draws them while it works.
+const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// The frame for now: one step every 80 ms while Den redraws during work.
+fn spinner() -> char {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    frame(millis)
+}
+
+fn frame(millis: u128) -> char {
+    SPINNER[(millis / 80 % SPINNER.len() as u128) as usize]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_spinner_turns_every_80_ms() {
+        assert_eq!(frame(0), '⠋');
+        assert_eq!(frame(79), '⠋');
+        assert_eq!(frame(80), '⠙');
+        assert_eq!(frame(80 * 10), '⠋');
+        let frames: std::collections::HashSet<_> = (0..10).map(|i| frame(i * 80)).collect();
+        assert_eq!(frames.len(), 10);
     }
 }
