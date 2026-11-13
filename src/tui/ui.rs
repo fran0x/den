@@ -59,7 +59,11 @@ fn screen(frame: &mut Frame, app: &mut App) {
         let body = chrome(
             frame,
             "Help",
-            "Read-only · nothing inspected is executed",
+            if app.actions.allowed() {
+                "dew · actions run only when you choose one and press Enter"
+            } else {
+                "Read-only · nothing inspected is executed"
+            },
             false,
             "Esc:Back arrows:scroll",
         );

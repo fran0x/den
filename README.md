@@ -4,20 +4,22 @@
 [![crates.io](https://img.shields.io/crates/v/den-tui.svg)](https://crates.io/crates/den-tui)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-**A read-only terminal inspector for your developer machine.**
+**A terminal inspector for your developer machine, read-only by default.**
 
 Den shows what is installed and how it is configured: Homebrew packages and their
 dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
-toolchains. It reads; unless you allow writes, it never installs, removes, logs in or runs
-what it finds.
+toolchains. `den` only reads: it never installs, removes, logs in or runs what it finds.
+`dew` is the same tool with Homebrew changes allowed (upgrade, uninstall, clean up), each
+one chosen by you and shown with its dry run first.
 
 ![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
 
 ## Install
 
 ```sh
-cargo install --locked den-tui   # installs den, and dew for changes
-den
+cargo install --locked den-tui   # installs both commands
+den                              # read-only
+dew                              # the same, with Homebrew changes allowed
 ```
 
 Or download a binary for macOS or Linux from
@@ -42,19 +44,20 @@ system `python3` hiding Homebrew's.
 
 ## Read-only by default
 
-- **Fixed commands only.** `brew info`, `missing`, `leaves` and `autoremove --dry-run`;
-  `docker container ls`, `image ls`, `volume ls` and `system df`. Each is bounded in time
-  and output, and everything else is read from files. Homebrew may refresh its own
-  metadata when asked.
+- **Fixed commands only.** `den` runs `brew info`, `missing`, `leaves` and
+  `autoremove --dry-run`, and `docker container ls`, `image ls`, `volume ls` and
+  `system df`. Each is bounded in time and output, and everything else is read from files.
+  Homebrew may refresh its own metadata when asked.
 - **Nothing is called.** No AWS API, cluster, `kubectl`, exec plugin, credential helper,
   MCP server, hook or program found on PATH is ever run.
 - **Secrets stay put.** Credential values, tokens, keys, server hosts and URLs are dropped
   as they are read or kept only as "set". Untrusted text is sanitized before display.
 - **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
   recorded", not "safe to remove".
-- **Writes are opt-in.** `den` never changes anything. Upgrading, uninstalling and cleaning
-  up Homebrew packages needs `dew` (the top bar shows WRITE): `x` shows the package's
-  actions, and `Enter` runs the chosen one after its dry run. `den` offers no actions.
+- **Writes are opt-in.** `den` never changes anything and offers no actions. In `dew` (the
+  top bar shows WRITE), `x` in Homebrew shows the actions and `Enter` runs the one you
+  choose, after its dry run: `brew upgrade`, `uninstall`, `update`, `autoremove` or
+  `cleanup`, never with `--force`, a shell or sudo.
 
 Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
 actions are in [Making changes](docs/GUIDE.md#making-changes).

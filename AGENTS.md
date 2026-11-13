@@ -2,8 +2,9 @@
 
 ## Project Structure & Module Organization
 
-Den is a read-only Rust terminal inspector for a developer machine: Homebrew, Codex and
-Claude Code, cloud profiles (AWS, Kubernetes), Docker and language toolchains.
+Den is a Rust terminal inspector for a developer machine: Homebrew, Codex and Claude Code,
+cloud profiles (AWS, Kubernetes), Docker and language toolchains. `den` is read-only; `dew`
+is the same program with confirmed Homebrew write actions.
 Keep changes within the requested scope.
 
 | Location | Responsibility |

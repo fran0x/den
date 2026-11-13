@@ -176,8 +176,9 @@ In `den` there are no actions at all: `x` does nothing.
 
 ## What Den reads, and what it never does
 
-Den only looks. The [README](../README.md#read-only-by-design) lists the few commands it
-runs; everything else comes from files. By area:
+`den` only looks, and `dew` changes only what you choose (see
+[Making changes](#making-changes)). The [README](../README.md#read-only-by-default) lists the
+few commands Den runs; everything else comes from files. By area:
 
 - **Agents:** URLs, command arguments, environment values and credential helpers are
   withheld; only their names are shown. No MCP server, hook or helper is ever started.

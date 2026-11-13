@@ -25,8 +25,10 @@ with an advisory crediting you, unless you prefer otherwise.
 - A secret, token, credential value, private host or URL shown on screen or kept in memory
   beyond the parser, where the docs say it is withheld.
 - Den running a program, helper, hook, plugin or MCP server, or contacting a network
-  service, other than the fixed Homebrew and Docker listing commands.
-- A write action running in `den`, or in `dew` without being chosen and confirmed with Enter; or running anything other than the command its dialog showed.
+  service, other than the fixed Homebrew and Docker listing commands and, in `dew`, the
+  action you chose.
+- A write action running in `den`, or in `dew` without being chosen and confirmed with
+  Enter; or running anything other than the command its dialog showed.
 - Reading outside the files and folders documented for each area, following a link the
   docs say is rejected, or escaping a fixture root.
 - Terminal escape sequences or other untrusted text reaching the terminal unsanitized.
