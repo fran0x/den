@@ -59,6 +59,8 @@ system `python3` hiding Homebrew's.
   choose, after its dry run: `brew upgrade`, `uninstall`, `update`, `autoremove` or
   `cleanup`, never with `--force`, a shell or sudo.
 
+![dew showing ripgrep's actions and the upgrade's dry run](docs/images/dew.svg)
+
 Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
 actions are in [Making changes](docs/GUIDE.md#making-changes).
 

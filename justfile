@@ -22,6 +22,10 @@ den *args:
 dew *args:
     cargo run --bin dew -- "$@"
 
+# Regenerate the README screenshots in docs/images from the fixtures.
+screenshots:
+    for screen in toolchains agents-mcp dew; do cargo run --quiet --example screenshot -- "$screen" > "docs/images/$screen.svg"; done
+
 # Build the release binary.
 build:
     cargo build --release

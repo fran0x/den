@@ -50,6 +50,9 @@ every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `
   requires the release build, uses synthetic data and runs the ignored terminal lifecycle tests.
   Pass a binary path as the first argument when using a separate `CARGO_TARGET_DIR`.
 
+README screenshots in `docs/images` come from the fixtures: `just screenshots` regenerates
+them (`examples/screenshot.rs`); never edit the SVGs by hand.
+
 Releases: follow the steps at the top of `.github/workflows/release.yml`; pushing a
 `v*` tag builds both binaries, creates the GitHub release and publishes to crates.io.
 
