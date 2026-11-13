@@ -184,8 +184,10 @@ In `den` there are no actions at all: `x` does nothing.
 ## What Den reads, and what it never does
 
 `den` only looks, and `dew` changes only what you choose (see
-[Making changes](#making-changes)). The [README](../README.md#read-only-by-default) lists the
-few commands Den runs; everything else comes from files. By area:
+[Making changes](#making-changes)). The only commands `den` runs are `brew info`,
+`missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`, `image ls`,
+`volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
+metadata when asked). Everything else comes from files. By area:
 
 - **Agents:** URLs, command arguments, environment values and credential helpers are
   withheld; only their names are shown. No MCP server, hook or helper is ever started.

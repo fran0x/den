@@ -4,107 +4,72 @@
 [![crates.io](https://img.shields.io/crates/v/den-tui.svg)](https://crates.io/crates/den-tui)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-**A terminal inspector for your developer machine, read-only by default.**
+**A terminal inspector for your developer machine.** Two commands:
 
-Den shows what is installed and how it is configured: Homebrew packages and their
-dependencies, Codex and Claude Code side by side, cloud profiles, Docker and language
-toolchains. `den` only reads: it never installs, removes, logs in or runs what it finds.
-`dew` is the same tool with changes allowed: upgrade, uninstall and clean up Homebrew
-packages, and stop or remove Docker containers, images and volumes nothing uses. Each one
-is chosen by you and shows what it will do first.
-
-![Den comparing Codex and Claude Code MCP servers](docs/images/agents-mcp.svg)
+- **`den`** shows what is installed and how it is configured. It never changes anything.
+- **`dew`** is the same, plus a few clean-up actions you choose and confirm.
 
 ## Install
 
 ```sh
-cargo install --locked den-tui   # installs both commands
-den                              # read-only
-dew                              # the same, with changes allowed
+cargo install --locked den-tui   # installs den and dew
 ```
 
 Or download a binary for macOS or Linux from
-[Releases](https://github.com/fran0x/den/releases). Building from source needs Rust 1.90 or
-newer. `brew` and `docker` are optional: an area whose tool is missing says so.
+[Releases](https://github.com/fran0x/den/releases). Needs Rust 1.90+ to build. `brew`
+and `docker` are optional.
 
-## What it shows
+## den: read-only
 
-| Area | Sections | At a glance |
-| --- | --- | --- |
-| **Homebrew** | Packages · Diagnostics | Tools you asked for, what depends on what, newer versions, missing and leftover packages |
-| **Agents** | Skills · Instructions · Settings · MCP · Hooks · Plugins | Codex and Claude Code compared row by row, with one status vocabulary |
-| **Cloud** | AWS · Kubernetes | AWS profiles and SSO sessions; kubeconfig contexts, how each signs in, and what is broken |
-| **Docker** | Containers · Images · Volumes | State, usage and reclaimable space, refreshed while you watch |
-| **Toolchains** | PATH · Rust · Packages | Which `node`, `python3` or `cargo` wins and from where; rustup toolchains, `cargo install`, npm, uv, pipx, bun and go globals |
+![den showing which commands win on PATH](docs/images/toolchains.svg)
 
-Every row has a status, and when something is wrong the panel beside it says why: a role
-chain that loops, a context whose cluster is gone, a `java` that is only a macOS stub, a
-system `python3` hiding Homebrew's.
+| Area | What you see |
+| --- | --- |
+| **Homebrew** | Packages you asked for, what depends on what, newer versions, leftovers |
+| **Agents** | Codex and Claude Code side by side: skills, instructions, settings, MCP, hooks, plugins |
+| **Cloud** | AWS profiles (active one first) and Kubernetes contexts |
+| **Docker** | Containers, images, volumes and reclaimable space |
+| **Toolchains** | Which `node`, `python3` or `cargo` wins on PATH; rustup, cargo, npm, uv, pipx, bun and go installs |
 
-![Den showing which commands win on PATH](docs/images/toolchains.svg)
+When something is wrong, the panel beside the row says why.
 
-## Read-only by default
+**What it promises:**
 
-- **Fixed commands only.** `den` runs `brew info`, `missing`, `leaves` and
-  `autoremove --dry-run`, and `docker container ls`, `image ls`, `volume ls` and
-  `system df`. Each is bounded in time and output, and everything else is read from files.
-  Homebrew may refresh its own metadata when asked.
-- **Nothing is called.** No AWS API, cluster, `kubectl`, exec plugin, credential helper,
-  MCP server, hook or program found on PATH is ever run.
-- **Secrets stay put.** Credential values, tokens, keys, server hosts and URLs are dropped
-  as they are read or kept only as "set". Untrusted text is sanitized before display.
-- **Unknown stays unknown.** Den reports evidence, never guesses: no count means "not
-  recorded", not "safe to remove".
-- **Writes are opt-in.** `den` never changes anything and offers no actions. In `dew` (the
-  top bar shows WRITE), `x` shows the actions and `Enter` runs the one you choose: in
-  Homebrew `brew upgrade`, `uninstall`, `update`, `autoremove` or `cleanup` after its dry
-  run; in Docker `docker container stop`, `container rm`, `image rm` or `volume rm` on
-  something nothing uses. Never with `--force`, `prune`, a shell or sudo.
+- Runs only a fixed set of read commands (`brew info`, `docker container ls`, …); the
+  rest comes from files.
+- Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
+- Never shows secrets: tokens, keys and credential values are dropped as they are read.
+
+**Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `?` help · `q` quit.
+Try it without reading your machine: `den --demo`.
+
+## dew: with changes
 
 ![dew showing ripgrep's actions and the upgrade's dry run](docs/images/dew.svg)
 
-Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
-actions are in [Making changes](docs/GUIDE.md#making-changes).
+`dew` shows WRITE in the top bar. Select a row, press `x` to see its actions, then `Enter`
+to run the selected one.
 
-## Use
-
-`Tab` switches areas, `Shift+Tab` sections, `/` searches, `?` shows help for where you
-are and `q` quits. [The guide](docs/GUIDE.md) covers each area and its extra keys.
-
-To upgrade, uninstall or clean up Homebrew packages, run `dew` instead of `den`: see
-[Making changes](docs/GUIDE.md#making-changes).
-
-To look around first without Den reading anything on your machine:
-
-```sh
-den --demo
-```
-
-| Flag | Effect |
+| Area | Actions |
 | --- | --- |
-| `--project DIR` | Project for Agents (default: the current folder) |
-| `--codex-profile NAME` | Inspect `$CODEX_HOME/NAME.config.toml` |
-| `--skills` | Start in Agents; Homebrew loads when opened |
-| `--demo` | Built-in sample data; nothing on this machine is read |
-| `--help` | All flags, including the offline sources |
+| **Homebrew** | Upgrade, uninstall, update Homebrew's data, remove unneeded dependencies, clean up |
+| **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses |
 
-## Develop
+**What it promises:**
 
-```sh
-just check    # format, Clippy, tests, release build
-just smoke    # offline terminal checks in a real PTY
-just ci       # everything CI runs (needs cargo-deny and Rust 1.90; see `just tools`)
-```
+- Shows the exact command first, and Homebrew's dry run where there is one.
+- Refuses what is in use: no uninstall while something needs the package, no removing a
+  used image or volume.
+- Never uses `--force`, `prune`, a shell or sudo. `Esc` stops a running action.
+- Logs each action to `~/.local/state/den/actions.log` (time, command, result).
 
-From a checkout, `just den` starts Den, `just dew` starts it with writes allowed, and
-`just fixtures` lists synthetic setups for every area (Codex and Claude Code, AWS,
-Kubernetes, Docker, toolchains) that never touch your machine. CI runs on Ubuntu and
-macOS, and `cargo deny` checks dependencies for advisories, licenses and sources. Live
-checks against your own machine are opt-in (`just live`). Contributor rules, including
-what Den may run and read, are in [AGENTS.md](AGENTS.md).
+## More
+
+- [Guide](docs/GUIDE.md): every area, key and action in detail.
+- [Security policy](SECURITY.md): what Den may read and run; report issues privately.
+- Develop: `just check`, `just smoke`, `just ci`. Rules are in [AGENTS.md](AGENTS.md).
 
 ## License
 
-Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at
-your option. Contributions are accepted under the same terms. Report vulnerabilities
-privately; see the [security policy](SECURITY.md).
+[Apache License 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your option.
+Contributions are accepted under the same terms.
