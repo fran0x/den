@@ -21,6 +21,10 @@ pub struct Theme {
     bad: Option<Color>,
     /// Foreground and background of the selected row.
     selected: Option<(Color, Color)>,
+    /// Homebrew casks, so they stand apart from formulae.
+    cask: Option<Color>,
+    /// What is in use: the active AWS profile, the current Kubernetes context.
+    current: Option<Color>,
 }
 
 static THEME: OnceLock<Theme> = OnceLock::new();
@@ -45,6 +49,8 @@ impl Theme {
             warn: Some(Color::Rgb(249, 226, 175)),
             bad: Some(Color::Rgb(243, 139, 168)),
             selected: Some((Color::Rgb(205, 214, 244), Color::Rgb(49, 50, 68))),
+            cask: Some(Color::Rgb(203, 166, 247)),
+            current: Some(Color::Rgb(148, 226, 213)),
         }
     }
 
@@ -57,6 +63,8 @@ impl Theme {
             warn: Some(Color::Rgb(223, 142, 29)),
             bad: Some(Color::Rgb(210, 15, 57)),
             selected: Some((Color::Rgb(76, 79, 105), Color::Rgb(204, 208, 218))),
+            cask: Some(Color::Rgb(136, 57, 239)),
+            current: Some(Color::Rgb(23, 146, 153)),
         }
     }
 
@@ -70,6 +78,8 @@ impl Theme {
             warn: Some(Color::Yellow),
             bad: Some(Color::Red),
             selected: None,
+            cask: Some(Color::Magenta),
+            current: Some(Color::Cyan),
         }
     }
 
@@ -83,6 +93,8 @@ impl Theme {
             warn: None,
             bad: None,
             selected: None,
+            cask: None,
+            current: None,
         }
     }
 
@@ -147,6 +159,22 @@ impl Theme {
         match self.bad {
             Some(c) => Style::default().fg(c),
             None => Style::default().add_modifier(Modifier::BOLD),
+        }
+    }
+
+    /// Cask names; italic without colour.
+    pub(super) fn cask(self) -> Style {
+        match self.cask {
+            Some(c) => Style::default().fg(c),
+            None => Style::default().add_modifier(Modifier::ITALIC),
+        }
+    }
+
+    /// The profile or context in use; underlined without colour.
+    pub(super) fn current(self) -> Style {
+        match self.current {
+            Some(c) => Style::default().fg(c).add_modifier(Modifier::BOLD),
+            None => Style::default().add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
         }
     }
 
@@ -225,5 +253,16 @@ mod tests {
         assert!(Theme::plain().bad().add_modifier.contains(Modifier::BOLD));
         let active = Theme::plain().active().add_modifier;
         assert!(active.contains(Modifier::BOLD | Modifier::UNDERLINED));
+    }
+
+    #[test]
+    fn casks_and_the_profile_in_use_stand_out_without_colour() {
+        let plain = Theme::plain();
+        assert!(plain.cask().add_modifier.contains(Modifier::ITALIC));
+        assert!(plain.current().add_modifier.contains(Modifier::UNDERLINED));
+        for theme in [Theme::mocha(), Theme::latte(), Theme::ansi()] {
+            assert!(theme.cask().fg.is_some() && theme.current().fg.is_some());
+            assert_ne!(theme.cask().fg, theme.current().fg);
+        }
     }
 }

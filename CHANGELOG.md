@@ -5,6 +5,9 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Colours:** casks have their own colour in Homebrew lists (italic without colour), and
+  the active AWS profile and current Kubernetes context are highlighted (underlined
+  without colour), alongside their `*`.
 - **Fixed: casks missing from Tools.** Homebrew keeps no installed-on-request record for
   casks, so every cask showed as Unknown and appeared only under All. A cask now counts as
   a tool unless another installed package needs it, and says **No request record**

@@ -212,15 +212,19 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 r.description.clone()
             };
-            let item = status_item(
-                (
-                    &r.display_name(),
-                    r.version.as_deref().unwrap_or("Unknown"),
-                    &tail,
-                ),
-                inner.width,
-                app.selected == Some(row),
+            let name = r.display_name();
+            let cells = (
+                name.as_str(),
+                r.version.as_deref().unwrap_or("Unknown"),
+                tail.as_str(),
             );
+            let selected = app.selected == Some(row);
+            // Casks stand apart from formulae in their own colour.
+            let item = if r.kind == crate::inventory::ResourceKind::Cask {
+                marked_item(cells, inner.width, selected, theme::theme().cask())
+            } else {
+                status_item(cells, inner.width, selected)
+            };
             // Tools stand out in bold, so All still shows what was installed on request.
             if app.is_homebrew() && app.is_tool(index) {
                 item.style(Style::default().add_modifier(Modifier::BOLD))

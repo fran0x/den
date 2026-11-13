@@ -268,6 +268,16 @@ fn shift_tab_switches_cloud_sections_and_each_keeps_its_place() {
     // The current context is starred, as in kubectl; the others are not.
     assert!(screen.contains("* prod-eks"), "{screen}");
     assert_eq!(screen.matches("* ").count(), 1, "{screen}");
+    let mut t = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 30)).unwrap();
+    t.draw(|f| den::tui::ui::render(f, &mut a)).unwrap();
+    let buffer = t.backend().buffer();
+    let star = (0..30u16)
+        .find_map(|y| {
+            let line: String = (0..140).map(|x| buffer[(x, y)].symbol()).collect();
+            line.find("* prod-eks").map(|x| (x as u16 + 2, y))
+        })
+        .unwrap();
+    assert_eq!(buffer[star].fg, ratatui::style::Color::Rgb(148, 226, 213));
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     let chosen = a.kube.selected_row().unwrap().key.clone();

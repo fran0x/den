@@ -298,10 +298,31 @@ pub(super) fn status_columns(name: &str, middle: &str, tail: &str, width: u16) -
 /// A `status_columns` list item. The selected row styles its own text, and the list
 /// highlights it with `status_selection`, so status colours stay visible when selected.
 pub(super) fn status_item(
-    (name, middle, tail): (&str, &str, &str),
+    cells: (&str, &str, &str),
     width: u16,
     selected: bool,
 ) -> ListItem<'static> {
+    ListItem::new(status_line(cells, width, selected))
+}
+/// A `status_item` whose name stands out in `style` (a cask, the active profile), also
+/// when the row is selected.
+pub(super) fn marked_item(
+    cells: (&str, &str, &str),
+    width: u16,
+    selected: bool,
+    style: Style,
+) -> ListItem<'static> {
+    let mut line = status_line(cells, width, selected);
+    if let Some(name) = line.spans.first_mut() {
+        name.style = name.style.patch(style);
+    }
+    ListItem::new(line)
+}
+fn status_line(
+    (name, middle, tail): (&str, &str, &str),
+    width: u16,
+    selected: bool,
+) -> Line<'static> {
     let mut line = status_columns(name, middle, tail, width);
     if selected {
         for span in &mut line.spans {
@@ -310,7 +331,7 @@ pub(super) fn status_item(
             }
         }
     }
-    ListItem::new(line)
+    line
 }
 pub(super) fn status_selection() -> Style {
     theme().selection_background()
@@ -407,6 +428,8 @@ pub(super) struct ListView {
     pub(super) selected: usize,
     pub(super) query: String,
     pub(super) searching: bool,
+    /// The row in use (the active profile, the current context), shown highlighted.
+    pub(super) current: Option<usize>,
 }
 
 /// A searchable three-column list with a header, and a scrolling information panel.
@@ -426,6 +449,7 @@ pub(super) fn list_view(
         selected,
         query,
         searching,
+        current,
     } = view;
     let body = chrome(
         frame,
@@ -481,7 +505,14 @@ pub(super) fn list_view(
                 .skip(start)
                 .take(page)
                 .enumerate()
-                .map(|(i, (n, x, y))| status_item((n, x, y), inner.width, start + i == selected))
+                .map(|(i, (n, x, y))| {
+                    let cells = (n.as_str(), x.as_str(), y.as_str());
+                    if current == Some(start + i) {
+                        marked_item(cells, inner.width, start + i == selected, theme().current())
+                    } else {
+                        status_item(cells, inner.width, start + i == selected)
+                    }
+                })
                 .collect();
             let mut state = ListState::default().with_selected(Some(selected - start));
             frame.render_stateful_widget(

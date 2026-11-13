@@ -124,6 +124,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         selected: t.selected(),
         query: t.query.clone(),
         searching: t.searching,
+        current: None,
     };
     let t = &mut app.toolchains;
     list_view(frame, view, &mut t.page, &mut t.panel);

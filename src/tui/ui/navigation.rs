@@ -122,7 +122,7 @@ pub(super) fn help(app: &App) -> String {
         Module::Toolchains => super::toolchains::HELP,
         Module::Homebrew => {
             "Homebrew\n\
-Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed].\n\
+Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed] and in their own colour.\n\
 Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update.\n\
 The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
 x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Without --allow-writes they can only be copied (c); with it, W turns writes on and y runs one after its preview.\n\

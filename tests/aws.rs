@@ -314,6 +314,24 @@ fn the_active_profile_comes_first_and_says_so() {
         assert!(screen.contains("Ready · active"), "{screen}");
         assert!(screen.contains("* dev "), "{screen}");
         assert!(!screen.contains("* default"), "{screen}");
+        // The active profile's name is highlighted (Catppuccin teal); the others are not.
+        let mut t = Terminal::new(TestBackend::new(w, h)).unwrap();
+        t.draw(|f| ui::render(f, &mut a)).unwrap();
+        let buffer = t.backend().buffer();
+        // The colour of a list row's name, found by the row's own text.
+        let name_fg = |row: &str, name: &str| {
+            (0..h)
+                .find_map(|y| {
+                    let line: String = (0..w).map(|x| buffer[(x, y)].symbol()).collect();
+                    let at = line.find(row)?;
+                    let x = at + row.find(name)?;
+                    Some(buffer[(x as u16, y)].fg)
+                })
+                .unwrap_or_else(|| panic!("{row} row"))
+        };
+        let teal = ratatui::style::Color::Rgb(148, 226, 213);
+        assert_eq!(name_fg("* dev ", "dev"), teal);
+        assert_ne!(name_fg("  default ", "default"), teal);
     }
 }
 

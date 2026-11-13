@@ -271,6 +271,13 @@ fn tools_are_bold_and_casks_are_bracketed() {
     // nothing needs it); pcre2 is a dependency.
     assert!(bold(row("ripgrep")) && bold(row("[requested-app]")) && bold(row("[widget]")));
     assert!(!bold(row("pcre2")));
+    // Casks have their own colour (Catppuccin mauve), formulae the default one.
+    let mauve = ratatui::style::Color::Rgb(203, 166, 247);
+    let fg = |y: u16| buffer[(4, y)].fg;
+    assert_eq!(fg(row("[widget]")), mauve);
+    assert_eq!(fg(row("[requested-app]")), mauve);
+    assert_ne!(fg(row("ripgrep")), mauve);
+    assert_ne!(fg(row("pcre2")), mauve);
 }
 
 #[test]
