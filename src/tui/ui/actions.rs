@@ -126,15 +126,11 @@ fn mode_line(app: &App) -> Line<'static> {
             "WRITE mode is on: each action shows what it will do and runs only on y.",
             theme().bad(),
         )
-    } else if app.actions.allowed() {
-        Line::styled(
-            "Writes are allowed but off: press W to turn them on. c copies a command.",
-            theme().warn(),
-        )
     } else {
+        // The dialog opens only in dew; den has no actions.
         Line::styled(
-            "Read-only: c copies a command. To run them, use dew instead of den.",
-            muted(),
+            "Writes are off: press W to turn them on. c copies a command.",
+            theme().warn(),
         )
     }
 }

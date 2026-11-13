@@ -112,8 +112,10 @@ fn screen(frame: &mut Frame, app: &mut App) {
         app.searching,
         if app.searching {
             actions(true)
-        } else if app.is_homebrew() {
+        } else if app.is_homebrew() && app.actions.allowed() {
             "a:tools/all x:actions Tab:area Shift+Tab:section"
+        } else if app.is_homebrew() {
+            "a:tools/all Tab:area Shift+Tab:section"
         } else {
             "f:type Tab:area"
         },

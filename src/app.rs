@@ -417,7 +417,8 @@ impl App {
                     self.actions.notice = Some(notice);
                     return;
                 }
-                KeyCode::Char('x') if self.module == Module::Homebrew => {
+                // In den there are no actions at all, not even commands to copy.
+                KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
                     let items = self.action_items();
                     self.actions.open(items);
                     return;

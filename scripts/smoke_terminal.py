@@ -508,14 +508,12 @@ else:
     sys.exit(3)
 """)
     write_env = dict(isolated_env, XDG_STATE_HOME=str(state))
-    run_pty([binary], env=write_env, steps=[
+    # den has no actions: W only points to dew, and x, Enter and y do nothing.
+    output = run_pty([binary], env=write_env, steps=[
         (b"Loaded 8", b"W"),
-        (b"run dew", b"x"),
-        (b"Actions", [b"\x1b[F", b"\r"]),
-        (b"Not run: writes are off", b"y"),
-        (b"run dew", b"\x1b"),
-        (b"Loaded 8", b"q"),
+        (b"run dew", b"x\ryq"),
     ])
+    assert b"Actions" not in output and b"x:actions" not in output
     assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
     assert not state.exists(), "nothing ran, so nothing is logged"
     calls.unlink()

@@ -4,7 +4,7 @@
 //! the top bar), and each one is confirmed with `y` after its preview. Every action is a
 //! fixed command line built from a checked name: no shell, no sudo, stdin closed (a
 //! password prompt fails instead of waiting), and never `--force`, `--ignore-dependencies`
-//! or `--zap`. Without the permit, the same menu only copies commands.
+//! or `--zap`. `den` has no actions at all: no menu, not even commands to copy.
 use crate::{
     areas::homebrew::{CollectionError, CommandOutput},
     inventory::safe_text,

@@ -69,7 +69,7 @@ fn pick(a: &mut App, line: &str) {
 
 #[test]
 fn the_menu_offers_what_fits_the_selection() {
-    let mut a = app(false);
+    let mut a = app(true);
     select(&mut a, "ripgrep");
     key(&mut a, KeyCode::Char('x'));
     assert_eq!(
@@ -86,7 +86,7 @@ fn the_menu_offers_what_fits_the_selection() {
     assert!(a.actions.dialog.is_none());
 
     // Something needs pcre2, so uninstalling it is offered but blocked; no upgrade.
-    let mut a = app(false);
+    let mut a = app(true);
     select(&mut a, "pcre2");
     key(&mut a, KeyCode::Char('x'));
     let items = menu(&a);
@@ -96,7 +96,7 @@ fn the_menu_offers_what_fits_the_selection() {
 
     // Casks get --cask, and a tapped package its full name, so no other tap's package
     // of the same name can be meant.
-    let mut a = app(false);
+    let mut a = app(true);
     key(&mut a, KeyCode::Char('a'));
     key(&mut a, KeyCode::Char('/'));
     type_text(&mut a, "widget");
@@ -109,25 +109,31 @@ fn the_menu_offers_what_fits_the_selection() {
 }
 
 #[test]
-fn without_the_flag_commands_are_copied_never_run() {
+fn den_has_no_actions_at_all() {
     let mut a = app(false);
     select(&mut a, "ripgrep");
+    let screen = draw(&mut a, 120, 30);
+    assert!(!screen.contains("x:actions"), "{screen}");
+    // x opens nothing, so no command is shown or copied.
+    key(&mut a, KeyCode::Char('x'));
+    assert!(a.actions.dialog.is_none());
+    assert_eq!(a.actions.clipboard, None);
+    let screen = draw(&mut a, 120, 30);
+    for command in [
+        "brew upgrade",
+        "brew uninstall",
+        "brew autoremove",
+        "brew cleanup",
+    ] {
+        assert!(!screen.contains(command), "{screen}");
+    }
+    // W only says where writes live.
     key(&mut a, KeyCode::Char('W'));
     assert!(!a.actions.on());
-    assert!(draw(&mut a, 120, 30).contains("run dew"));
-    key(&mut a, KeyCode::Char('x'));
-    key(&mut a, KeyCode::Char('c'));
-    assert_eq!(
-        a.actions.clipboard.as_deref(),
-        Some("brew upgrade --formula ripgrep")
-    );
-    key(&mut a, KeyCode::Enter);
     let screen = draw(&mut a, 120, 30);
-    assert!(screen.contains("Not run: writes are off"), "{screen}");
-    key(&mut a, KeyCode::Char('y'));
+    assert!(screen.contains("run dew"), "{screen}");
+    assert!(!screen.contains(" WRITE "));
     assert_eq!(a.actions.request, None);
-    assert!(!a.actions.running());
-    assert!(!draw(&mut a, 120, 30).contains(" WRITE "));
 }
 
 #[test]
@@ -205,7 +211,7 @@ fn a_blocked_uninstall_cannot_be_confirmed() {
 
 #[test]
 fn ctrl_c_quits_from_menus_but_not_mid_action() {
-    let mut a = app(false);
+    let mut a = app(true);
     key(&mut a, KeyCode::Char('x'));
     ctrl_c(&mut a);
     assert!(a.quit && a.actions.dialog.is_none());

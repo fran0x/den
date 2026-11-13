@@ -54,7 +54,7 @@ system `python3` hiding Homebrew's.
   recorded", not "safe to remove".
 - **Writes are opt-in.** `den` never changes anything. Upgrading, uninstalling and cleaning
   up Homebrew packages needs `dew`, then `W` to turn writes on (the top bar shows WRITE),
-  then `y` to confirm each action after its preview. In `den`, `x` only copies commands.
+  then `y` to confirm each action after its preview. `den` offers no actions at all.
 
 Per-area details are in the [guide](docs/GUIDE.md#what-den-reads-and-what-it-never-does);
 actions are in [Making changes](docs/GUIDE.md#making-changes).

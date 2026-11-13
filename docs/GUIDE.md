@@ -66,7 +66,7 @@ links, missing dependencies, leaves and a cleanup preview.
 | `o` | Show Homebrew's original report |
 | `c` | Run the selected check now (live only, read-only) |
 
-`x` opens the actions for the selected package and for Homebrew; see
+In `dew`, `x` opens the actions for the selected package and for Homebrew; see
 [Making changes](#making-changes).
 
 ## Agents
@@ -172,8 +172,8 @@ What Den will not do:
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.
 
-In `den`, `x` still works: `c` copies an action's command to the clipboard,
-if your terminal allows it, so you can run it yourself.
+In `den` there are no actions at all: `x` does nothing. In `dew`, `c` in the actions copies
+a command to the clipboard, if your terminal allows it, so you can run it yourself.
 
 ## What Den reads, and what it never does
 
