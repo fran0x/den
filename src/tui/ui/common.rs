@@ -39,9 +39,14 @@ pub(super) fn hints(text: &str) -> Line<'static> {
 // Write mode, for the top bar: set at the start of each frame, on the thread that draws it.
 thread_local! {
     static WRITE_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static PROBLEMS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 pub(super) fn set_write_mode(on: bool) {
     WRITE_MODE.with(|w| w.set(on));
+}
+/// Problems found so far, for the top-bar badge: set at the start of each frame.
+pub(super) fn set_problems(count: usize) {
+    PROBLEMS.with(|p| p.set(count));
 }
 
 /// Top bar, status line and footer around a body. `view` is "Area / Section" for the
@@ -62,6 +67,13 @@ pub(super) fn chrome(
     .split(frame.area());
     let accent = heading();
     let mut title = vec![Span::styled(" DEN ", accent)];
+    let problems = PROBLEMS.with(std::cell::Cell::get);
+    if problems > 0 {
+        title.push(Span::styled(
+            format!(" ! {problems} "),
+            theme().bad().add_modifier(Modifier::BOLD),
+        ));
+    }
     if WRITE_MODE.with(std::cell::Cell::get) {
         title.push(Span::styled(
             " WRITE ",
@@ -94,7 +106,7 @@ pub(super) fn chrome(
     let footer = if searching {
         format!(" Search · {actions}  Ctrl-U:clear  Ctrl-C:quit")
     } else {
-        format!(" {actions}  /:search  ?:help  q:quit")
+        format!(" {actions}  /:search  !:problems  ?:help  q:quit")
     };
     let footer = if frame.area().width < 65 && !searching {
         format!(

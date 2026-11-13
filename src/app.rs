@@ -60,6 +60,8 @@ pub struct HomebrewCounts {
 pub struct App {
     /// Write actions: only in `dew`.
     pub actions: crate::actions::State,
+    /// The Problems overview (`!`), when open.
+    pub problems: Option<crate::problems::View>,
     pub presentation: crate::tui::presentation::Presentation,
     pub module: Module,
     pub skills: crate::areas::agents::skills::state::State,
@@ -110,6 +112,7 @@ impl App {
         let health = Health::build(&graph);
         let mut app = Self {
             actions: crate::actions::State::default(),
+            problems: None,
             presentation: crate::tui::presentation::Presentation::default(),
             module: Module::Homebrew,
             skills: crate::areas::agents::skills::state::State::default(),
@@ -410,8 +413,16 @@ impl App {
             self.quit = true;
             return;
         }
+        if self.problems.is_some() {
+            self.problems_key(key);
+            return;
+        }
         if !self.active_searching() && !self.presentation.menu_searching {
             match key.code {
+                KeyCode::Char('!') => {
+                    self.problems = Some(crate::problems::View::default());
+                    return;
+                }
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
                     let (package, items) = self.action_menu();
@@ -522,6 +533,94 @@ impl App {
             KeyCode::Home => self.move_by(-isize::MAX),
             KeyCode::End => self.move_by(isize::MAX),
             _ => {}
+        }
+    }
+
+    /// Keys while the Problems overview is open.
+    fn problems_key(&mut self, key: KeyEvent) {
+        let entries = crate::problems::collect(self);
+        let last = entries.len().saturating_sub(1);
+        let Some(view) = &mut self.problems else {
+            return;
+        };
+        let page = self.page_size.max(1);
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => view.selected = (view.selected + 1).min(last),
+            KeyCode::Up | KeyCode::Char('k') => view.selected = view.selected.saturating_sub(1),
+            KeyCode::PageDown => view.selected = (view.selected + page).min(last),
+            KeyCode::PageUp => view.selected = view.selected.saturating_sub(page),
+            KeyCode::Home => view.selected = 0,
+            KeyCode::End => view.selected = last,
+            KeyCode::Enter => {
+                if let Some(entry) = entries.get(view.selected.min(last)) {
+                    let target = entry.target.clone();
+                    self.problems = None;
+                    self.go_to(target);
+                }
+            }
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('!') => self.problems = None,
+            _ => {}
+        }
+    }
+
+    /// Opens the area and section an overview entry lives in, with its row selected.
+    fn go_to(&mut self, target: crate::problems::Target) {
+        use crate::problems::Target;
+        use crate::tui::presentation::Destination as D;
+        match target {
+            Target::Package(node) => {
+                self.navigate(D::Homebrew);
+                self.jump_to(Installation { node, keg: None });
+            }
+            Target::Diagnostics(tab) => self.navigate(match tab {
+                Tab::Unresolved => D::Unresolved,
+                Tab::Missing => D::Missing,
+                Tab::Leaves => D::Leaves,
+                Tab::Cleanup => D::Cleanup,
+            }),
+            Target::Agents(section, key) => {
+                use crate::areas::agents::Section as S;
+                self.navigate(match section {
+                    S::Skills => D::Skills,
+                    S::Instructions => D::Instructions,
+                    S::Settings => D::Settings,
+                    S::Mcp => D::Mcp,
+                    S::Hooks => D::Hooks,
+                    S::Plugins => D::Plugins,
+                });
+                self.agents.query.clear();
+                self.agents_select(&key);
+            }
+            Target::Aws(key) => {
+                self.navigate(D::Aws);
+                self.aws.query.clear();
+                self.aws.select_key(&key);
+            }
+            Target::Kubernetes(key) => {
+                self.navigate(D::Kubernetes);
+                self.kube.query.clear();
+                self.kube.select_key(&key);
+            }
+            Target::Docker(section, key) => {
+                use crate::areas::docker::Section as S;
+                self.navigate(match section {
+                    S::Containers => D::Containers,
+                    S::Images => D::Images,
+                    S::Volumes => D::Volumes,
+                });
+                self.docker.query.clear();
+                self.docker.select_key(&key);
+            }
+            Target::Toolchains(section, key) => {
+                use crate::areas::toolchains::Section as S;
+                self.navigate(match section {
+                    S::Path => D::OnPath,
+                    S::Rust => D::Rust,
+                    S::Packages => D::Packages,
+                });
+                self.toolchains.query.clear();
+                self.toolchains.select_key(&key);
+            }
         }
     }
 

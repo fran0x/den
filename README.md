@@ -61,8 +61,8 @@ actions are in [Making changes](docs/GUIDE.md#making-changes).
 
 ## Use
 
-`Tab` switches areas, `Shift+Tab` sections, `/` searches, `?` shows help for where you
-are and `q` quits. [The guide](docs/GUIDE.md) covers each area and its extra keys.
+`Tab` switches areas, `Shift+Tab` sections, `/` searches, `!` lists problems across every
+area, `?` shows help for where you are and `q` quits. [The guide](docs/GUIDE.md) covers each area and its extra keys.
 
 To upgrade, uninstall or clean up Homebrew packages, run `dew` instead of `den`: see
 [Making changes](docs/GUIDE.md#making-changes).

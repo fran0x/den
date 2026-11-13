@@ -270,5 +270,25 @@ pub fn short_path(
 
 /// "1 skill", "2 skills".
 pub fn count(n: usize, noun: &str) -> String {
-    format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
+    if n == 1 {
+        return format!("1 {noun}");
+    }
+    // "entry" → "entries", but "key" → "keys".
+    match noun.strip_suffix('y') {
+        Some(stem) if !stem.ends_with(['a', 'e', 'i', 'o', 'u']) => format!("{n} {stem}ies"),
+        _ => format!("{n} {noun}s"),
+    }
+}
+
+#[cfg(test)]
+mod count_tests {
+    #[test]
+    fn plurals_read_naturally() {
+        use super::count;
+        assert_eq!(count(1, "entry"), "1 entry");
+        assert_eq!(count(2, "entry"), "2 entries");
+        assert_eq!(count(3, "dependency"), "3 dependencies");
+        assert_eq!(count(2, "key"), "2 keys");
+        assert_eq!(count(0, "profile"), "0 profiles");
+    }
 }

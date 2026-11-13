@@ -323,6 +323,14 @@ print(pathlib.Path('fixtures/brew.json').read_text())
         assert b"PRIVATE-" not in output
     assert not calls.exists(), "AWS inspection must not invoke Homebrew"
     print("PASS: Cloud › AWS profiles, problems, search and Tab; no credential values")
+    output = run_pty([binary, "--aws-fixture", "fixtures/aws"], env=isolated_env, steps=[
+        (b"12 profiles", b"!"),
+        (b"Problems", b"\r"),
+        ("Cloud  › AWS".encode(), b"q"),
+    ])
+    assert b"PRIVATE-" not in output
+    assert not calls.exists(), "the Problems overview must not invoke Homebrew"
+    print("PASS: ! opens the Problems overview and Enter goes to the profile")
     for size in [(80, 24), (120, 32)]:
         output = run_pty([binary, "--kube-fixture", "fixtures/kube"], env=isolated_env, size=size, steps=[
             (b"7 contexts", b"/legacy\r"),
