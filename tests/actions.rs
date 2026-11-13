@@ -152,7 +152,7 @@ fn ready(a: &mut App, action: &Action, text: &str) {
 }
 
 #[test]
-fn x_shows_the_package_and_the_dry_run_then_enter_runs_it() {
+fn x_shows_the_actions_and_the_dry_run_then_enter_runs_it() {
     let mut a = app(true);
     select(&mut a, "ripgrep");
     // dew shows WRITE from the start.
@@ -161,16 +161,9 @@ fn x_shows_the_package_and_the_dry_run_then_enter_runs_it() {
     // Opening starts the selected action's dry run.
     assert_eq!(a.actions.request.take(), Some(Request::Preview(upgrade())));
     let screen = draw(&mut a, 120, 36);
-    // Details from the package's information panel.
-    for detail in [
-        "ripgrep · installed 14.1.1",
-        "Installation intent: Requested",
-        "↑ 99.0 available",
-        "Nothing installed needs it",
-        "Checking…",
-    ] {
-        assert!(screen.contains(detail), "{detail}: {screen}");
-    }
+    // The title names the package; the dry run below says what will change.
+    assert!(screen.contains("Actions · ripgrep"), "{screen}");
+    assert!(screen.contains("Checking…"), "{screen}");
     // Enter waits for the dry run.
     key(&mut a, KeyCode::Enter);
     assert_eq!(a.actions.request, None);

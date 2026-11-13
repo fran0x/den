@@ -11,11 +11,11 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
     };
     let (title, body, footer) = match dialog {
         Dialog::Menu {
-            details,
+            package,
             items,
             selected,
             preview,
-        } => menu(details, items, *selected, preview),
+        } => menu(package.as_deref(), items, *selected, preview),
         Dialog::Running {
             action,
             started,
@@ -123,26 +123,13 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
 }
 
 fn menu(
-    details: &[String],
+    package: Option<&str>,
     items: &[crate::actions::Item],
     selected: usize,
     preview: &Preview,
 ) -> (String, Vec<Line<'static>>, String) {
-    // The dialog opens only in dew, where writes are on.
-    let mut body = vec![
-        Line::styled(
-            "WRITE: Enter runs the selected action, after its dry run.",
-            theme().bad(),
-        ),
-        Line::raw(""),
-    ];
-    if !details.is_empty() {
-        for (i, line) in details.iter().enumerate() {
-            let style = if i == 0 { heading() } else { Style::default() };
-            body.push(Line::from(status_spans(line, style)));
-        }
-        body.push(Line::raw(""));
-    }
+    let title = package.map_or_else(|| "Actions".to_owned(), |p| format!("Actions · {p}"));
+    let mut body = vec![];
     let column = items
         .iter()
         .map(|i| i.action.title().chars().count())
@@ -164,7 +151,7 @@ fn menu(
         ]));
     }
     let Some(item) = items.get(selected) else {
-        return ("Actions".into(), body, "Esc: close".into());
+        return (title, body, "Esc: close".into());
     };
     body.push(Line::raw(""));
     if let Some(why) = &item.blocked {
@@ -191,7 +178,7 @@ fn menu(
     } else {
         "Enter: run it · ↑↓: choose · Esc: close"
     };
-    ("Actions".into(), body, footer.into())
+    (title, body, footer.into())
 }
 
 /// What a command without a dry run will and won't do.

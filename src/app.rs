@@ -414,8 +414,8 @@ impl App {
             match key.code {
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x') if self.module == Module::Homebrew && self.actions.allowed() => {
-                    let (details, items) = self.action_menu();
-                    self.actions.open(details, items);
+                    let (package, items) = self.action_menu();
+                    self.actions.open(package, items);
                     return;
                 }
                 _ => {}
@@ -569,13 +569,13 @@ impl App {
         }
     }
 
-    /// What the actions dialog shows here: details of the selected package (Packages
-    /// only), then its upgrade, Homebrew-wide maintenance, and its uninstall last, so
-    /// opening the dialog and pressing Enter never removes a package.
-    pub fn action_menu(&self) -> (Vec<String>, Vec<crate::actions::Item>) {
+    /// What the actions dialog offers here: the selected package's upgrade (Packages
+    /// only), Homebrew-wide maintenance, and its uninstall last, so opening the dialog and
+    /// pressing Enter never removes a package. Also the package's name, for the title.
+    pub fn action_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
         use crate::actions::{Action, Item, Package};
         use crate::inventory::HomebrewMetadata;
-        let mut details = vec![];
+        let mut title = None;
         let mut items = vec![];
         let mut uninstall = None;
         let package = (self.destination() == crate::tui::presentation::Destination::Homebrew)
@@ -594,7 +594,7 @@ impl App {
             };
             let users = self.graph.recorded_users(index);
             let needed = users > 0 || self.graph.needed(index);
-            details = self.action_details(resource, meta, users, needed);
+            title = Some(safe_text(&resource.display_name()));
             if let Some(package) = Package::new(name, cask) {
                 if meta.update().is_some() {
                     items.push(Item {
@@ -630,52 +630,7 @@ impl App {
             });
         }
         items.extend(uninstall);
-        (details, items)
-    }
-
-    /// The package, as in its information panel: version, intent, newer version, what
-    /// needs it, and its description.
-    fn action_details(
-        &self,
-        resource: &Resource,
-        meta: &crate::inventory::HomebrewMetadata,
-        users: usize,
-        needed: bool,
-    ) -> Vec<String> {
-        let cask = resource.kind == ResourceKind::Cask;
-        let mut lines = vec![
-            format!(
-                "{} · {} {}",
-                resource.display_name(),
-                if cask {
-                    "recorded version"
-                } else {
-                    "installed"
-                },
-                resource.version.as_deref().unwrap_or("unknown")
-            ),
-            format!("Installation intent: {}", meta.intent_label()),
-        ];
-        if let Some(latest) = meta.update() {
-            lines.push(format!(
-                "↑ {latest} available · as of last brew update{}",
-                if meta.pinned() { " · pinned" } else { "" }
-            ));
-        }
-        lines.push(if users > 0 {
-            format!(
-                "Required by {}",
-                crate::inventory::count(users, "installed package")
-            )
-        } else if needed {
-            "Another installed package declares that it needs it".into()
-        } else {
-            "Nothing installed needs it".into()
-        });
-        if !resource.description.is_empty() {
-            lines.push(resource.description.clone());
-        }
-        lines.iter().map(|l| safe_text(l)).collect()
+        (title, items)
     }
 
     /// An action finished: log it, show it, and reload Homebrew, which it may have changed.

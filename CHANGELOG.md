@@ -14,12 +14,12 @@ All notable changes to Den are recorded here. Versions follow
   instead of Unknown.
 - **Write actions, opt-in:** run `dew` instead of `den` (`den` stays read-only and offers
   no actions; `dew` shows WRITE in the top bar). In Homebrew, `x` shows the selected
-  package and its actions: upgrade it, update Homebrew's data, remove unneeded
-  dependencies, clean up, and, always last, uninstall it. The chosen action shows its
-  exact command and a dry run where Homebrew has one, and `Enter` runs it. Uninstall is
-  refused while something needs the package; pinned packages are not upgraded. Esc or
-  Ctrl-C stops a running action, giving Homebrew 10 seconds to clean up. Results are
-  logged to `~/.local/state/den/actions.log` (time, command, result).
+  package's actions: upgrade it, update Homebrew's data, remove unneeded dependencies,
+  clean up, and, always last, uninstall it. The chosen action shows its exact command
+  and a dry run where Homebrew has one, and `Enter` runs it. Uninstall is refused while
+  something needs the package; pinned packages are not upgraded. Esc or Ctrl-C stops a
+  running action, giving Homebrew 10 seconds to clean up. Results are logged to
+  `~/.local/state/den/actions.log` (time, command, result).
 
 ## [0.1.0] - 2026-11-12
 

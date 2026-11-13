@@ -214,10 +214,10 @@ pub enum Preview {
 
 #[derive(Debug)]
 pub enum Dialog {
-    /// What the selected package is, the actions, and the selected one's dry run.
-    /// Enter runs the selected action.
+    /// The actions for a package (named in the title) and for Homebrew, and the
+    /// selected one's dry run. Enter runs the selected action.
     Menu {
-        details: Vec<String>,
+        package: Option<String>,
         items: Vec<Item>,
         selected: usize,
         preview: Preview,
@@ -270,9 +270,9 @@ impl State {
         matches!(self.dialog, Some(Dialog::Running { .. }))
     }
     /// Opens the actions with the first one selected and its dry run started.
-    pub fn open(&mut self, details: Vec<String>, items: Vec<Item>) {
+    pub fn open(&mut self, package: Option<String>, items: Vec<Item>) {
         self.dialog = Some(Dialog::Menu {
-            details,
+            package,
             items,
             selected: 0,
             preview: Preview::None,
@@ -614,7 +614,7 @@ mod tests {
         let items = || vec![item(upgrade.clone()), item(Action::BrewUpdate)];
         // Without a permit (den): no preview runs, and Enter refuses.
         let mut s = State::new(None);
-        s.open(vec![], items());
+        s.open(None, items());
         assert_eq!(s.request, None);
         s.run_selected();
         assert_eq!(s.request, None);
@@ -622,7 +622,7 @@ mod tests {
 
         // With a permit (dew): opening starts the first action's dry run.
         let mut s = State::new(Permit::granted(true));
-        s.open(vec![], items());
+        s.open(None, items());
         assert_eq!(s.request.take(), Some(Request::Preview(upgrade.clone())));
         s.run_selected();
         assert_eq!(s.request, None, "not before the preview finishes");
@@ -651,7 +651,7 @@ mod tests {
 
         // An action without a dry run runs straight away.
         let mut s = State::new(Permit::granted(true));
-        s.open(vec![], items());
+        s.open(None, items());
         s.select(1);
         assert_eq!(s.request, None);
         s.run_selected();
@@ -662,7 +662,7 @@ mod tests {
     fn blocked_actions_never_run() {
         let mut s = State::new(Permit::granted(true));
         s.open(
-            vec![],
+            None,
             vec![Item {
                 action: Action::BrewUninstall(formula("openssl@3")),
                 blocked: Some("required by 12 installed packages".into()),
@@ -680,7 +680,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let log = dir.join("state/den/actions.log");
         let mut s = State::new(Permit::granted(true));
-        s.open(vec![], vec![item(Action::BrewUpdate)]);
+        s.open(None, vec![item(Action::BrewUpdate)]);
         s.run_selected();
         s.finish(
             Ok(CommandOutput {

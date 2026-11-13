@@ -152,12 +152,11 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
 actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 
-1. In Homebrew, press `x`. The dialog shows the selected package (version, newer version,
-   what needs it) and its actions: upgrade it (when a newer version is known), update
-   Homebrew's package data, remove dependencies nothing needs, clean up old versions and
-   downloads, and, last, uninstall it.
+1. In Homebrew, press `x` for the selected package's actions: upgrade it (when a newer
+   version is known), update Homebrew's package data, remove dependencies nothing needs,
+   clean up old versions and downloads, and, last, uninstall it.
 2. Choose with `↑` `↓`. Below the list, the selected action shows its exact command and,
-   where Homebrew has one, a dry run.
+   where Homebrew has one, a dry run of what will change.
 3. `Enter` runs it, once its dry run is shown. Uninstall is always last, so `x` then
    `Enter` never removes a package.
 
