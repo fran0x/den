@@ -15,7 +15,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
     let message = match (&t.error, &t.inventory) {
         (Some(e), _) => e.clone(),
         (None, None) if t.context.is_none() => "Toolchains not read in this mode".into(),
-        (None, None) => "Reading toolchains...".into(),
+        (None, None) => format!("{} Reading toolchains…", spinner()),
         (None, Some(i)) => {
             let rows = i.rows(section);
             let problems = rows.iter().filter(|r| r.status.is_problem()).count();

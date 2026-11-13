@@ -14,7 +14,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
     let status = match (&d.error, &d.inventory) {
         (Some(e), _) => e.clone(),
         (None, None) if d.context.is_none() => "Docker not collected in this mode".into(),
-        (None, None) => "Running docker ... (read-only listing)".into(),
+        (None, None) => format!("{} Running docker … (read-only listing)", spinner()),
         (None, Some(i)) => {
             let disk = |kind: &str| {
                 i.disk
