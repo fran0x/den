@@ -1,6 +1,7 @@
 //! Toolchains: which language tools win on PATH, Rust toolchains and `cargo install`
-//! crates, and global packages (npm, uv, pipx, bun, go). Read from files only: no
-//! toolchain, package manager or program found on PATH is ever run.
+//! crates, and global packages (npm, uv, pipx, bun, go). Read from files only: reading
+//! never runs a toolchain, package manager or program found on PATH. (dew's actions run
+//! rustup and cargo; see `crate::actions`.)
 //!
 //! Versions come from install paths and package metadata. Registry and git URLs, local
 //! source paths and folder-override paths outside the home folder are withheld or shortened.
@@ -207,10 +208,29 @@ pub struct Package {
     pub cask: bool,
 }
 
+/// What dew may change for a row, from the files Den read. Names are as recorded and are
+/// checked again before any command is built.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Manage {
+    Toolchain {
+        /// rustup's folder name: `stable-aarch64-apple-darwin`.
+        name: String,
+        default: bool,
+        overrides: usize,
+    },
+    Crate {
+        name: String,
+        crates_io: bool,
+        /// Installed with chosen features: a plain `cargo install` would drop them.
+        features: bool,
+    },
+}
+
 #[derive(Clone, Debug)]
 pub struct Row {
     /// Set for commands Homebrew installed.
     pub homebrew: Option<Package>,
+    pub manage: Option<Manage>,
     pub class: Class,
     pub name: String,
     /// Provider, manager or kind: the middle column.
@@ -230,6 +250,8 @@ pub struct Inventory {
     /// Packages per manager, in display order.
     pub managers: Vec<(String, usize)>,
     pub coverage: Vec<String>,
+    /// The copy of each command that wins on PATH, as found (not resolved).
+    pub winners: BTreeMap<&'static str, PathBuf>,
 }
 impl Inventory {
     pub fn rows(&self, section: Section) -> &[Row] {
@@ -271,6 +293,7 @@ impl<'a> Reader<'a> {
         let short = self.short(path);
         problems.push(Row {
             homebrew: None,
+            manage: None,
             class: Class::Setup,
             name: short.clone(),
             kind: kind.into(),
@@ -362,7 +385,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
     let (rows, default_toolchain) = rust(&reader);
     let rust = reader.finish(rows);
     let reader = Reader::new(context);
-    let (rows, npm) = on_path(&reader, default_toolchain.clone());
+    let (rows, npm, winners) = on_path(&reader, default_toolchain.clone());
     let path = reader.finish(rows);
     let reader = Reader::new(context);
     let (rows, managers) = packages(&reader, npm);
@@ -373,6 +396,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         packages,
         default_toolchain,
         managers,
+        winners,
         coverage: vec![
             "Read: PATH folders, rustup settings, ~/.cargo/.crates2.json and package metadata (package.json, uv receipts, dist-info folder names).".into(),
             "Nothing is run: versions come from install paths and metadata, so a program installed directly in a system folder shows no version.".into(),
@@ -417,14 +441,20 @@ fn folders(context: &Context) -> (Vec<PathBuf>, Vec<String>) {
     (dirs, relative)
 }
 
-/// Returns the rows and the folder holding the winning `npm` (for npm's global prefix).
-fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option<PathBuf>) {
+/// Returns the rows, the folder holding the winning `npm` (for npm's global prefix) and
+/// the winning copy of each command.
+fn on_path(
+    context: &Reader<'_>,
+    toolchain: Option<String>,
+) -> (Vec<Row>, Option<PathBuf>, BTreeMap<&'static str, PathBuf>) {
     let (dirs, relative) = folders(context);
     let mut rows = vec![];
     let mut npm = None;
+    let mut winners = BTreeMap::new();
     for entry in &relative {
         rows.push(Row {
             homebrew: None,
+            manage: None,
             class: Class::Setup,
             name: if entry.is_empty() { "(empty)".into() } else { entry.clone() },
             kind: "PATH entry".into(),
@@ -458,6 +488,7 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
         let short = context.short(&dir);
         rows.push(Row {
             homebrew: None,
+            manage: None,
             class: Class::Setup,
             name: short.clone(),
             kind: "Folder".into(),
@@ -500,9 +531,10 @@ fn on_path(context: &Reader<'_>, toolchain: Option<String>) -> (Vec<Row>, Option
         if *name == "npm" {
             npm = winner.path.parent().map(Path::to_path_buf);
         }
+        winners.insert(*name, winner.path.clone());
         rows.push(command_row(context, name, &copies));
     }
-    (rows, npm)
+    (rows, npm, winners)
 }
 
 fn same_dir(a: &Path, b: &Path) -> bool {
@@ -764,6 +796,7 @@ fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
     };
     Row {
         homebrew: homebrew_package(&real),
+        manage: None,
         class: Class::Command,
         name: safe_text(name),
         kind: winner.provider.clone(),
@@ -895,6 +928,11 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
             };
             rows.push(Row {
                 homebrew: None,
+                manage: Some(Manage::Toolchain {
+                    name: name.clone(),
+                    default: is_default,
+                    overrides: overrides.len(),
+                }),
                 class: Class::Toolchain,
                 name: safe_text(short),
                 kind: "Toolchain".into(),
@@ -929,9 +967,9 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
             continue;
         };
         let source = parts.next().unwrap_or("").trim_matches(['(', ')']);
-        let source = if source == "registry+https://github.com/rust-lang/crates.io-index"
-            || source.starts_with("sparse+https://index.crates.io")
-        {
+        let crates_io = source == "registry+https://github.com/rust-lang/crates.io-index"
+            || source.starts_with("sparse+https://index.crates.io");
+        let source = if crates_io {
             "crates.io"
         } else if source.starts_with("registry+") || source.starts_with("sparse+") {
             "another registry (URL withheld)"
@@ -977,6 +1015,9 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
             ),
         ];
         let features = list("features");
+        let flag = |key: &str| entry.get(key).and_then(|v| v.as_bool()) == Some(true);
+        let chosen_features =
+            !features.is_empty() || flag("all_features") || flag("no_default_features");
         if !features.is_empty() {
             lines.push(format!("Features: {}", features.join(", ")));
         }
@@ -1003,6 +1044,11 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
         };
         rows.push(Row {
             homebrew: None,
+            manage: Some(Manage::Crate {
+                name: name.to_owned(),
+                crates_io,
+                features: chosen_features,
+            }),
             class: Class::Crate,
             name: safe_text(name),
             kind: "cargo install".into(),
@@ -1062,6 +1108,7 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
     detail.append(&mut lines);
     Row {
         homebrew: None,
+        manage: None,
         class: Class::Package,
         name: safe_text(name),
         kind: manager.into(),

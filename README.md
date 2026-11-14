@@ -55,12 +55,13 @@ to run the selected one.
 | --- | --- |
 | **Homebrew** | Upgrade, uninstall, update Homebrew's data, remove unneeded dependencies, clean up |
 | **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses |
+| **Toolchains** | Update or uninstall a Rust toolchain; upgrade or uninstall a `cargo install` crate |
 
 **What it promises:**
 
 - Shows the exact command first, and Homebrew's dry run where there is one.
 - Refuses what is in use: no uninstall while something needs the package, no removing a
-  used image or volume.
+  used image or volume, the default toolchain or one a folder override uses.
 - Never uses `--force`, `prune`, a shell or sudo. `Esc` stops a running action.
 - Logs each action to `~/.local/state/den/actions.log` (time, command, result).
 

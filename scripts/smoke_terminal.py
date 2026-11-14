@@ -445,6 +445,51 @@ print('\\n'.join(lines))
         actions = (state / "den" / "actions.log").read_text()
         assert actions.endswith(f"\tdocker container rm {db}\tDone\n"), actions
     print("PASS: dew removes a stopped container: x, Enter; one exact docker rm, then a refresh")
+    with tempfile.TemporaryDirectory(prefix="den-toolchains-dew-") as tool_dir:
+        home = Path(tool_dir) / "home"
+        bin_dir = home / ".cargo" / "bin"
+        bin_dir.mkdir(parents=True)
+        crates = home / ".cargo" / ".crates2.json"
+        crates.write_text(json.dumps({"installs": {
+            "bacon 3.26.0 (registry+https://github.com/rust-lang/crates.io-index)": {"bins": ["bacon"]},
+        }}))
+        (bin_dir / "bacon").write_text("")
+        (bin_dir / "bacon").chmod(0o700)
+        fake_cargo = bin_dir / "cargo"
+        # Reading Toolchains runs nothing; dew may run exactly the uninstall it was asked to.
+        fake_cargo.write_text(f"#!{sys.executable}\n" + """
+import json, os, pathlib, sys
+here = pathlib.Path(__file__).parent
+args = sys.argv[1:]
+with open(here.parent.parent.parent / 'cargo-calls', 'a') as f:
+    f.write(' '.join(args) + '\\n')
+assert os.environ.get('CARGO_TERM_COLOR') == 'never'
+assert args == ['uninstall', 'bacon'], args
+(here.parent / '.crates2.json').write_text(json.dumps({'installs': {}}))
+(here / 'bacon').unlink()
+print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
+""")
+        fake_cargo.chmod(0o700)
+        state = Path(tool_dir) / "state"
+        tool_env = dict(os.environ, PATH=str(bin_dir), HOME=str(home),
+                        CARGO_HOME=str(home / ".cargo"), RUSTUP_HOME=str(home / ".rustup"),
+                        XDG_STATE_HOME=str(state))
+        run_pty([str(Path(binary).with_name("dew"))], env=tool_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t\t"),
+            ("Toolchains  › PATH".encode(), b"\x1b[Z"),
+            # bacon is the only row: x, then Down to its uninstall, then Enter.
+            (b"1 crate", b"x"),
+            (b"Upgrade bacon", b"\x1b[B"),
+            (b"Removes bacon", b"\r"),
+            (b"Done", b"\r"),
+            # Read again: the crate is gone.
+            (b"Rust not set up here", b"q"),
+        ])
+        cargo_calls = (Path(tool_dir) / "cargo-calls").read_text().splitlines()
+        assert cargo_calls == ["uninstall bacon"], cargo_calls
+        actions = (state / "den" / "actions.log").read_text()
+        assert actions.endswith(f"\t{fake_cargo} uninstall bacon\tDone\n"), actions
+    print("PASS: dew uninstalls a crate with the cargo found on PATH; reading ran nothing; Rust is read again")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
         (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
         (b"7 servers", b"/docs\r"),

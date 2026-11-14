@@ -160,7 +160,7 @@ fn menu(
     let Some(item) = items.get(selected) else {
         body.push(Line::raw(""));
         body.push(Line::styled(
-            "Nothing here can be changed without force: it is in use or paused.",
+            "Nothing to change here: Den offers no action for this row, or only with force.",
             muted(),
         ));
         return (title, body, "Nothing to do here · Esc: close".into());

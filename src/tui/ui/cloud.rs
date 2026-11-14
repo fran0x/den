@@ -110,6 +110,7 @@ fn aws(app: &App) -> ListView {
         selected: a.selected(),
         query: a.query.clone(),
         searching: a.searching,
+        actions: false,
     }
 }
 
@@ -192,6 +193,7 @@ fn kube(app: &App) -> ListView {
         selected: k.selected(),
         query: k.query.clone(),
         searching: k.searching,
+        actions: false,
     }
 }
 

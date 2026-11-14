@@ -5,6 +5,13 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Rust clean-up in `dew`:** in Toolchains › Rust, `x` on a toolchain offers
+  `rustup update` (with `rustup check` as its dry run) and uninstalling it; on a crate,
+  `cargo install --locked` to upgrade it and `cargo uninstall`. rustup and cargo run as the
+  copy that wins on PATH, by its full path. Den refuses to uninstall the default toolchain
+  or one a folder override uses, and only upgrades crates.io crates installed without
+  chosen features.
+
 ## [0.3.1] - 2026-11-14
 
 - **Homebrew:** `brew install fran0x/tap/den` installs `den` and `dew` from the release

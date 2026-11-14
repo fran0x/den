@@ -7,6 +7,7 @@ PATH: for each common command (node, python3, go, java, cargo, …) the copy the
 Rust: rustup toolchains (the default, folder overrides, targets and components), then cargo install crates with their version, source and programs.\n\
 Packages: global npm packages, uv tools and Pythons, pipx, bun and go install programs.\n\
 Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has; nothing else is checked for updates.\n\
+In dew, x on a Rust toolchain offers rustup update or uninstall, and on a cargo install crate cargo install --locked (crates.io only) or uninstall; rustup and cargo run as the copy that wins on PATH.\n\
 / searches; PgUp/PgDn scroll the panel; Shift+Tab switches sections; r refreshes.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
@@ -125,6 +126,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         query: t.query.clone(),
         searching: t.searching,
         current: None,
+        actions: app.actions.allowed(),
     };
     let t = &mut app.toolchains;
     list_view(frame, view, &mut t.page, &mut t.panel);

@@ -414,13 +414,15 @@ impl App {
             match key.code {
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x')
-                    if matches!(self.module, Module::Homebrew | Module::Docker)
-                        && self.actions.allowed() =>
+                    if matches!(
+                        self.module,
+                        Module::Homebrew | Module::Docker | Module::Toolchains
+                    ) && self.actions.allowed() =>
                 {
-                    let (package, items) = if self.module == Module::Docker {
-                        self.docker_menu()
-                    } else {
-                        self.action_menu()
+                    let (package, items) = match self.module {
+                        Module::Docker => self.docker_menu(),
+                        Module::Toolchains => self.toolchains_menu(),
+                        _ => self.action_menu(),
                     };
                     self.actions.open(package, items);
                     return;
@@ -737,21 +739,133 @@ impl App {
         (row.map(|r| r.name.clone()), items)
     }
 
+    /// Toolchains › Rust: update or uninstall a toolchain; upgrade or uninstall a crate.
+    /// rustup and cargo run as the copy that wins on PATH.
+    pub fn toolchains_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
+        use crate::actions::{Action, Item, Program, RustName};
+        use crate::areas::toolchains::{Manage, split_host};
+        let Some(row) = self.toolchains.selected_row() else {
+            return (None, vec![]);
+        };
+        let program = |name: &'static str| -> (Program, Option<String>) {
+            self.toolchains
+                .inventory
+                .as_ref()
+                .and_then(|i| i.winners.get(name))
+                .and_then(|path| Program::found(path, name))
+                .map_or_else(
+                    || {
+                        (
+                            Program::missing(name),
+                            Some(format!("{name} is not on PATH")),
+                        )
+                    },
+                    |p| (p, None),
+                )
+        };
+        let item = |action: Action, blocked: Option<String>, note: String| Item {
+            action,
+            blocked,
+            note: Some(note),
+        };
+        let mut items = vec![];
+        match &row.manage {
+            Some(Manage::Toolchain {
+                name,
+                default,
+                overrides,
+            }) => {
+                let label = split_host(name).0;
+                if let Some(toolchain) = RustName::toolchain(name, label) {
+                    let (rustup, missing) = program("rustup");
+                    items.push(item(
+                        Action::RustupUpdate(rustup.clone(), toolchain.clone()),
+                        missing.clone(),
+                        format!(
+                            "Downloads and installs the newest {label} if there is one.                              rustup itself is not updated."
+                        ),
+                    ));
+                    let blocked = missing.or_else(|| {
+                        if *default {
+                            Some("it is rustup's default toolchain".into())
+                        } else if *overrides > 0 {
+                            Some(format!(
+                                "a folder override uses it ({})",
+                                crate::inventory::count(*overrides, "folder")
+                            ))
+                        } else {
+                            None
+                        }
+                    });
+                    items.push(item(
+                        Action::RustupUninstall(rustup, toolchain),
+                        blocked,
+                        format!(
+                            "rustup has no dry run. Removes the toolchain {label} with its                              components and targets."
+                        ),
+                    ));
+                }
+            }
+            Some(Manage::Crate {
+                name,
+                crates_io,
+                features,
+            }) => {
+                if let Some(krate) = RustName::krate(name) {
+                    let (cargo, missing) = program("cargo");
+                    if *crates_io {
+                        let blocked = missing.clone().or_else(|| {
+                            features.then(|| {
+                                "it was installed with chosen features, which a plain                                  cargo install would drop; upgrade it by hand"
+                                    .to_owned()
+                            })
+                        });
+                        items.push(item(
+                            Action::CargoInstall(cargo.clone(), krate.clone()),
+                            blocked,
+                            format!(
+                                "cargo has no dry run. If crates.io has a newer {name},                                  cargo builds it with its Cargo.lock, which runs the crate's                                  build scripts. If not, nothing changes."
+                            ),
+                        ));
+                    }
+                    items.push(item(
+                        Action::CargoUninstall(cargo, krate),
+                        missing,
+                        format!(
+                            "cargo has no dry run. Removes {name} and the programs it                              installed."
+                        ),
+                    ));
+                }
+            }
+            None => {}
+        }
+        (Some(row.name.clone()), items)
+    }
+
     /// An action finished: log it, show it, and reload what it may have changed.
     pub fn finish_action(
         &mut self,
         result: Result<crate::areas::homebrew::CommandOutput, CollectionError>,
         log: Option<&std::path::Path>,
     ) {
-        let docker = matches!(
-            &self.actions.dialog,
-            Some(crate::actions::Dialog::Running { action, .. }) if action.docker()
-        );
+        use crate::actions::{Area, Dialog};
+        let area = match &self.actions.dialog {
+            Some(Dialog::Running { action, .. }) => Some(action.area()),
+            _ => None,
+        };
         self.actions.finish(result, log);
-        if docker {
-            self.docker.requested = self.docker.context.is_some();
-        } else if self.live && !matches!(self.collection_status, CollectionStatus::Loading { .. }) {
-            self.refresh_requested = true;
+        match area {
+            Some(Area::Docker) => self.docker.requested = self.docker.context.is_some(),
+            Some(Area::Toolchains) => {
+                self.toolchains.requested = self.toolchains.context.is_some();
+            }
+            Some(Area::Homebrew)
+                if self.live
+                    && !matches!(self.collection_status, CollectionStatus::Loading { .. }) =>
+            {
+                self.refresh_requested = true;
+            }
+            _ => {}
         }
     }
 

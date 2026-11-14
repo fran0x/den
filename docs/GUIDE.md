@@ -162,19 +162,27 @@ actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 
 In Docker, `x` offers what Docker allows without forcing: stop a running container,
 remove a stopped one, or remove an image or volume no container uses (in Images, also
-every untagged image nothing uses, at once). Docker has no dry run, so nothing is chosen
-when the dialog opens: choose with `↑` `↓`, read what will be removed (its name and, for
-images, its size), then press `Enter`.
+every untagged image nothing uses, at once). Docker has no dry run, so the dialog says
+what will be removed (its name and, for images, its size) before `Enter` runs it.
+
+In Toolchains › Rust, `x` on a toolchain offers `rustup update` (its dry run is
+`rustup check`) and uninstalling it; on a crate from `cargo install`, upgrading it with
+`cargo install --locked` and uninstalling it. rustup and cargo run as the copy that wins
+on PATH, by its full path, shown in the command. Upgrading a crate builds it, which runs
+its build scripts, as it would by hand.
 
 While a dry run or an action runs, a spinner shows it is working, with the seconds so far.
-`Esc` or `Ctrl-C` stops a running action, giving Homebrew 10 seconds to clean up.
-Afterwards Den reloads Homebrew or Docker and logs the action to `~/.local/state/den/actions.log`:
+`Esc` or `Ctrl-C` stops a running action, giving the tool 10 seconds to clean up.
+Afterwards Den reloads the area it changed and logs the action to `~/.local/state/den/actions.log`:
 the time, the command and whether it worked, never its output.
 
 What Den will not do:
 
 - Uninstall a package something else needs, or upgrade a pinned one.
 - Remove a container, image or volume something uses, or run `docker … prune` or `-f`.
+- Uninstall rustup's default toolchain or one a folder override uses, update rustup
+  itself, or upgrade a crate installed from git, a local folder, another registry or with
+  chosen features (it can still be uninstalled).
 - Run `brew update` on its own: refreshing Homebrew's data is an action you choose.
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.

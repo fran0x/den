@@ -4,13 +4,15 @@
 //! [`Permit`] and shows WRITE in the top bar; each one runs on Enter, after its dry run.
 //! Every action is a fixed command line built from a checked name: no shell, no sudo,
 //! stdin closed (a password prompt fails instead of waiting), and never `--force`,
-//! `--ignore-dependencies` or `--zap`. `den` has no actions at all: no menu, not even
-//! commands to copy.
+//! `--ignore-dependencies` or `--zap`. Toolchain programs run by the full path Den found
+//! on PATH, so the command shown is the one that runs. `den` has no actions at all: no
+//! menu, not even commands to copy.
 use crate::{
     areas::homebrew::{CollectionError, CommandOutput},
     inventory::safe_text,
 };
 use std::{
+    ffi::OsStr,
     io::{self, Write},
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
@@ -97,6 +99,79 @@ impl DockerObject {
     }
 }
 
+/// A toolchain program (`rustup`, `cargo`) by the full path of the copy that wins on PATH.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Program {
+    path: PathBuf,
+    name: &'static str,
+}
+impl Program {
+    /// `None` unless the path is absolute and names exactly this program.
+    pub fn found(path: &Path, name: &'static str) -> Option<Self> {
+        (path.is_absolute() && path.file_name() == Some(OsStr::new(name))).then(|| Self {
+            path: path.to_owned(),
+            name,
+        })
+    }
+    /// For an action that cannot run because the program is not on PATH: run by name, it
+    /// would fail, and the menu marks it blocked anyway.
+    pub fn missing(name: &'static str) -> Self {
+        Self {
+            path: PathBuf::from(name),
+            name,
+        }
+    }
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+/// A rustup toolchain or a crate, by a name checked before any command is built, with
+/// the name shown for it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RustName {
+    target: String,
+    label: String,
+}
+impl RustName {
+    /// A toolchain as rustup names its folder: `stable-aarch64-apple-darwin`,
+    /// `nightly-2026-01-01-x86_64-unknown-linux-gnu`, `1.88.0-…`.
+    pub fn toolchain(name: &str, label: &str) -> Option<Self> {
+        let valid = name.len() <= 128
+            && name.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        valid.then(|| Self::with(name, label))
+    }
+    /// A crate, by crates.io's rule: a letter first, then letters, digits, `_` or `-`.
+    pub fn krate(name: &str) -> Option<Self> {
+        let valid = name.len() <= 64
+            && name.starts_with(|c: char| c.is_ascii_alphabetic())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'));
+        valid.then(|| Self::with(name, name))
+    }
+    fn with(target: &str, label: &str) -> Self {
+        Self {
+            target: target.to_owned(),
+            label: safe_text(label),
+        }
+    }
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+}
+
+/// Which area an action changes: it is read again afterwards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Area {
+    Homebrew,
+    Docker,
+    Toolchains,
+}
+
 /// Everything Den can change. Adding an action means adding a variant here, with its
 /// command line, preview and tests.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,20 +191,52 @@ pub enum Action {
     DockerRemoveImages(Vec<DockerObject>),
     /// A volume nothing uses; Docker refuses one in use.
     DockerRemoveVolume(DockerObject),
+    /// `rustup update` for one toolchain; rustup itself is not updated.
+    RustupUpdate(Program, RustName),
+    /// Not the default toolchain, and no folder override uses it.
+    RustupUninstall(Program, RustName),
+    /// `cargo install --locked`: rebuilds a crates.io crate when a newer version exists.
+    CargoInstall(Program, RustName),
+    CargoUninstall(Program, RustName),
 }
 impl Action {
-    pub fn program(&self) -> &'static str {
-        if self.docker() { "docker" } else { "brew" }
-    }
-    /// A Docker action: Docker is refreshed afterwards instead of Homebrew.
-    pub fn docker(&self) -> bool {
-        matches!(
-            self,
+    pub fn area(&self) -> Area {
+        match self {
+            Self::BrewUpdate
+            | Self::BrewUpgrade(_)
+            | Self::BrewUninstall(_)
+            | Self::BrewAutoremove
+            | Self::BrewCleanup => Area::Homebrew,
             Self::DockerStopContainer(_)
-                | Self::DockerRemoveContainer(_)
-                | Self::DockerRemoveImages(_)
-                | Self::DockerRemoveVolume(_)
-        )
+            | Self::DockerRemoveContainer(_)
+            | Self::DockerRemoveImages(_)
+            | Self::DockerRemoveVolume(_) => Area::Docker,
+            Self::RustupUpdate(..)
+            | Self::RustupUninstall(..)
+            | Self::CargoInstall(..)
+            | Self::CargoUninstall(..) => Area::Toolchains,
+        }
+    }
+    fn toolchain_program(&self) -> Option<&Program> {
+        match self {
+            Self::RustupUpdate(p, _)
+            | Self::RustupUninstall(p, _)
+            | Self::CargoInstall(p, _)
+            | Self::CargoUninstall(p, _) => Some(p),
+            _ => None,
+        }
+    }
+    /// What runs: `brew`, `docker`, or a toolchain program by its full path.
+    fn executable(&self) -> &OsStr {
+        match (self.area(), self.toolchain_program()) {
+            (_, Some(p)) => p.path.as_os_str(),
+            (Area::Docker, None) => OsStr::new("docker"),
+            _ => OsStr::new("brew"),
+        }
+    }
+    /// The program as shown in the dialog and the log.
+    pub fn program(&self) -> String {
+        safe_text(&Path::new(self.executable()).display().to_string())
     }
     pub fn args(&self) -> Vec<String> {
         let words = |w: &[&str]| w.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
@@ -152,6 +259,14 @@ impl Action {
                 v
             }
             Self::DockerRemoveVolume(o) => with(&["volume", "rm"], o),
+            Self::RustupUpdate(_, t) => {
+                vec!["update".into(), "--no-self-update".into(), t.target.clone()]
+            }
+            Self::RustupUninstall(_, t) => {
+                vec!["toolchain".into(), "uninstall".into(), t.target.clone()]
+            }
+            Self::CargoInstall(_, c) => vec!["install".into(), "--locked".into(), c.target.clone()],
+            Self::CargoUninstall(_, c) => vec!["uninstall".into(), c.target.clone()],
         }
     }
     /// The dry run shown before confirming, when the tool has one.
@@ -161,15 +276,21 @@ impl Action {
             Self::BrewUpgrade(p) => Some(words(&["upgrade", "--dry-run", p.kind(), p.name()])),
             Self::BrewAutoremove => Some(words(&["autoremove", "--dry-run"])),
             Self::BrewCleanup => Some(words(&["cleanup", "--dry-run"])),
+            Self::RustupUpdate(..) => Some(words(&["check", "--no-self-update"])),
             _ => None,
         }
     }
+    /// The dry run's exit code means it worked: `rustup check` exits 100 when an update
+    /// is available.
+    fn preview_succeeded(&self, code: Option<i32>) -> bool {
+        code == Some(0) || (matches!(self, Self::RustupUpdate(..)) && code == Some(100))
+    }
     /// The command as you would type it, for the dialog, the clipboard and the log.
     pub fn command_line(&self) -> String {
-        line(self.program(), &self.args())
+        line(&self.program(), &self.args())
     }
     pub fn preview_line(&self) -> Option<String> {
-        self.preview_args().map(|a| line(self.program(), &a))
+        self.preview_args().map(|a| line(&self.program(), &a))
     }
     pub fn title(&self) -> String {
         match self {
@@ -185,12 +306,17 @@ impl Action {
                 many => format!("Remove {} unused untagged images", many.len()),
             },
             Self::DockerRemoveVolume(o) => format!("Remove volume {}", o.label),
+            Self::RustupUpdate(_, t) => format!("Update {}", t.label),
+            Self::RustupUninstall(_, t) => format!("Uninstall toolchain {}", t.label),
+            Self::CargoInstall(_, c) => format!("Upgrade {}", c.label),
+            Self::CargoUninstall(_, c) => format!("Uninstall {}", c.label),
         }
     }
     fn timeout(&self) -> Duration {
         Duration::from_secs(match self {
-            Self::BrewUpgrade(_) => 30 * 60,
-            _ if self.docker() => 2 * 60,
+            // These build or download a lot.
+            Self::BrewUpgrade(_) | Self::CargoInstall(..) => 30 * 60,
+            _ if self.area() == Area::Docker => 2 * 60,
             _ => 10 * 60,
         })
     }
@@ -204,18 +330,27 @@ fn line(program: &str, args: &[String]) -> String {
 }
 
 #[cfg(unix)]
-fn command(program: &str, args: &[String]) -> std::process::Command {
-    let mut command = std::process::Command::new(program);
+fn command(action: &Action, args: &[String]) -> std::process::Command {
+    let mut command = std::process::Command::new(action.executable());
     command.args(args);
-    if program == "docker" {
-        command.env("DOCKER_CLI_HINTS", "false");
-    } else {
-        command
-            .env("HOMEBREW_NO_AUTO_UPDATE", "1")
-            .env("HOMEBREW_NO_ANALYTICS", "1")
-            .env("HOMEBREW_NO_ENV_HINTS", "1")
-            .env("HOMEBREW_NO_EMOJI", "1")
-            .env("HOMEBREW_NO_COLOR", "1");
+    match action.area() {
+        Area::Docker => {
+            command.env("DOCKER_CLI_HINTS", "false");
+        }
+        Area::Homebrew => {
+            command
+                .env("HOMEBREW_NO_AUTO_UPDATE", "1")
+                .env("HOMEBREW_NO_ANALYTICS", "1")
+                .env("HOMEBREW_NO_ENV_HINTS", "1")
+                .env("HOMEBREW_NO_EMOJI", "1")
+                .env("HOMEBREW_NO_COLOR", "1");
+        }
+        Area::Toolchains => {
+            command
+                .env("CARGO_TERM_COLOR", "never")
+                .env("CARGO_TERM_PROGRESS_WHEN", "never")
+                .env("RUSTUP_TERM_COLOR", "never");
+        }
     }
     command
 }
@@ -251,7 +386,7 @@ fn preview(action: &Action, cancel: &AtomicBool) -> Result<CommandOutput, Collec
     #[cfg(unix)]
     {
         crate::areas::homebrew::run_bounded(
-            &mut command(action.program(), &args),
+            &mut command(action, &args),
             cancel,
             Duration::from_secs(120),
             1024 * 1024,
@@ -268,7 +403,7 @@ fn execute(action: &Action, cancel: &AtomicBool) -> Result<CommandOutput, Collec
     #[cfg(unix)]
     {
         crate::areas::homebrew::run_write(
-            &mut command(action.program(), &action.args()),
+            &mut command(action, &action.args()),
             cancel,
             action.timeout(),
             GRACE,
@@ -418,9 +553,11 @@ impl State {
             && items.get(*selected).is_some_and(|i| i.action == *action)
         {
             *preview = match result {
-                Ok(output) if output.code == Some(0) => Preview::Ready(tail(&output)),
+                Ok(output) if action.preview_succeeded(output.code) => {
+                    Preview::Ready(tail(&output))
+                }
                 Ok(output) => Preview::Failed(format!("{}\n{}", exit(output.code), tail(&output))),
-                Err(error) => Preview::Failed(failure(&error, action.program())),
+                Err(error) => Preview::Failed(failure(&error, action)),
             };
         }
     }
@@ -479,7 +616,7 @@ impl State {
             Err(CollectionError::Cancelled) => {
                 ("Stopped before it finished".to_owned(), String::new())
             }
-            Err(error) => (failure(error, action.program()), String::new()),
+            Err(error) => (failure(error, &action), String::new()),
         };
         let log = match log {
             Some(log) => append_log(log, SystemTime::now(), &action, &summary)
@@ -505,9 +642,12 @@ fn exit(code: Option<i32>) -> String {
     code.map_or_else(|| "stopped by a signal".into(), |c| format!("exit {c}"))
 }
 
-fn failure(error: &CollectionError, program: &str) -> String {
+fn failure(error: &CollectionError, action: &Action) -> String {
     match error {
-        CollectionError::Unavailable => format!("{program} is not on PATH"),
+        CollectionError::Unavailable => match action.toolchain_program() {
+            Some(p) => format!("{} is not on PATH", p.name()),
+            None => format!("{} is not on PATH", action.program()),
+        },
         CollectionError::Timeout => "Stopped: it took too long".into(),
         CollectionError::OutputLimit => "Stopped: too much output".into(),
         CollectionError::Cancelled => "Stopped".into(),
@@ -668,6 +808,118 @@ mod tests {
     }
 
     #[test]
+    fn rust_command_lines_are_fixed_and_run_the_copy_found_on_path() {
+        let rustup = Program::found(Path::new("/home/me/.cargo/bin/rustup"), "rustup").unwrap();
+        let cargo = Program::found(Path::new("/home/me/.cargo/bin/cargo"), "cargo").unwrap();
+        let stable = RustName::toolchain("stable-aarch64-apple-darwin", "stable").unwrap();
+        let bacon = RustName::krate("bacon").unwrap();
+        let cases = [
+            (
+                Action::RustupUpdate(rustup.clone(), stable.clone()),
+                "/home/me/.cargo/bin/rustup update --no-self-update stable-aarch64-apple-darwin",
+                Some("/home/me/.cargo/bin/rustup check --no-self-update"),
+                "Update stable",
+            ),
+            (
+                Action::RustupUninstall(rustup, stable),
+                "/home/me/.cargo/bin/rustup toolchain uninstall stable-aarch64-apple-darwin",
+                None,
+                "Uninstall toolchain stable",
+            ),
+            (
+                Action::CargoInstall(cargo.clone(), bacon.clone()),
+                "/home/me/.cargo/bin/cargo install --locked bacon",
+                None,
+                "Upgrade bacon",
+            ),
+            (
+                Action::CargoUninstall(cargo, bacon),
+                "/home/me/.cargo/bin/cargo uninstall bacon",
+                None,
+                "Uninstall bacon",
+            ),
+        ];
+        for (action, line, preview, title) in cases {
+            assert_eq!(action.area(), Area::Toolchains);
+            assert_eq!(action.command_line(), line);
+            assert_eq!(action.preview_line().as_deref(), preview);
+            assert_eq!(action.title(), title);
+            for word in action.args() {
+                assert!(
+                    !["--force", "-f", "self", "--force-non-host"].contains(&word.as_str()),
+                    "{line}"
+                );
+            }
+        }
+        // Only a full path naming exactly that program.
+        assert!(Program::found(Path::new("rustup"), "rustup").is_none());
+        assert!(Program::found(Path::new("/bin/sh"), "cargo").is_none());
+        assert!(Program::found(Path::new("/x/cargo-clippy"), "cargo").is_none());
+    }
+
+    #[test]
+    fn only_toolchain_and_crate_names_become_commands() {
+        for good in [
+            "stable-aarch64-apple-darwin",
+            "nightly-2026-01-01-x86_64-unknown-linux-gnu",
+            "1.88.0-aarch64-apple-darwin",
+        ] {
+            assert!(RustName::toolchain(good, good).is_some(), "{good}");
+        }
+        for good in ["bacon", "cargo-nextest", "ripgrep", "a_b"] {
+            assert!(RustName::krate(good).is_some(), "{good}");
+        }
+        for bad in [
+            "",
+            "-v",
+            "--force",
+            "a b",
+            "a;rm",
+            "$(x)",
+            "../x",
+            "a/b",
+            "\u{1b}[31m",
+            "nöde",
+        ] {
+            assert!(RustName::toolchain(bad, bad).is_none(), "{bad:?}");
+            assert!(RustName::krate(bad).is_none(), "{bad:?}");
+        }
+        assert!(RustName::krate("1password").is_none(), "a letter first");
+        assert!(RustName::krate(&"a".repeat(65)).is_none());
+        // The label shown is made safe; the target is used as given.
+        let t = RustName::toolchain("stable", "st\u{1b}[31mable").unwrap();
+        assert!(!t.label().contains('\u{1b}'));
+    }
+
+    #[test]
+    fn rustup_check_finding_an_update_is_a_finished_dry_run() {
+        let rustup = Program::found(Path::new("/r/rustup"), "rustup").unwrap();
+        let update = Action::RustupUpdate(rustup, RustName::toolchain("stable", "stable").unwrap());
+        let mut s = State::new(Permit::granted(true));
+        s.open(None, vec![Item::new(update.clone())]);
+        let output = |code| CommandOutput {
+            code: Some(code),
+            stdout: b"stable - Update available : 1.97.1 -> 1.98.0\n".to_vec(),
+            stderr: vec![],
+        };
+        s.finish_preview(&update, Ok(output(100)));
+        assert!(matches!(
+            &s.dialog,
+            Some(Dialog::Menu { preview: Preview::Ready(text), .. }) if text.contains("1.98.0")
+        ));
+        s.finish_preview(&update, Ok(output(1)));
+        assert!(matches!(
+            &s.dialog,
+            Some(Dialog::Menu {
+                preview: Preview::Failed(_),
+                ..
+            })
+        ));
+        // Exit 100 means nothing special for other tools.
+        assert!(!Action::BrewCleanup.preview_succeeded(Some(100)));
+    }
+
+    #[test]
     fn only_homebrew_names_become_commands() {
         for good in [
             "node",
@@ -734,7 +986,7 @@ mod tests {
         for (action, line, title) in cases {
             assert_eq!(action.command_line(), line);
             assert_eq!(action.title(), title);
-            assert!(action.docker());
+            assert_eq!(action.area(), Area::Docker);
             assert_eq!(action.preview_args(), None, "Docker has no dry run");
             for word in action.args() {
                 assert!(
@@ -743,7 +995,7 @@ mod tests {
                 );
             }
         }
-        assert!(!Action::BrewCleanup.docker());
+        assert_eq!(Action::BrewCleanup.area(), Area::Homebrew);
     }
 
     #[test]

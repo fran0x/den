@@ -430,6 +430,8 @@ pub(super) struct ListView {
     pub(super) searching: bool,
     /// The row in use (the active profile, the current context), shown highlighted.
     pub(super) current: Option<usize>,
+    /// dew offers actions here: the footer shows `x:actions`.
+    pub(super) actions: bool,
 }
 
 /// A searchable three-column list with a header, and a scrolling information panel.
@@ -450,6 +452,7 @@ pub(super) fn list_view(
         query,
         searching,
         current,
+        actions: offers_actions,
     } = view;
     let body = chrome(
         frame,
@@ -458,6 +461,8 @@ pub(super) fn list_view(
         searching,
         if searching {
             actions(true)
+        } else if offers_actions {
+            "x:actions Tab:area Shift+Tab:section"
         } else {
             "Tab:area Shift+Tab:section"
         },

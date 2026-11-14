@@ -4,7 +4,7 @@
 
 Den is a Rust terminal inspector for a developer machine: Homebrew, Codex and Claude Code,
 cloud profiles (AWS, Kubernetes), Docker and language toolchains. `den` is read-only; `dew`
-is the same program with confirmed Homebrew write actions.
+is the same program with confirmed write actions (Homebrew, Docker, rustup and cargo).
 Keep changes within the requested scope.
 
 | Location | Responsibility |
@@ -52,6 +52,10 @@ every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `
 
 README screenshots in `docs/images` come from the fixtures: `just screenshots` regenerates
 them (`examples/screenshot.rs`); never edit the SVGs by hand.
+
+Run `cargo publish --dry-run` with `--target-dir target/publish`: verifying the package in
+the shared `target` points the normal build at `target/package` sources, so later builds
+look fresh while the code has changed (fix with `cargo clean -p den-tui`).
 
 Releases: follow the steps at the top of `.github/workflows/release.yml`; pushing a
 `v*` tag builds both binaries, creates the GitHub release and publishes to crates.io.
@@ -140,8 +144,13 @@ scheme, address class and port of server URLs, and the program name and env vari
 of exec plugins. Never run `kubectl`, an exec plugin or contact a cluster.
 
 Toolchains: read PATH folders, rustup settings, `.crates2.json` and package metadata only;
-never run a program found on PATH, a toolchain or a package manager (versions come from
-paths and metadata). Withhold git/private-registry URLs and local source paths of crates.
+reading never runs a program found on PATH, a toolchain or a package manager (versions come
+from paths and metadata). Withhold git/private-registry URLs and local source paths of crates.
+Toolchain writes are `dew` actions only, run by the full path of the copy that wins on PATH
+(`Program::found`): `rustup update --no-self-update` (dry run `rustup check`, exit 100 means
+an update), `rustup toolchain uninstall` (never the default or an overridden toolchain),
+`cargo install --locked` (crates.io crates without chosen features) and `cargo uninstall`,
+on names checked by `RustName`. Never `--force`, `rustup self` or `cargo install --force`.
 
 Sanitize every untrusted string before terminal display. Preserve descriptor-relative,
 bounded filesystem reads and configuration/instruction symlink rejection. Do not query
