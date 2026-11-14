@@ -6,8 +6,11 @@ All notable changes to Den are recorded here. Versions follow
 ## [Unreleased]
 
 - **Newer versions online:** `u` checks the registries for the newest version of your
-  `cargo install` crates (index.crates.io) and global npm, bun (registry.npmjs.org), uv and
-  pipx (pypi.org) packages, and marks the newer ones `↑` with when they were checked. Den
+  Homebrew formulas and casks (formulae.brew.sh), `cargo install` crates (index.crates.io)
+  and global npm, bun (registry.npmjs.org), uv and pipx (pypi.org) packages, and marks the
+  newer ones `↑` with when they were checked. For Homebrew the answer replaces Homebrew's
+  own data, which is only as current as the last `brew update`, in the Homebrew list, the
+  Agents status line and Toolchains. Den
   asks first, sends only package names over HTTPS to those hosts, and keeps the answers in
   `~/.local/state/den/online.json` for the next run. `Esc` stops a check. This is the first
   time Den contacts a website itself, and only after `u` and `Enter`.

@@ -313,3 +313,114 @@ fn the_file_holds_only_names_and_answers() {
         ]
     );
 }
+
+/// A session that has read the Homebrew fixture, keeping online answers at `path`.
+fn homebrew_session(path: &Path) -> App {
+    let inventory = den::areas::homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap();
+    let mut a = App::new(inventory, "online test");
+    a.online.use_file(path.to_owned());
+    a
+}
+fn search(a: &mut App, text: &str) {
+    key(a, KeyCode::Char('/'));
+    for c in text.chars() {
+        key(a, KeyCode::Char(c));
+    }
+    key(a, KeyCode::Enter);
+}
+
+#[test]
+fn homebrew_packages_from_the_main_taps_are_checked() {
+    let t = Temp::new();
+    let mut a = homebrew_session(&t.file());
+    assert!(draw(&mut a).contains("u:check online"));
+    key(&mut a, KeyCode::Char('u'));
+    assert!(draw(&mut a).contains("sends 4 package names to formulae.brew.sh; versions stay here"));
+    key(&mut a, KeyCode::Enter);
+    let asked: Vec<String> = a
+        .online
+        .request
+        .take()
+        .unwrap()
+        .iter()
+        .map(Package::key)
+        .collect();
+    // Other taps (example/tools) and packages with no tap are not on formulae.brew.sh.
+    assert_eq!(
+        asked,
+        [
+            "Homebrew:pcre2",
+            "Homebrew:python@3.12",
+            "Homebrew:ripgrep",
+            "Homebrew cask:requested-app",
+        ]
+    );
+    a.finish_online(
+        Ok(vec![
+            (
+                package(Registry::Homebrew, "pcre2"),
+                Answer::Latest("10.45".into()),
+            ),
+            (
+                package(Registry::Homebrew, "python@3.12"),
+                Answer::Latest("3.12.8".into()),
+            ),
+            (
+                package(Registry::Homebrew, "ripgrep"),
+                Answer::Latest("100.0".into()),
+            ),
+            (
+                package(Registry::HomebrewCask, "requested-app"),
+                Answer::Latest("2.1".into()),
+            ),
+        ]),
+        SystemTime::now(),
+    );
+    assert!(draw(&mut a).contains("Checked 4 packages online: 3 newer"));
+    key(&mut a, KeyCode::Down);
+    let screen = draw(&mut a);
+    assert!(
+        screen.contains("3 newer online, checked just now"),
+        "{screen}"
+    );
+    // The online answer is newer than Homebrew's own data (99.0), so it wins.
+    assert!(screen.contains("↑ 100.0 · Requested"), "{screen}");
+    assert!(screen.contains("↑ 2.1 · "), "{screen}");
+    search(&mut a, "ripgrep");
+    let screen = draw(&mut a);
+    assert!(
+        screen.contains("↑ 100.0 available on Homebrew · checked online just now"),
+        "{screen}"
+    );
+    assert!(!screen.contains("as of last brew update"), "{screen}");
+}
+
+#[test]
+fn homebrew_data_is_used_until_checked_online() {
+    let t = Temp::new();
+    let mut a = homebrew_session(&t.file());
+    search(&mut a, "ripgrep");
+    let screen = draw(&mut a);
+    assert!(screen.contains("↑ 99.0 · Requested"), "{screen}");
+    assert!(
+        screen.contains("↑ 99.0 available · as of last brew update"),
+        "{screen}"
+    );
+    // A failed check leaves Homebrew's own data in place.
+    a.finish_online(
+        Ok(vec![(
+            package(Registry::Homebrew, "ripgrep"),
+            Answer::Failed("timed out".into()),
+        )]),
+        SystemTime::now(),
+    );
+    let screen = draw(&mut a);
+    assert!(
+        screen.contains("↑ 99.0 available · as of last brew update"),
+        "{screen}"
+    );
+    assert!(
+        screen.contains("Online check failed: timed out"),
+        "{screen}"
+    );
+}

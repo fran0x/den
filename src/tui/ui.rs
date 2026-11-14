@@ -238,7 +238,7 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
                     };
                 }
                 // An update comes first so it survives narrow widths.
-                if let Some(latest) = r.homebrew.as_ref().and_then(|m| m.update()) {
+                if let Some(latest) = app.homebrew_update(r) {
                     text = format!("{UPDATE} {latest} · {text}");
                 }
                 if !r.description.is_empty() {

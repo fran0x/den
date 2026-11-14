@@ -51,7 +51,9 @@ colour, like `[firefox]`.
 Each row says whether you asked for the package, whether it came in as a dependency, and
 how many other packages need it (**required by 3**). A newer version shows at the start of
 the row in yellow, like `↑ 15.0`. That comes from Homebrew's own data, and the status line
-says how old it is (**data from 2 h ago**). Den never runs `brew update` itself.
+says how old it is (**data from 2 h ago**). Den never runs `brew update` itself, but `u`
+asks formulae.brew.sh for the newest versions (see
+[Newer versions online](#newer-versions-online)); its answer then replaces Homebrew's.
 
 The panel shows two small trees: what the package **depends on** and what it is
 **required by**. When Homebrew's records are incomplete, Den says **Unknown** rather than
@@ -97,8 +99,9 @@ The panel shows each tool under its own heading, with the details that only that
 
 When Homebrew installed Codex or Claude Code and a newer version is known, the status line
 starts with it, for example **↑ Codex 0.167.2 available**. The newer version comes from
-Homebrew's data or from Codex's own update check (`~/.codex/version.json`). Den never checks
-online, and a tool installed another way shows nothing, because Den can't tell its version.
+Homebrew's data, the last online check (`u`) or Codex's own update check
+(`~/.codex/version.json`). A tool installed another way shows nothing, because Den can't
+tell its version.
 
 Den shows what the configuration files say, not what a running Codex or Claude Code
 session has loaded.
@@ -146,23 +149,25 @@ running, the status line says so and the last results stay.
 - **Packages:** global packages from npm, uv, pipx, bun and `go install`.
 
 Den reads all of this from files and runs none of these tools. Commands that Homebrew
-installed show its newer version, like `↑ 22.12.0`. Crates and packages show theirs after
-an online check with `u` (see [Newer versions online](#newer-versions-online)).
+installed show its newer version, like `↑ 22.12.0`, from Homebrew's data or the last
+online check. Crates and packages show theirs after an online check with `u` (see [Newer versions online](#newer-versions-online)).
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
 ## Newer versions online
 
-Press `u` to ask the registries for the newest version of your `cargo install` crates and
-your global npm, bun, uv and pipx packages. Den asks first, on the status line, saying how
+Press `u` to ask the registries for the newest version of your Homebrew formulas and casks,
+your `cargo install` crates and your global npm, bun, uv and pipx packages. Den asks first, on the status line, saying how
 many names it will send and to which sites; `Enter` checks and any other key cancels.
 
-- **Where it looks:** crates.io crates at index.crates.io; npm and bun packages at
-  registry.npmjs.org; uv tools and pipx packages at pypi.org. Nothing else is contacted.
+- **Where it looks:** Homebrew formulas and casks at formulae.brew.sh; crates.io crates at
+  index.crates.io; npm and bun packages at registry.npmjs.org; uv tools and pipx packages
+  at pypi.org. Nothing else is contacted.
 - **What it sends:** only package names. Your installed versions stay on this machine: Den
   compares them itself. The registries do learn which packages you use.
-- **What you see:** a newer version shows as `↑ 15.2.0` before the status, as Homebrew's
-  do. The panel says where it came from and when, for example **↑ 15.2.0 available on
+- **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
+  the online answer is newer than Homebrew's own data, so it takes its place; Codex and
+  Claude Code installed with Homebrew show it on the Agents status line too. The panel says where it came from and when, for example **↑ 15.2.0 available on
   crates.io · checked online 3 min ago**, or that it is up to date, not found (such as a
   package installed from a folder) or that the check failed. The status line counts them:
   **2 newer online, checked 3 min ago**.
@@ -173,8 +178,8 @@ many names it will send and to which sites; `Enter` checks and any other key can
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
 - **Live data only:** demo, `--inventory` and fixture modes never go online.
 
-Not checked yet: crates from git, a folder or another registry; Rust toolchains, uv
-Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
+Not checked yet: Homebrew packages from other taps, crates from git, a folder or another
+registry; Rust toolchains, uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
 (`~/.local/state/den/online.json`), private like the snapshot. A file Den can't use is
 reported and left alone; deleting it forgets the answers.
 

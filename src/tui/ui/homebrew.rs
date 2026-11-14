@@ -22,14 +22,21 @@ pub(super) fn view_text(app: &App) -> String {
             format!("All {}", counts.all),
         )
     };
+    let lookups: Vec<_> = app
+        .inventory
+        .resources
+        .iter()
+        .filter_map(crate::online::homebrew)
+        .collect();
     format!(
-        "{tools} · {all}{}",
+        "{tools} · {all}{}{}",
         // "required by N" comes from the bounded graph; say so when it was cut short.
         if app.graph.truncated {
             " · required-by partial"
         } else {
             ""
-        }
+        },
+        online_status(app, &lookups)
     )
 }
 
@@ -110,13 +117,22 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
     if let Some(what) = changed.lines().last().filter(|_| !changed.is_empty()) {
         summary.push(what.to_owned());
     }
+    let lookup = crate::online::homebrew(resource);
+    // An online answer is newer than Homebrew's own data, so it replaces that line.
     if let Some(m) = &resource.homebrew
         && let Some(latest) = m.update()
+        && !lookup.as_ref().is_some_and(|l| app.online.knows(l))
     {
         summary.push(format!(
             "{UPDATE} {latest} available · as of last brew update{}",
             if m.pinned() { " · pinned" } else { "" }
         ));
+    }
+    if let Some(lookup) = &lookup {
+        let checked = app.online.panel(lookup, std::time::SystemTime::now());
+        if !checked.is_empty() {
+            summary.push(checked.trim_start().to_owned());
+        }
     }
     if inner.height >= 12 {
         summary.push(if resource.description.is_empty() {

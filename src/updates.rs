@@ -1,6 +1,6 @@
-//! Newer versions Den can name without contacting anything: Homebrew's own data (as
-//! current as Homebrew's last metadata refresh) and a tool's own update check, such as
-//! Codex's `version.json`. Nothing is fetched and no tool is run.
+//! Comparing versions, and the newer versions Den can name without contacting anything:
+//! Homebrew's own data (as current as Homebrew's last metadata refresh) and a tool's own
+//! update check, such as Codex's `version.json`. Online answers come from `online`.
 use crate::inventory::{Inventory, Resource, ResourceKind};
 use std::time::{Duration, SystemTime};
 
@@ -60,16 +60,22 @@ pub fn from_homebrew(resource: &Resource) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The newer version of a tool Homebrew installed, from Homebrew's data or the tool's own
-/// update check (`own`), whichever names the newer one. `None` when Homebrew did not
-/// install it: without the installed version, nothing can be compared.
-pub fn tool(inventory: &Inventory, names: &[&str], own: Option<&str>) -> Option<String> {
+/// The newer version of a tool Homebrew installed, from `newer` (Homebrew's data, and the
+/// online check when there is one) or the tool's own update check (`own`), whichever
+/// names the newer one. `None` when Homebrew did not install it: without the installed
+/// version, nothing can be compared.
+pub fn tool(
+    inventory: &Inventory,
+    names: &[&str],
+    own: Option<&str>,
+    newer: impl Fn(&Resource) -> Option<String>,
+) -> Option<String> {
     let resource = names.iter().find_map(|name| {
         homebrew(inventory, name, true).or_else(|| homebrew(inventory, name, false))
     })?;
     let installed = resource.version.as_deref()?;
     let own = own.filter(|v| plausible(v) && is_newer(installed, v));
-    match (from_homebrew(resource), own) {
+    match (newer(resource), own) {
         (Some(brew), Some(own)) if is_newer(&brew, own) => Some(own.to_owned()),
         (Some(brew), _) => Some(brew),
         (None, own) => own.map(str::to_owned),
@@ -128,6 +134,7 @@ mod tests {
 
     #[test]
     fn a_tool_takes_the_newest_of_homebrew_and_its_own_check() {
+        let tool = |i: &Inventory, names: &[&str], own| super::tool(i, names, own, from_homebrew);
         // Homebrew does not flag it, but the tool's own check knows a newer version.
         let i = inventory(vec![cask("codex", "0.167.0", "0.167.0", false)]);
         assert_eq!(

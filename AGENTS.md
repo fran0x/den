@@ -129,7 +129,8 @@ after `u` and Enter, only in live mode, only HTTPS GETs to the hosts in `Registr
 and at most four requests at once. Only a package name leaves the machine, after
 `Package::new` checks it against the registry's rules; installed versions, paths and
 settings never do. A registry's answer is believed only when it is a plain version
-(`updates::plausible`). Answers go to `$XDG_STATE_HOME/den/online.json` through the same
+(`updates::plausible`). Homebrew lookups cover only the homebrew/core and homebrew/cask
+taps (`online::homebrew`); their answer replaces Homebrew's own data. Answers go to `$XDG_STATE_HOME/den/online.json` through the same
 private read and write as snapshots. A new registry or host needs SECURITY.md, README and
 guide updates, and known-answer tests of its URL and parsing; tests never contact one.
 Reads use the existing bounded Homebrew runner:

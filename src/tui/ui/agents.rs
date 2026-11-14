@@ -17,7 +17,7 @@ Instructions: t shows Codex's chain as if the project were trusted. MCP: V picks
 The information panel shows everything about the selection; PgUp/PgDn scroll it. r refreshes both tools.\n\n\
 The panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
 Only MCP servers, MCP approvals and project trust are read from ~/.claude.json. URLs, arguments and values are withheld. Hooks, helpers and servers are never run.\n\
-When Homebrew installed Codex or Claude Code, the status line names a newer version (↑) from Homebrew's data or Codex's own update check (~/.codex/version.json). Den never checks online.\n\
+When Homebrew installed Codex or Claude Code, the status line names a newer version (↑) from Homebrew's data, Codex's own update check (~/.codex/version.json) or the last online check (u).\n\
 Nothing here shows what a running Codex or Claude Code session actually loaded.";
 
 /// What one frame shows, computed before drawing so the panel can scroll mutably.
@@ -259,8 +259,8 @@ fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String
     notes.join(" · ")
 }
 
-/// "↑ Codex 0.167.2 available", for a tool Homebrew installed, from Homebrew's data or
-/// Codex's own update check. Without Homebrew's record the installed version is unknown.
+/// "↑ Codex 0.167.2 available", for a tool Homebrew installed, from Homebrew's data, the
+/// last online check or Codex's own update check. Without Homebrew's record the installed version is unknown.
 fn updates(app: &App) -> Option<String> {
     let own = app
         .codex
@@ -271,11 +271,13 @@ fn updates(app: &App) -> Option<String> {
     let found: Vec<_> = [
         (
             "Codex",
-            crate::updates::tool(&app.inventory, &["codex"], own),
+            crate::updates::tool(&app.inventory, &["codex"], own, |r| app.homebrew_update(r)),
         ),
         (
             "Claude Code",
-            crate::updates::tool(&app.inventory, &["claude-code"], None),
+            crate::updates::tool(&app.inventory, &["claude-code"], None, |r| {
+                app.homebrew_update(r)
+            }),
         ),
     ]
     .into_iter()

@@ -1187,19 +1187,31 @@ impl App {
         }
         self.snapshot_path = Some(path);
     }
-    /// What `u` looks up: each Toolchains row with a registry name and a version.
+    /// What `u` looks up: Homebrew's formulas and casks from its main taps, and each
+    /// Toolchains row with a registry name and a version.
     pub fn online_lookups(&self) -> Vec<crate::online::Lookup> {
-        self.toolchains
+        let homebrew = self
             .inventory
-            .as_ref()
-            .map(|i| {
-                i.rust
-                    .iter()
-                    .chain(&i.packages)
-                    .filter_map(|r| r.online.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
+            .resources
+            .iter()
+            .filter_map(crate::online::homebrew);
+        let toolchains = self
+            .toolchains
+            .inventory
+            .iter()
+            .flat_map(|i| i.rust.iter().chain(&i.packages))
+            .filter_map(|r| r.online.clone());
+        homebrew.chain(toolchains).collect()
+    }
+    /// A Homebrew package's newer version: from the last online check when it found the
+    /// newest version, otherwise from Homebrew's own data (as of its last update).
+    pub fn homebrew_update(&self, resource: &Resource) -> Option<String> {
+        match crate::online::homebrew(resource) {
+            Some(lookup) if self.online.knows(&lookup) => {
+                self.online.newer(&lookup).map(str::to_owned)
+            }
+            _ => crate::updates::from_homebrew(resource),
+        }
     }
     /// `u`: asks before looking anything up online.
     fn ask_online(&mut self) {
@@ -1222,7 +1234,8 @@ impl App {
             if self.toolchains.inventory.is_none() {
                 "Nothing to check online yet: open Toolchains first"
             } else {
-                "Nothing to check online: no crates.io crates or npm, bun, uv or pipx packages"
+                "Nothing to check online: no Homebrew packages, crates.io crates or npm, bun, uv \
+                 or pipx packages"
             }
         };
         self.actions.notice = Some(notice.into());

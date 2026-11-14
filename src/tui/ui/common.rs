@@ -674,6 +674,39 @@ fn frame(millis: u128) -> char {
     SPINNER[(millis / 80 % SPINNER.len() as u128) as usize]
 }
 
+/// The status line's online part for these rows: the check running, how many are
+/// newer and when they were checked, or a hint to check.
+pub(super) fn online_status(app: &App, lookups: &[crate::online::Lookup]) -> String {
+    // Demo and fixture modes never go online.
+    if lookups.is_empty() || app.online.path.is_none() {
+        return String::new();
+    }
+    if let Some(n) = app.online.running {
+        return format!(
+            " · {} checking {} online… Esc:stop",
+            spinner(),
+            crate::inventory::count(n, "package")
+        );
+    }
+    let last = lookups
+        .iter()
+        .filter_map(|l| app.online.answer(&l.package))
+        .map(crate::online::Checked::when)
+        .max();
+    let Some(last) = last else {
+        return " · u:check online".into();
+    };
+    let newer = lookups
+        .iter()
+        .filter(|l| app.online.newer(l).is_some())
+        .count();
+    format!(
+        " · {} newer online, checked {}",
+        newer,
+        crate::updates::age(last, std::time::SystemTime::now())
+    )
+}
+
 #[cfg(test)]
 mod spinner_tests {
     use super::*;

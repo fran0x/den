@@ -123,7 +123,7 @@ pub(super) fn help(app: &App) -> String {
         Module::Homebrew => {
             "Homebrew\n\
 Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed] and in their own colour.\n\
-Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update.\n\
+Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update or, once you press u, from formulae.brew.sh.\n\
 The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
 In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Choose with ↑↓; Enter runs it after its dry run, and uninstall is always last. den has no actions.\n\
 Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Enter opens a group or jumps to a package (Esc comes back), Space shows the full finding, o Homebrew's original report, c runs the check now (read-only)."
@@ -140,7 +140,7 @@ Esc        go back\n\
 r          refresh\n\
 d          only what changed: since the saved snapshot, then since Den started, then every row\n\
 S          save a snapshot of what Den has read, to compare with later (asks first)\n\
-u          check online for newer versions of crates and npm, bun, uv and pipx packages (asks first; Esc stops)\n\
+u          check online for newer versions of Homebrew, crates and npm, bun, uv and pipx packages (asks first; Esc stops)\n\
 q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
 What changed: + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory, and with the snapshot S saved, if any. S is the only thing den writes: Den's own file, $XDG_STATE_HOME/den/snapshot.json (~/.local/state/den/snapshot.json), private to you, holding only what the lists show. Running or stopped containers and newer Homebrew versions are not changes.\n\n\

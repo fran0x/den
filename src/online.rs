@@ -22,15 +22,26 @@ use std::{
 /// Where a package's newest version is looked up.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Registry {
+    /// Homebrew's formulas (homebrew/core).
+    Homebrew,
+    /// Homebrew's casks (homebrew/cask).
+    HomebrewCask,
     CratesIo,
     Npm,
     PyPI,
 }
 impl Registry {
-    pub const ALL: [Self; 3] = [Self::CratesIo, Self::Npm, Self::PyPI];
+    pub const ALL: [Self; 5] = [
+        Self::Homebrew,
+        Self::HomebrewCask,
+        Self::CratesIo,
+        Self::Npm,
+        Self::PyPI,
+    ];
     /// The only host Den contacts for this registry.
     pub fn host(self) -> &'static str {
         match self {
+            Self::Homebrew | Self::HomebrewCask => "formulae.brew.sh",
             Self::CratesIo => "index.crates.io",
             Self::Npm => "registry.npmjs.org",
             Self::PyPI => "pypi.org",
@@ -38,9 +49,17 @@ impl Registry {
     }
     pub fn label(self) -> &'static str {
         match self {
+            Self::Homebrew | Self::HomebrewCask => "Homebrew",
             Self::CratesIo => "crates.io",
             Self::Npm => "npm",
             Self::PyPI => "PyPI",
+        }
+    }
+    /// How the results file names it; a formula and a cask may share a name.
+    fn id(self) -> &'static str {
+        match self {
+            Self::HomebrewCask => "Homebrew cask",
+            other => other.label(),
         }
     }
 }
@@ -55,6 +74,17 @@ impl Package {
     /// `None` when the name breaks the registry's rules, so nothing odd reaches a URL.
     pub fn new(registry: Registry, name: &str) -> Option<Self> {
         let valid = match registry {
+            // Homebrew: lowercase letters, digits and `-` `_` `.` `+` `@` (`python@3.13`,
+            // `libsigc++`), starting with a letter or digit.
+            Registry::Homebrew | Registry::HomebrewCask => {
+                (1..=100).contains(&name.len())
+                    && name.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+                    && name.chars().all(|c| {
+                        c.is_ascii_lowercase()
+                            || c.is_ascii_digit()
+                            || matches!(c, '-' | '_' | '.' | '+' | '@')
+                    })
+            }
             // crates.io: ASCII letters, digits, `-` and `_`, starting with a letter.
             Registry::CratesIo => {
                 (1..=64).contains(&name.len())
@@ -106,12 +136,14 @@ impl Package {
     }
     /// How the results file names it: `crates.io:ripgrep`.
     pub fn key(&self) -> String {
-        format!("{}:{}", self.registry.label(), self.name)
+        format!("{}:{}", self.registry.id(), self.name)
     }
     /// The one URL asked for this package.
     pub fn url(&self) -> String {
         let host = self.registry.host();
         match self.registry {
+            Registry::Homebrew => format!("https://{host}/api/formula/{}.json", self.name),
+            Registry::HomebrewCask => format!("https://{host}/api/cask/{}.json", self.name),
             Registry::CratesIo => {
                 // The sparse index's layout: 1/a, 2/ab, 3/a/abc, ab/cd/abcd….
                 let n = self.name.to_ascii_lowercase();
@@ -152,6 +184,32 @@ pub enum Answer {
 pub fn latest(registry: Registry, body: &[u8]) -> Result<String, String> {
     let bad = || "unexpected answer".to_owned();
     let version = match registry {
+        // Installed kegs carry the revision (`1.25.0_2`), so the newest version does too.
+        Registry::Homebrew => {
+            #[derive(Deserialize)]
+            struct Versions {
+                stable: String,
+            }
+            #[derive(Deserialize)]
+            struct Formula {
+                versions: Versions,
+                #[serde(default)]
+                revision: u32,
+            }
+            let f: Formula = serde_json::from_slice(body).map_err(|_| bad())?;
+            match f.revision {
+                0 => f.versions.stable,
+                r => format!("{}_{r}", f.versions.stable),
+            }
+        }
+        Registry::HomebrewCask => {
+            #[derive(Deserialize)]
+            struct Cask {
+                version: String,
+            }
+            let c: Cask = serde_json::from_slice(body).map_err(|_| bad())?;
+            cask_version(&c.version).to_owned()
+        }
         // One JSON object per published version, one per line.
         Registry::CratesIo => {
             #[derive(Deserialize)]
@@ -206,6 +264,54 @@ pub fn latest(registry: Registry, body: &[u8]) -> Result<String, String> {
     } else {
         Err(bad())
     }
+}
+
+/// A cask's version without the build Homebrew may add after a comma
+/// (`5.11492.5,1403e2…` → `5.11492.5`), so it can be compared.
+pub fn cask_version(version: &str) -> &str {
+    version.split(',').next().unwrap_or(version)
+}
+
+/// The lookup for a Homebrew package from the main formula or cask tap; other taps are
+/// not on formulae.brew.sh. A formula's installed version is its linked keg, or the
+/// newest keg when none is linked.
+pub fn homebrew(resource: &crate::inventory::Resource) -> Option<Lookup> {
+    use crate::inventory::HomebrewMetadata;
+    let (registry, installed) = match resource.homebrew.as_ref()? {
+        HomebrewMetadata::Formula {
+            tap,
+            linked_keg,
+            installed,
+            ..
+        } if tap.as_deref() == Some("homebrew/core") => (
+            Registry::Homebrew,
+            linked_keg.clone().or_else(|| {
+                installed.iter().map(|k| k.version.clone()).reduce(|a, b| {
+                    if crate::updates::is_newer(&a, &b) {
+                        b
+                    } else {
+                        a
+                    }
+                })
+            })?,
+        ),
+        HomebrewMetadata::Cask {
+            tap,
+            recorded_version,
+            ..
+        } if tap.as_deref() == Some("homebrew/cask") => (
+            Registry::HomebrewCask,
+            cask_version(recorded_version).to_owned(),
+        ),
+        _ => return None,
+    };
+    if !crate::updates::plausible(&installed) {
+        return None;
+    }
+    Some(Lookup {
+        package: Package::new(registry, &resource.name)?,
+        installed,
+    })
 }
 
 /// Gets one URL: the body, `None` for "no such package" (404), or why it failed.
@@ -409,11 +515,12 @@ impl State {
     }
     /// The question on the status line while `u` waits for Enter.
     pub fn question(&self) -> String {
-        let hosts: Vec<&str> = Registry::ALL
+        let mut hosts: Vec<&str> = Registry::ALL
             .iter()
             .filter(|r| self.asking.iter().any(|p| p.registry == **r))
             .map(|r| r.host())
             .collect();
+        hosts.dedup();
         format!(
             "Check online? Enter:check Esc:cancel · sends {} to {}; versions stay here",
             crate::inventory::count(self.asking.len(), "package name"),
@@ -429,6 +536,12 @@ impl State {
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => Some(v),
             _ => None,
         }
+    }
+    /// True when the last check found the newest version: it is then newer information
+    /// than Homebrew's own data.
+    pub fn knows(&self, lookup: &Lookup) -> bool {
+        self.answer(&lookup.package)
+            .is_some_and(|c| matches!(c.answer, Answer::Latest(_)))
     }
     /// The panel's line about the last check, starting with a blank line; empty when
     /// the package was never checked.
@@ -534,6 +647,17 @@ mod tests {
         for bad in ["", "-x", "x-", "a/b", "a b", "a?b"] {
             assert!(Package::new(Registry::PyPI, bad).is_none(), "{bad}");
         }
+        for ok in ["wget", "python@3.13", "libsigc++", "font-jetbrains-mono"] {
+            assert!(Package::new(Registry::Homebrew, ok).is_some(), "{ok}");
+        }
+        for bad in ["", "Wget", "-x", "a/b", "../x", "a b", "a?b", "a%2f"] {
+            assert!(Package::new(Registry::HomebrewCask, bad).is_none(), "{bad}");
+        }
+        // A formula and a cask with one name are kept apart.
+        assert_ne!(
+            package(Registry::Homebrew, "docker").key(),
+            package(Registry::HomebrewCask, "docker").key()
+        );
     }
 
     #[test]
@@ -560,6 +684,14 @@ mod tests {
             url(Registry::PyPI, "ruff"),
             "https://pypi.org/pypi/ruff/json"
         );
+        assert_eq!(
+            url(Registry::Homebrew, "python@3.13"),
+            "https://formulae.brew.sh/api/formula/python@3.13.json"
+        );
+        assert_eq!(
+            url(Registry::HomebrewCask, "firefox"),
+            "https://formulae.brew.sh/api/cask/firefox.json"
+        );
     }
 
     #[test]
@@ -584,6 +716,31 @@ mod tests {
             .unwrap(),
             "0.17.5"
         );
+        assert_eq!(
+            latest(
+                Registry::Homebrew,
+                br#"{"name":"wget","versions":{"stable":"1.25.0","head":"HEAD"},"revision":2}"#
+            )
+            .unwrap(),
+            "1.25.0_2"
+        );
+        assert_eq!(
+            latest(
+                Registry::Homebrew,
+                br#"{"versions":{"stable":"3.5"},"revision":0}"#
+            )
+            .unwrap(),
+            "3.5"
+        );
+        assert_eq!(
+            latest(
+                Registry::HomebrewCask,
+                br#"{"token":"zoom","version":"6.4.0.12345,abc"}"#
+            )
+            .unwrap(),
+            "6.4.0.12345"
+        );
+        assert!(latest(Registry::HomebrewCask, br#"{"version":"latest"}"#).is_err());
         // Anything that is not a plain version is not believed.
         assert!(latest(Registry::Npm, br#"{"version":"\u001b[31m1.0"}"#).is_err());
         assert!(latest(Registry::PyPI, b"<html>").is_err());

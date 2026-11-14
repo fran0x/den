@@ -87,11 +87,22 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             }
         },
         |r| {
-            let homebrew = r.homebrew.as_ref().and_then(|_| update(app, r));
-            let mut update = homebrew.map_or_else(String::new, |v| {
-                format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
-            });
-            if let Some(lookup) = &r.online {
+            let resource = r
+                .homebrew
+                .as_ref()
+                .and_then(|p| crate::updates::homebrew(&app.inventory, &p.name, p.cask));
+            let lookup = r
+                .online
+                .clone()
+                .or_else(|| resource.and_then(crate::online::homebrew));
+            // An online answer is newer than Homebrew's own data, so it replaces that line.
+            let mut update = resource
+                .and_then(crate::updates::from_homebrew)
+                .filter(|_| !lookup.as_ref().is_some_and(|l| app.online.knows(l)))
+                .map_or_else(String::new, |v| {
+                    format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
+                });
+            if let Some(lookup) = &lookup {
                 update.push_str(&app.online.panel(lookup, now));
             }
             format!(
@@ -154,7 +165,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
 fn update(app: &App, row: &Row) -> Option<String> {
     if let Some(package) = &row.homebrew {
         return crate::updates::homebrew(&app.inventory, &package.name, package.cask)
-            .and_then(crate::updates::from_homebrew);
+            .and_then(|r| app.homebrew_update(r));
     }
     row.online
         .as_ref()
@@ -162,36 +173,8 @@ fn update(app: &App, row: &Row) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The status line's online part for a section's rows: the check running, how many are
-/// newer and when they were checked, or a hint to check.
+/// The status line's online part for a section's rows.
 fn online(app: &App, rows: &[Row]) -> String {
-    let lookups: Vec<_> = rows.iter().filter_map(|r| r.online.as_ref()).collect();
-    // Demo and fixture modes never go online.
-    if lookups.is_empty() || app.online.path.is_none() {
-        return String::new();
-    }
-    if let Some(n) = app.online.running {
-        return format!(
-            " · {} checking {} online… Esc:stop",
-            spinner(),
-            crate::inventory::count(n, "package")
-        );
-    }
-    let last = lookups
-        .iter()
-        .filter_map(|l| app.online.answer(&l.package))
-        .map(crate::online::Checked::when)
-        .max();
-    let Some(last) = last else {
-        return " · u:check online".into();
-    };
-    let newer = lookups
-        .iter()
-        .filter(|l| app.online.newer(l).is_some())
-        .count();
-    format!(
-        " · {} newer online, checked {}",
-        newer,
-        crate::updates::age(last, std::time::SystemTime::now())
-    )
+    let lookups: Vec<_> = rows.iter().filter_map(|r| r.online.clone()).collect();
+    online_status(app, &lookups)
 }
