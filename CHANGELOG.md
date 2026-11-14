@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
 - **Rust clean-up in `dew`:** in Toolchains › Rust, `x` on a toolchain offers
   `rustup update` (with `rustup check` as its dry run) and uninstalling it; on a crate,
   `cargo install --locked` to upgrade it and `cargo uninstall`. rustup and cargo run as the
@@ -83,7 +85,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/fran0x/den/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/fran0x/den/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/fran0x/den/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fran0x/den/compare/v0.1.0...v0.2.0
