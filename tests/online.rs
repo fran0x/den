@@ -119,8 +119,8 @@ fn u_asks_first_and_names_what_it_sends() {
     let screen = draw(&mut a);
     assert!(
         screen.contains(
-            "Check online? Enter:check Esc:cancel · sends 6 package names to index.crates.io, \
-             registry.npmjs.org, pypi.org; versions stay here"
+            "Check online? Enter:check Esc:cancel · sends 8 package names to index.crates.io, \
+             registry.npmjs.org, pypi.org, endoflife.date; versions stay here"
         ),
         "{screen}"
     );
@@ -150,9 +150,12 @@ fn u_asks_first_and_names_what_it_sends() {
             "npm:prettier",
             "PyPI:httpie",
             "PyPI:ruff",
+            // Homebrew's node 22.1.0 and the stable toolchain's Rust 1.85.0.
+            "endoflife.date:nodejs",
+            "endoflife.date:rust",
         ]
     );
-    assert!(draw(&mut a).contains("checking 6 packages online… Esc:stop"));
+    assert!(draw(&mut a).contains("checking 8 packages online… Esc:stop"));
     // Esc while it runs asks the check to stop.
     key(&mut a, KeyCode::Esc);
     assert!(a.online.stop);
@@ -525,4 +528,98 @@ fn docker_images_with_a_namespace_are_checked_for_a_newer_build() {
         "{screen}"
     );
     assert!(screen.contains("Same build as on ghcr.io"), "{screen}");
+}
+
+#[test]
+fn runtimes_and_rust_channels_are_checked_against_their_release_lines() {
+    let t = Temp::new();
+    let mut a = session(Some(&t.file()));
+    let lines = |json: &str| match online::releases(json.as_bytes()) {
+        Ok(found) => Answer::Releases(found),
+        Err(why) => Answer::Failed(why),
+    };
+    a.finish_online(
+        Ok(vec![
+            (
+                package(Registry::EndOfLife, "nodejs"),
+                lines(
+                    r#"{"result":{"releases":[
+                    {"name":"26","isEol":false,"eolFrom":"2029-04-30","latest":{"name":"26.13.1"}},
+                    {"name":"22","isEol":true,"eolFrom":"2026-04-30","latest":{"name":"22.9.0"}}]}}"#,
+                ),
+            ),
+            (
+                package(Registry::EndOfLife, "rust"),
+                lines(
+                    r#"{"result":{"releases":[
+                    {"name":"1.99","isEol":false,"eolFrom":null,"latest":{"name":"1.99.1"}},
+                    {"name":"1.85","isEol":true,"eolFrom":"2026-04-03","latest":{"name":"1.85.1"}}]}}"#,
+                ),
+            ),
+        ]),
+        SystemTime::now(),
+    );
+    // Rust's stable channel follows the newest release.
+    a.navigate(Destination::Rust);
+    key(&mut a, KeyCode::Down);
+    a.toolchains
+        .select_key("toolchain:stable-aarch64-apple-darwin");
+    let screen = draw(&mut a);
+    assert!(screen.contains("↑ 1.99.1 · Ready · default"), "{screen}");
+    assert!(
+        screen.contains("Version: 1.85.0 (from its manifest)"),
+        "{screen}"
+    );
+    assert!(
+        screen.contains("↑ 1.99.1 is the newest release · from endoflife.date"),
+        "{screen}"
+    );
+    // A pinned toolchain is left alone.
+    assert!(!screen.contains("↑ 1.99.1 · Installed"), "{screen}");
+    // Homebrew's node: Homebrew says whether it has a newer version; the release line
+    // says that its support has ended.
+    a.navigate(Destination::OnPath);
+    a.toolchains.select_key("command:node");
+    let screen = draw(&mut a);
+    assert!(screen.contains("End of life · Ready · 22.1.0"), "{screen}");
+    assert!(screen.contains("1 end of life"), "{screen}");
+    assert!(
+        screen.contains("22 reached end of life on 2026-04-30 · from"),
+        "{screen}"
+    );
+    // Homebrew decides node's upgrade (it may move to a newer line), so the newest 22
+    // patch is not counted as newer.
+    assert!(!screen.contains("newer online"), "{screen}");
+}
+
+/// A real channel manifest is about 1 MB with tens of thousands of lines: more than shown
+/// text may have. Its version is still read, and the toolchain is no Problem.
+#[test]
+fn a_full_size_channel_manifest_is_read() {
+    let t = Temp::new();
+    let rustlib =
+        t.0.join("home/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib");
+    fs::create_dir_all(&rustlib).unwrap();
+    fs::write(t.0.join("PATH"), "/usr/bin\n").unwrap();
+    let mut manifest = String::from("manifest-version = \"2\"\n");
+    for i in 0..3000 {
+        manifest.push_str(&format!(
+            "\n[pkg.cargo.target.t{i}]\navailable = true\nurl = \"x\"\nhash = \"y\"\ncomponents = []\nextensions = []\n"
+        ));
+    }
+    manifest.push_str("\n[pkg.rust]\nversion = \"1.97.1 (8bab26f4f 2026-07-14)\"\n");
+    assert!(manifest.lines().count() > 20_000);
+    fs::write(rustlib.join("multirust-channel-manifest.toml"), manifest).unwrap();
+    let context = toolchains::Context::fixture(&t.0).unwrap();
+    let read = toolchains::discover(&context, &AtomicBool::new(false)).unwrap();
+    let stable = read
+        .rust
+        .iter()
+        .find(|r| r.key == "toolchain:stable-aarch64-apple-darwin")
+        .unwrap();
+    assert_eq!(
+        stable.online.as_ref().map(|l| l.installed.as_str()),
+        Some("1.97.1")
+    );
+    assert!(read.rust.iter().all(|r| !r.status.is_problem()));
 }

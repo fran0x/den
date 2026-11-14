@@ -163,8 +163,9 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 ## Newer versions online
 
 Press `u` to ask the registries for the newest version of your Homebrew formulas and casks,
-your `cargo install` crates and your global npm, bun, uv and pipx packages, and whether
-your Docker images' tags point to a newer build. Den asks first, on the status line, saying how
+your `cargo install` crates and your global npm, bun, uv and pipx packages, whether your
+Docker images' tags point to a newer build, and how your Rust toolchains and the `node`,
+`python3`, `ruby` and `go` on PATH compare with their release lines. Den asks first, on the status line, saying how
 many names it will send and to which sites; `Enter` checks and any other key cancels.
 
 - **Where it looks:** Homebrew formulas and casks at formulae.brew.sh; crates.io crates at
@@ -172,7 +173,7 @@ many names it will send and to which sites; `Enter` checks and any other key can
   at pypi.org; images at Docker Hub (registry-1.docker.io, with a read-only token from
   auth.docker.io) and ghcr.io. Nothing else is contacted. Image registries are asked
   without a login: Docker's saved logins are never used, so private images show as not
-  found.
+  found. Release lines come from endoflife.date.
 - **What it sends:** only package names. Your installed versions stay on this machine: Den
   compares them itself. The registries do learn which packages you use.
 - **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
@@ -188,8 +189,19 @@ many names it will send and to which sites; `Enter` checks and any other key can
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
 - **Live data only:** demo, `--inventory` and fixture modes never go online.
 
+**Release lines:** Rust's `stable` toolchain is compared with the newest Rust release,
+and a toolchain that follows a line, such as `1.98`, with the newest patch of that line.
+Den reads the version from the toolchain's own manifest; it never runs `rustc`. The `node`,
+`python3`, `ruby` and `go` that win on PATH are compared with the newest patch of their
+line, when their install path shows the version, and a line whose support has ended shows
+**End of life** in red; the panel says when, or until when it is supported. When Homebrew
+installed the command, the newer version still comes from Homebrew, because
+`brew upgrade` may move to a newer line.
+
 Not checked yet: Homebrew packages from other taps; images with a single name, from other
-registries or untagged; crates from git, a folder or another registry; Rust toolchains, uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
+registries or untagged; crates from git, a folder or another registry; exact, beta and
+nightly Rust toolchains (pinned on purpose, or moving daily); `java`, whose vendor Den
+can't tell; uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
 (`~/.local/state/den/online.json`), private like the snapshot. A file Den can't use is
 reported and left alone; deleting it forgets the answers.
 

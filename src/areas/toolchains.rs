@@ -423,7 +423,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         coverage: vec![
             "Read: PATH folders, rustup settings, ~/.cargo/.crates2.json and package metadata (package.json, uv receipts, dist-info folder names).".into(),
             "Nothing is run: versions come from install paths and metadata, so a program installed directly in a system folder shows no version.".into(),
-            "Newer versions: u checks crates.io crates and npm, bun, uv and pipx packages online. Not checked: Rust toolchains, uv Pythons, go programs, disk use, and per-folder selections such as rust-toolchain.toml, .nvmrc or .python-version.".into(),
+            "Newer versions: u checks crates.io, npm, bun, uv and pipx packages, and Rust stable and 1.xx toolchains and node, python, ruby and go at endoflife.date. Not checked: pinned, beta and nightly toolchains, java, uv Pythons, go programs, disk use, and per-folder selections such as rust-toolchain.toml or .nvmrc.".into(),
         ],
     })
 }
@@ -828,7 +828,7 @@ fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
         status,
         detail: lines.join("\n"),
         key: format!("command:{name}"),
-        online: None,
+        online: runtime_lookup(name, short_version.as_deref()),
     }
 }
 
@@ -911,6 +911,10 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
                 .map(|n| safe_text(&n))
                 .collect();
             let (short, host) = split_host(&name);
+            // Only channels are compared online; only they need the manifest read.
+            let version = follows_newest(short)
+                .and_then(|_| manifest(context, &rustlib.join("multirust-channel-manifest.toml")));
+            let online = toolchain_lookup(short, version.as_deref());
             let components: Vec<String> = components
                 .into_iter()
                 .map(|c| match host {
@@ -923,6 +927,9 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
             let mut lines = vec![safe_text(&name), String::new()];
             if let Some(h) = host {
                 lines.push(format!("Host: {}", safe_text(h)));
+            }
+            if let Some(v) = &version {
+                lines.push(format!("Version: {v} (from its manifest)"));
             }
             lines.push(format!(
                 "Default: {}",
@@ -965,7 +972,7 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
                 status,
                 detail: lines.join("\n"),
                 key: format!("toolchain:{name}"),
-                online: None,
+                online,
             });
         }
         // The default first, then by name.
@@ -1160,7 +1167,87 @@ fn lookup(
     Some(crate::online::Lookup {
         package: crate::online::Package::new(registry, name)?,
         installed: installed.to_owned(),
+        newest: false,
     })
+}
+
+/// What `u` looks up at endoflife.date for a runtime on PATH, by its version as the
+/// install path shows it (`v24.1.0`, `26.13.0_2`, `3.12.7`). Java is left out: its
+/// vendor, which endoflife.date tracks separately, is not known.
+fn runtime_lookup(command: &str, version: Option<&str>) -> Option<crate::online::Lookup> {
+    let product = match command {
+        "node" => "nodejs",
+        "python3" | "python" => "python",
+        "ruby" => "ruby",
+        "go" => "go",
+        _ => return None,
+    };
+    let version = version?.trim_start_matches('v');
+    // Homebrew's revision (`_2`) is not part of the release.
+    let version = version.split('_').next().unwrap_or(version);
+    lookup(crate::online::Registry::EndOfLife, product, Some(version))
+}
+
+/// What `u` looks up for a Rust toolchain: a channel follows the newest release
+/// (`stable`) or the newest patch of its line (`1.98`). Exact versions are pinned on
+/// purpose and beta and nightly move daily, so they are not looked up.
+fn toolchain_lookup(channel: &str, version: Option<&str>) -> Option<crate::online::Lookup> {
+    let mut found = lookup(crate::online::Registry::EndOfLife, "rust", version)?;
+    found.newest = follows_newest(channel)?;
+    Some(found)
+}
+
+/// For a channel Den compares online: whether it follows the newest release (`stable`)
+/// rather than its own line (`1.98`). `None` for anything else.
+fn follows_newest(channel: &str) -> Option<bool> {
+    match channel {
+        "stable" => Some(true),
+        c if c.split('.').count() == 2 && c.split('.').all(|p| p.parse::<u32>().is_ok()) => {
+            Some(false)
+        }
+        _ => None,
+    }
+}
+
+/// The Rust version in a toolchain's channel manifest. The manifest (about 1 MB) has more
+/// lines than shown text may, so it is read with the same link-refusing open but no line
+/// limit. Unreadable: no version, so the toolchain is simply not compared online.
+fn manifest(context: &Reader<'_>, path: &Path) -> Option<String> {
+    use std::io::Read as _;
+    if context
+        .boundary
+        .as_deref()
+        .is_some_and(|root| !path.starts_with(root))
+    {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        let dir = filesystem::Directory::open(&filesystem::resolve(path.parent()?).ok()?).ok()?;
+        let file = dir.child(path.file_name()?).ok()?;
+        if !file.metadata().ok()?.is_file() {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        file.take(FILE_LIMIT as u64).read_to_end(&mut bytes).ok()?;
+        manifest_version(&String::from_utf8_lossy(&bytes))
+    }
+    #[cfg(not(unix))]
+    None
+}
+
+/// The Rust version a toolchain holds, from its channel manifest's `[pkg.rust]`
+/// (`version = "1.97.1 (8bab26f4f 2026-07-14)"` → `1.97.1`).
+fn manifest_version(manifest: &str) -> Option<String> {
+    let mut lines = manifest
+        .lines()
+        .skip_while(|l| l.trim() != "[pkg.rust]")
+        .skip(1);
+    let version = lines
+        .find_map(|l| l.trim().strip_prefix("version = \""))?
+        .split([' ', '"'])
+        .next()?;
+    crate::updates::plausible(version).then(|| version.to_owned())
 }
 
 fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(String, usize)>) {
@@ -1348,4 +1435,34 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
         add("go install", found);
     }
     (rows, managers)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn channels_and_runtimes_are_looked_up_by_release_line() {
+        let manifest = "date = \"x\"\n[pkg.cargo]\nversion = \"0.86.0 (a 1)\"\n\n[pkg.rust]\nversion = \"1.85.0 (4d91de4e4 2026-02-17)\"\n";
+        assert_eq!(super::manifest_version(manifest).as_deref(), Some("1.85.0"));
+        assert_eq!(
+            super::manifest_version("[pkg.rust]\nversion = \"x y\"\n"),
+            None
+        );
+        assert_eq!(super::manifest_version(""), None);
+        assert_eq!(super::follows_newest("stable"), Some(true));
+        assert_eq!(super::follows_newest("1.98"), Some(false));
+        for pinned in ["1.98.0", "nightly", "beta", "1.x"] {
+            assert_eq!(super::follows_newest(pinned), None, "{pinned}");
+        }
+        let key = |c, v| super::runtime_lookup(c, v).map(|l| (l.package.key(), l.installed));
+        assert_eq!(
+            key("node", Some("v24.1.0")),
+            Some(("endoflife.date:nodejs".into(), "24.1.0".into()))
+        );
+        assert_eq!(
+            key("python3", Some("3.13.1_2")),
+            Some(("endoflife.date:python".into(), "3.13.1".into()))
+        );
+        assert_eq!(key("java", Some("21.0.1")), None);
+        assert_eq!(key("node", None), None);
+    }
 }

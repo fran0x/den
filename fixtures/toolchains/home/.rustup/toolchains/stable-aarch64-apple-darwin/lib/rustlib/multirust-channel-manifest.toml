@@ -1,0 +1,11 @@
+manifest-version = "2"
+date = "2026-02-20"
+
+[pkg.cargo]
+version = "0.86.0 (adf9b6ad1 2026-02-18)"
+
+[pkg.rust]
+version = "1.85.0 (4d91de4e4 2026-02-17)"
+
+[pkg.rust.target.aarch64-apple-darwin]
+available = true

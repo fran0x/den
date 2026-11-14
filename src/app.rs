@@ -1200,7 +1200,7 @@ impl App {
             .toolchains
             .inventory
             .iter()
-            .flat_map(|i| i.rust.iter().chain(&i.packages))
+            .flat_map(|i| i.path.iter().chain(&i.rust).chain(&i.packages))
             .filter_map(|r| r.online.clone());
         let docker = self
             .docker

@@ -14,7 +14,10 @@ All notable changes to Den are recorded here. Versions follow
   (`grafana/loki`, `ghcr.io/…`) show **↑ newer build** when their tag points to a new
   build on Docker Hub or ghcr.io; Den asks without a login, and single names such as
   `postgres` (which may be local builds) are never sent. The image listing now runs with
-  `--digests` for this. Den
+  `--digests` for this. Rust's `stable` and line toolchains (`1.98`) and the `node`,
+  `python3`, `ruby` and `go` on PATH are compared with their release lines at
+  endoflife.date: the newest patch, and **End of life** when their line is no longer
+  supported. Den
   asks first, sends only package names over HTTPS to those hosts, and keeps the answers in
   `~/.local/state/den/online.json` for the next run. `Esc` stops a check. This is the first
   time Den contacts a website itself, and only after `u` and `Enter`.

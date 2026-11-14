@@ -25,8 +25,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             match section {
                 Section::Path => {
                     let updates = rows.iter().filter(|r| update(app, r).is_some()).count();
+                    let ended = rows.iter().filter(|r| ended(app, r).is_some()).count();
                     format!(
-                        "{} on PATH · {problems}{}",
+                        "{} on PATH · {problems}{}{}{}",
                         crate::inventory::count(
                             rows.iter().filter(|r| r.class == Class::Command).count(),
                             "command"
@@ -35,7 +36,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                             format!(" · {}", crate::inventory::count(updates, "update"))
                         } else {
                             String::new()
-                        }
+                        },
+                        if ended > 0 {
+                            format!(" · {ended} end of life")
+                        } else {
+                            String::new()
+                        },
+                        online(app, rows)
                     )
                 }
                 Section::Rust => format!(
@@ -91,18 +98,16 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                 .homebrew
                 .as_ref()
                 .and_then(|p| crate::updates::homebrew(&app.inventory, &p.name, p.cask));
-            let lookup = r
-                .online
-                .clone()
-                .or_else(|| resource.and_then(crate::online::homebrew));
+            let homebrew = resource.and_then(crate::online::homebrew);
             // An online answer is newer than Homebrew's own data, so it replaces that line.
             let mut update = resource
                 .and_then(crate::updates::from_homebrew)
-                .filter(|_| !lookup.as_ref().is_some_and(|l| app.online.knows(l)))
+                .filter(|_| !homebrew.as_ref().is_some_and(|l| app.online.knows(l)))
                 .map_or_else(String::new, |v| {
                     format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
                 });
-            if let Some(lookup) = &lookup {
+            // Homebrew's answer, then the row's own (a registry or its release line).
+            for lookup in homebrew.iter().chain(&r.online) {
                 update.push_str(&app.online.panel(lookup, now));
             }
             format!(
@@ -138,10 +143,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             .rows()
             .iter()
             .map(|r| {
-                let status = match update(app, r) {
+                let mut status = match update(app, r) {
                     Some(v) => format!("{UPDATE} {v} · {}", r.status),
                     None => r.status.to_string(),
                 };
+                if ended(app, r).is_some() {
+                    status = format!("End of life · {status}");
+                }
                 let mark = t.changes.mark(name, &r.key);
                 (format!("{mark}{}", r.name), r.kind.clone(), status)
             })
@@ -173,8 +181,19 @@ fn update(app: &App, row: &Row) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The status line's online part for a section's rows.
+/// The row's release line, when the last online check found its support has ended.
+fn ended<'a>(app: &'a App, row: &Row) -> Option<&'a crate::online::Release> {
+    row.online.as_ref().and_then(|l| app.online.ended(l))
+}
+
+/// The status line's online part for a section's rows. A command Homebrew installed
+/// takes its newer version from Homebrew (`brew upgrade` may move to a newer line), so
+/// its release line's newest patch is not counted.
 fn online(app: &App, rows: &[Row]) -> String {
-    let lookups: Vec<_> = rows.iter().filter_map(|r| r.online.clone()).collect();
+    let lookups: Vec<_> = rows
+        .iter()
+        .filter(|r| r.homebrew.is_none())
+        .filter_map(|r| r.online.clone())
+        .collect();
     online_status(app, &lookups)
 }

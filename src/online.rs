@@ -33,9 +33,12 @@ pub enum Registry {
     DockerHub,
     /// GitHub's container registry, `ghcr.io/owner/name:tag`.
     Ghcr,
+    /// Release lines of languages and runtimes (`python`, `nodejs`, `rust`…): the newest
+    /// patch of each and when its support ends.
+    EndOfLife,
 }
 impl Registry {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Homebrew,
         Self::HomebrewCask,
         Self::CratesIo,
@@ -43,6 +46,7 @@ impl Registry {
         Self::PyPI,
         Self::DockerHub,
         Self::Ghcr,
+        Self::EndOfLife,
     ];
     /// The only host Den contacts for this registry.
     pub fn host(self) -> &'static str {
@@ -53,6 +57,7 @@ impl Registry {
             Self::PyPI => "pypi.org",
             Self::DockerHub => "registry-1.docker.io",
             Self::Ghcr => "ghcr.io",
+            Self::EndOfLife => "endoflife.date",
         }
     }
     /// Where an image registry hands out the anonymous read token it asks for.
@@ -75,6 +80,7 @@ impl Registry {
             Self::PyPI => "PyPI",
             Self::DockerHub => "Docker Hub",
             Self::Ghcr => "ghcr.io",
+            Self::EndOfLife => "endoflife.date",
         }
     }
     /// How the results file names it; a formula and a cask may share a name.
@@ -135,6 +141,14 @@ impl Package {
                                 .chars()
                                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
                     })
+            }
+            // endoflife.date products: lowercase letters, digits and `-`.
+            Registry::EndOfLife => {
+                (1..=40).contains(&name.len())
+                    && name.starts_with(|c: char| c.is_ascii_lowercase())
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
             }
             // crates.io: ASCII letters, digits, `-` and `_`, starting with a letter.
             Registry::CratesIo => {
@@ -208,6 +222,8 @@ impl Package {
             }
             Registry::Npm => format!("https://{host}/{}/latest", self.name),
             Registry::PyPI => format!("https://{host}/pypi/{}/json", self.name),
+            // The trailing `/` is the canonical address: without it, a redirect.
+            Registry::EndOfLife => format!("https://{host}/api/v1/products/{}/", self.name),
             Registry::DockerHub | Registry::Ghcr => {
                 let (repo, tag) = self.image();
                 format!("https://{host}/v2/{repo}/manifests/{tag}")
@@ -260,6 +276,7 @@ pub fn docker(reference: &str, digest: &str) -> Option<Lookup> {
     Some(Lookup {
         package: Package::new(registry, &name)?,
         installed: digest.to_owned(),
+        newest: false,
     })
 }
 
@@ -278,6 +295,87 @@ fn is_digest(text: &str) -> bool {
 pub struct Lookup {
     pub package: Package,
     pub installed: String,
+    /// For a release-line registry: compare with the newest release of any line (a
+    /// channel such as Rust's `stable`), not the newest of the installed version's line.
+    pub newest: bool,
+}
+
+/// A release line from endoflife.date, such as Python `3.12`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Release {
+    pub line: String,
+    /// Its newest patch release, such as `3.12.13`.
+    pub latest: Option<String>,
+    /// Support has ended.
+    pub ended: bool,
+    /// When support ends or ended (`YYYY-MM-DD`), when known.
+    pub eol: Option<String>,
+}
+
+/// The release lines in an endoflife.date answer (`result.releases`), newest first.
+pub fn releases(body: &[u8]) -> Result<Vec<Release>, String> {
+    #[derive(Deserialize)]
+    struct Latest {
+        name: String,
+    }
+    #[derive(Deserialize)]
+    struct Raw {
+        name: String,
+        #[serde(rename = "isEol", default)]
+        is_eol: bool,
+        #[serde(rename = "eolFrom")]
+        eol_from: Option<String>,
+        latest: Option<Latest>,
+    }
+    #[derive(Deserialize)]
+    struct Product {
+        releases: Vec<Raw>,
+    }
+    #[derive(Deserialize)]
+    struct Body {
+        result: Product,
+    }
+    let date = |d: &str| {
+        d.len() == 10
+            && d.chars().enumerate().all(|(i, c)| {
+                if i == 4 || i == 7 {
+                    c == '-'
+                } else {
+                    c.is_ascii_digit()
+                }
+            })
+    };
+    let body: Body = serde_json::from_slice(body).map_err(|_| "unexpected answer")?;
+    let found: Vec<_> = body
+        .result
+        .releases
+        .into_iter()
+        .filter(|r| crate::updates::plausible(&r.name))
+        .take(200)
+        .map(|r| Release {
+            line: r.name,
+            latest: r
+                .latest
+                .map(|l| l.name)
+                .filter(|v| crate::updates::plausible(v)),
+            ended: r.is_eol,
+            eol: r.eol_from.filter(|d| date(d)),
+        })
+        .collect();
+    if found.is_empty() {
+        return Err("no release lines".into());
+    }
+    Ok(found)
+}
+
+/// The release line a version belongs to: the longest one it starts with (`3.12.7` →
+/// `3.12`, `24.1.0` → `24`).
+fn line_of<'a>(releases: &'a [Release], version: &str) -> Option<&'a Release> {
+    releases
+        .iter()
+        .filter(|r| version == r.line || version.starts_with(&format!("{}.", r.line)))
+        .max_by_key(|r| r.line.len())
 }
 
 /// What a registry said about a package.
@@ -287,6 +385,8 @@ pub enum Answer {
     /// The newest release (pre-releases and yanked versions left out), or for an image the
     /// digest its tag points to now.
     Latest(String),
+    /// A release-line registry's lines (endoflife.date).
+    Releases(Vec<Release>),
     /// The registry has no package by that name, such as one installed from a folder.
     NotFound,
     /// The check did not get an answer: why, briefly.
@@ -371,8 +471,8 @@ pub fn latest(registry: Registry, body: &[u8]) -> Result<String, String> {
                 .info
                 .version
         }
-        // Answered by a header, in `image_digest`.
-        Registry::DockerHub | Registry::Ghcr => return Err(bad()),
+        // Answered by a header, in `image_digest`, or by release lines, in `releases`.
+        Registry::DockerHub | Registry::Ghcr | Registry::EndOfLife => return Err(bad()),
     };
     if crate::updates::plausible(&version) {
         Ok(version)
@@ -426,6 +526,7 @@ pub fn homebrew(resource: &crate::inventory::Resource) -> Option<Lookup> {
     Some(Lookup {
         package: Package::new(registry, &resource.name)?,
         installed,
+        newest: false,
     })
 }
 
@@ -504,6 +605,16 @@ pub fn agent() -> ureq::Agent {
 /// Looks up one package with `agent`: a GET of its URL, or for an image an anonymous
 /// token and then the digest its tag points to.
 pub fn ask(agent: &ureq::Agent, package: &Package) -> Answer {
+    if package.registry == Registry::EndOfLife {
+        return match get(agent, &package.url()) {
+            Ok(Some(body)) => match releases(&body) {
+                Ok(found) => Answer::Releases(found),
+                Err(why) => Answer::Failed(why),
+            },
+            Ok(None) => Answer::NotFound,
+            Err(why) => Answer::Failed(why),
+        };
+    }
     let fetched = if package.registry.is_images() {
         image_digest(agent, package)
     } else {
@@ -712,6 +823,27 @@ impl State {
                 (*d != lookup.installed).then_some("newer build")
             }
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => Some(v),
+            Answer::Releases(found) => {
+                let candidate = if lookup.newest {
+                    found
+                        .iter()
+                        .filter_map(|r| r.latest.as_deref())
+                        .reduce(|a, b| if crate::updates::is_newer(a, b) { b } else { a })
+                } else {
+                    line_of(found, &lookup.installed)?.latest.as_deref()
+                };
+                candidate.filter(|v| crate::updates::is_newer(&lookup.installed, v))
+            }
+            _ => None,
+        }
+    }
+    /// The installed version's release line, when its support has ended. Not for a
+    /// channel (`newest`), which moves to the newest line itself.
+    pub fn ended(&self, lookup: &Lookup) -> Option<&Release> {
+        match &self.answer(&lookup.package)?.answer {
+            Answer::Releases(found) if !lookup.newest => {
+                line_of(found, &lookup.installed).filter(|r| r.ended)
+            }
             _ => None,
         }
     }
@@ -750,6 +882,7 @@ impl State {
                 format!("↑ {v} available on {registry}")
             }
             Answer::Latest(v) => format!("Up to date on {registry} (newest {v})"),
+            Answer::Releases(found) => releases_panel(self.newer(lookup), found, lookup),
             Answer::NotFound => format!("Not found on {registry}"),
             Answer::Failed(why) => format!("Online check failed: {why}"),
         };
@@ -809,6 +942,38 @@ impl State {
         }
         notice
     }
+}
+
+/// What the panel says about a version's release line.
+fn releases_panel(newer: Option<&str>, found: &[Release], lookup: &Lookup) -> String {
+    let Some(line) = line_of(found, &lookup.installed) else {
+        return if let Some(v) = newer {
+            format!("↑ {v} is the newest release on endoflife.date")
+        } else {
+            format!(
+                "endoflife.date lists no release line for {}",
+                lookup.installed
+            )
+        };
+    };
+    let mut text = match (newer, lookup.newest) {
+        (Some(v), true) => format!("↑ {v} is the newest release"),
+        (Some(v), false) => format!("↑ {v} is the newest {} release", line.line),
+        (None, true) => "Up to date: the newest release".to_owned(),
+        (None, false) => format!("Up to date: the newest {} release", line.line),
+    };
+    if !lookup.newest {
+        match (line.ended, &line.eol) {
+            (true, Some(d)) => {
+                text.push_str(&format!(" · {} reached end of life on {d}", line.line))
+            }
+            (true, None) => text.push_str(&format!(" · {} has reached end of life", line.line)),
+            (false, Some(d)) => text.push_str(&format!(" · {} is supported until {d}", line.line)),
+            (false, None) => {}
+        }
+    }
+    text.push_str(" · from endoflife.date");
+    text
 }
 
 #[cfg(test)]
@@ -1084,6 +1249,7 @@ mod tests {
         let lookup = |installed: &str| Lookup {
             package: package(Registry::CratesIo, "ripgrep"),
             installed: installed.into(),
+            newest: false,
         };
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
         state.finish(
@@ -1103,6 +1269,84 @@ mod tests {
         assert_eq!(
             state.panel(&lookup("15.2.0"), now),
             "\n\nUp to date on crates.io (newest 15.2.0) · checked online just now"
+        );
+    }
+
+    fn eol_answer() -> Vec<Release> {
+        releases(
+            br#"{"schema_version":"1.2.1","result":{"name":"python","releases":[
+              {"name":"3.15","isEol":false,"eolFrom":"2031-10-31","latest":{"name":"3.15.2"}},
+              {"name":"3.12","isEol":false,"eolFrom":"2028-10-31","latest":{"name":"3.12.13"}},
+              {"name":"3.9","isEol":true,"eolFrom":"2025-10-31","latest":{"name":"3.9.25"}},
+              {"name":"<b>","isEol":true,"eolFrom":null,"latest":null},
+              {"name":"2.7","isEol":true,"eolFrom":"not a date","latest":{"name":"\u001b[31m"}}
+            ]}}"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn release_lines_are_read_and_checked() {
+        let found = eol_answer();
+        // A line that is not a version is dropped, and so are odd versions and dates.
+        assert_eq!(found.len(), 4);
+        assert_eq!(found[3].line, "2.7");
+        assert_eq!(found[3].latest, None);
+        assert_eq!(found[3].eol, None);
+        assert_eq!(found[2].eol.as_deref(), Some("2025-10-31"));
+        assert!(releases(br#"{"result":{"releases":[]}}"#).is_err());
+        assert!(releases(b"<html>").is_err());
+        assert_eq!(
+            package(Registry::EndOfLife, "nodejs").url(),
+            "https://endoflife.date/api/v1/products/nodejs/"
+        );
+        assert!(Package::new(Registry::EndOfLife, "../x").is_none());
+        assert!(Package::new(Registry::EndOfLife, "Python").is_none());
+    }
+
+    #[test]
+    fn a_version_is_compared_with_its_release_line() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let mut state = State::default();
+        let python = package(Registry::EndOfLife, "python");
+        state.finish(
+            Ok(vec![(python.clone(), Answer::Releases(eol_answer()))]),
+            &[],
+            now,
+        );
+        let lookup = |installed: &str, newest| Lookup {
+            package: python.clone(),
+            installed: installed.into(),
+            newest,
+        };
+        // The newest patch of its own line, not the newest line.
+        assert_eq!(state.newer(&lookup("3.12.7", false)), Some("3.12.13"));
+        assert!(state.ended(&lookup("3.12.7", false)).is_none());
+        assert_eq!(
+            state.panel(&lookup("3.12.7", false), now),
+            "\n\n↑ 3.12.13 is the newest 3.12 release · 3.12 is supported until 2028-10-31 \
+             · from endoflife.date · checked online just now"
+        );
+        assert_eq!(state.newer(&lookup("3.12.13", false)), None);
+        // A line whose support has ended.
+        assert_eq!(state.ended(&lookup("3.9.25", false)).unwrap().line, "3.9");
+        assert_eq!(
+            state.panel(&lookup("3.9.25", false), now),
+            "\n\nUp to date: the newest 3.9 release · 3.9 reached end of life on 2025-10-31 \
+             · from endoflife.date · checked online just now"
+        );
+        // Lines match whole parts only: 3.1.4 is not in the 3.15 line.
+        assert_eq!(state.newer(&lookup("3.1.4", false)), None);
+        assert_eq!(
+            state.panel(&lookup("3.1.4", false), now),
+            "\n\nendoflife.date lists no release line for 3.1.4 · checked online just now"
+        );
+        // A channel follows the newest line, and its line's end of life is not news.
+        assert_eq!(state.newer(&lookup("3.9.25", true)), Some("3.15.2"));
+        assert!(state.ended(&lookup("3.9.25", true)).is_none());
+        assert_eq!(
+            state.panel(&lookup("3.9.25", true), now),
+            "\n\n↑ 3.15.2 is the newest release · from endoflife.date · checked online just now"
         );
     }
 }

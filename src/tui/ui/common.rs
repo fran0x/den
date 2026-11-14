@@ -357,7 +357,14 @@ fn cells(name: &str, middle: &str, tail: &str, width: u16, status: bool) -> Line
     Line::from(spans)
 }
 
-const STATUS_WORDS: [&str; 5] = ["Ready", "Running", "Needs approval", "Problem", UPDATE];
+const STATUS_WORDS: [&str; 6] = [
+    "Ready",
+    "Running",
+    "Needs approval",
+    "Problem",
+    "End of life",
+    UPDATE,
+];
 /// Starts an update notice, "↑ 15.0": coloured with its version, to the end of its part.
 pub(super) const UPDATE: &str = "↑";
 
@@ -386,7 +393,7 @@ pub(super) fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
             }
             let style = match *word {
                 "Needs approval" | UPDATE => theme().warn(),
-                "Problem" => theme().bad(),
+                "Problem" | "End of life" => theme().bad(),
                 _ => theme().ok(),
             };
             let len = if *word == UPDATE {
