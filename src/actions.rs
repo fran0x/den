@@ -126,14 +126,14 @@ impl Program {
     }
 }
 
-/// A rustup toolchain or a crate, by a name checked before any command is built, with
-/// the name shown for it.
+/// A rustup toolchain, a crate or a global package, by a name checked before any command
+/// is built, with the name shown for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RustName {
+pub struct Name {
     target: String,
     label: String,
 }
-impl RustName {
+impl Name {
     /// A toolchain as rustup names its folder: `stable-aarch64-apple-darwin`,
     /// `nightly-2026-01-01-x86_64-unknown-linux-gnu`, `1.88.0-…`.
     pub fn toolchain(name: &str, label: &str) -> Option<Self> {
@@ -151,6 +151,35 @@ impl RustName {
             && name
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'));
+        valid.then(|| Self::with(name, name))
+    }
+    /// An npm package: `prettier`, `@scope/name`, by npm's rule (lowercase, URL-safe).
+    pub fn npm(name: &str) -> Option<Self> {
+        let part = |s: &str| {
+            s.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+                && s.chars().all(|c| {
+                    c.is_ascii_lowercase()
+                        || c.is_ascii_digit()
+                        || matches!(c, '.' | '_' | '~' | '-')
+                })
+        };
+        let valid = name.len() <= 214
+            && match name.strip_prefix('@').map(|rest| rest.split_once('/')) {
+                Some(Some((scope, package))) => part(scope) && part(package),
+                Some(None) => false,
+                None => part(name),
+            };
+        valid.then(|| Self::with(name, name))
+    }
+    /// A Python package (uv tool, pipx), by PyPI's rule: letters, digits, `.`, `_` and `-`,
+    /// starting and ending with a letter or digit.
+    pub fn pypi(name: &str) -> Option<Self> {
+        let valid = name.len() <= 128
+            && name.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && name.ends_with(|c: char| c.is_ascii_alphanumeric())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
         valid.then(|| Self::with(name, name))
     }
     fn with(target: &str, label: &str) -> Self {
@@ -192,12 +221,19 @@ pub enum Action {
     /// A volume nothing uses; Docker refuses one in use.
     DockerRemoveVolume(DockerObject),
     /// `rustup update` for one toolchain; rustup itself is not updated.
-    RustupUpdate(Program, RustName),
+    RustupUpdate(Program, Name),
     /// Not the default toolchain, and no folder override uses it.
-    RustupUninstall(Program, RustName),
+    RustupUninstall(Program, Name),
     /// `cargo install --locked`: rebuilds a crates.io crate when a newer version exists.
-    CargoInstall(Program, RustName),
-    CargoUninstall(Program, RustName),
+    CargoInstall(Program, Name),
+    CargoUninstall(Program, Name),
+    /// `npm update -g`: the newest version npm allows; runs the package's install scripts.
+    NpmUpdate(Program, Name),
+    NpmUninstall(Program, Name),
+    UvToolUpgrade(Program, Name),
+    UvToolUninstall(Program, Name),
+    PipxUpgrade(Program, Name),
+    PipxUninstall(Program, Name),
 }
 impl Action {
     pub fn area(&self) -> Area {
@@ -214,7 +250,13 @@ impl Action {
             Self::RustupUpdate(..)
             | Self::RustupUninstall(..)
             | Self::CargoInstall(..)
-            | Self::CargoUninstall(..) => Area::Toolchains,
+            | Self::CargoUninstall(..)
+            | Self::NpmUpdate(..)
+            | Self::NpmUninstall(..)
+            | Self::UvToolUpgrade(..)
+            | Self::UvToolUninstall(..)
+            | Self::PipxUpgrade(..)
+            | Self::PipxUninstall(..) => Area::Toolchains,
         }
     }
     fn toolchain_program(&self) -> Option<&Program> {
@@ -222,7 +264,13 @@ impl Action {
             Self::RustupUpdate(p, _)
             | Self::RustupUninstall(p, _)
             | Self::CargoInstall(p, _)
-            | Self::CargoUninstall(p, _) => Some(p),
+            | Self::CargoUninstall(p, _)
+            | Self::NpmUpdate(p, _)
+            | Self::NpmUninstall(p, _)
+            | Self::UvToolUpgrade(p, _)
+            | Self::UvToolUninstall(p, _)
+            | Self::PipxUpgrade(p, _)
+            | Self::PipxUninstall(p, _) => Some(p),
             _ => None,
         }
     }
@@ -267,6 +315,14 @@ impl Action {
             }
             Self::CargoInstall(_, c) => vec!["install".into(), "--locked".into(), c.target.clone()],
             Self::CargoUninstall(_, c) => vec!["uninstall".into(), c.target.clone()],
+            Self::NpmUpdate(_, n) => vec!["update".into(), "-g".into(), n.target.clone()],
+            Self::NpmUninstall(_, n) => vec!["uninstall".into(), "-g".into(), n.target.clone()],
+            Self::UvToolUpgrade(_, n) => vec!["tool".into(), "upgrade".into(), n.target.clone()],
+            Self::UvToolUninstall(_, n) => {
+                vec!["tool".into(), "uninstall".into(), n.target.clone()]
+            }
+            Self::PipxUpgrade(_, n) => vec!["upgrade".into(), n.target.clone()],
+            Self::PipxUninstall(_, n) => vec!["uninstall".into(), n.target.clone()],
         }
     }
     /// The dry run shown before confirming, when the tool has one.
@@ -277,6 +333,12 @@ impl Action {
             Self::BrewAutoremove => Some(words(&["autoremove", "--dry-run"])),
             Self::BrewCleanup => Some(words(&["cleanup", "--dry-run"])),
             Self::RustupUpdate(..) => Some(words(&["check", "--no-self-update"])),
+            // npm's own dry run: the same command, `--dry-run` before the name.
+            Self::NpmUpdate(..) | Self::NpmUninstall(..) => {
+                let mut args = self.args();
+                args.insert(2, "--dry-run".into());
+                Some(args)
+            }
             _ => None,
         }
     }
@@ -310,6 +372,12 @@ impl Action {
             Self::RustupUninstall(_, t) => format!("Uninstall toolchain {}", t.label),
             Self::CargoInstall(_, c) => format!("Upgrade {}", c.label),
             Self::CargoUninstall(_, c) => format!("Uninstall {}", c.label),
+            Self::NpmUpdate(_, n) | Self::UvToolUpgrade(_, n) | Self::PipxUpgrade(_, n) => {
+                format!("Upgrade {}", n.label)
+            }
+            Self::NpmUninstall(_, n) | Self::UvToolUninstall(_, n) | Self::PipxUninstall(_, n) => {
+                format!("Uninstall {}", n.label)
+            }
         }
     }
     fn timeout(&self) -> Duration {
@@ -346,10 +414,28 @@ fn command(action: &Action, args: &[String]) -> std::process::Command {
                 .env("HOMEBREW_NO_COLOR", "1");
         }
         Area::Toolchains => {
-            command
-                .env("CARGO_TERM_COLOR", "never")
-                .env("CARGO_TERM_PROGRESS_WHEN", "never")
-                .env("RUSTUP_TERM_COLOR", "never");
+            command.env("NO_COLOR", "1");
+            match action.toolchain_program().map(Program::name) {
+                Some("npm") => {
+                    command
+                        .env("npm_config_fund", "false")
+                        .env("npm_config_audit", "false")
+                        .env("npm_config_update_notifier", "false")
+                        .env("npm_config_color", "false");
+                }
+                Some("uv") => {
+                    command.env("UV_NO_PROGRESS", "1");
+                }
+                Some("pipx") => {
+                    command.env("USE_EMOJI", "0");
+                }
+                _ => {
+                    command
+                        .env("CARGO_TERM_COLOR", "never")
+                        .env("CARGO_TERM_PROGRESS_WHEN", "never")
+                        .env("RUSTUP_TERM_COLOR", "never");
+                }
+            }
         }
     }
     command
@@ -811,8 +897,8 @@ mod tests {
     fn rust_command_lines_are_fixed_and_run_the_copy_found_on_path() {
         let rustup = Program::found(Path::new("/home/me/.cargo/bin/rustup"), "rustup").unwrap();
         let cargo = Program::found(Path::new("/home/me/.cargo/bin/cargo"), "cargo").unwrap();
-        let stable = RustName::toolchain("stable-aarch64-apple-darwin", "stable").unwrap();
-        let bacon = RustName::krate("bacon").unwrap();
+        let stable = Name::toolchain("stable-aarch64-apple-darwin", "stable").unwrap();
+        let bacon = Name::krate("bacon").unwrap();
         let cases = [
             (
                 Action::RustupUpdate(rustup.clone(), stable.clone()),
@@ -864,10 +950,10 @@ mod tests {
             "nightly-2026-01-01-x86_64-unknown-linux-gnu",
             "1.88.0-aarch64-apple-darwin",
         ] {
-            assert!(RustName::toolchain(good, good).is_some(), "{good}");
+            assert!(Name::toolchain(good, good).is_some(), "{good}");
         }
         for good in ["bacon", "cargo-nextest", "ripgrep", "a_b"] {
-            assert!(RustName::krate(good).is_some(), "{good}");
+            assert!(Name::krate(good).is_some(), "{good}");
         }
         for bad in [
             "",
@@ -881,20 +967,111 @@ mod tests {
             "\u{1b}[31m",
             "nöde",
         ] {
-            assert!(RustName::toolchain(bad, bad).is_none(), "{bad:?}");
-            assert!(RustName::krate(bad).is_none(), "{bad:?}");
+            assert!(Name::toolchain(bad, bad).is_none(), "{bad:?}");
+            assert!(Name::krate(bad).is_none(), "{bad:?}");
         }
-        assert!(RustName::krate("1password").is_none(), "a letter first");
-        assert!(RustName::krate(&"a".repeat(65)).is_none());
+        assert!(Name::krate("1password").is_none(), "a letter first");
+        assert!(Name::krate(&"a".repeat(65)).is_none());
         // The label shown is made safe; the target is used as given.
-        let t = RustName::toolchain("stable", "st\u{1b}[31mable").unwrap();
+        let t = Name::toolchain("stable", "st\u{1b}[31mable").unwrap();
         assert!(!t.label().contains('\u{1b}'));
+    }
+
+    #[test]
+    fn package_command_lines_are_fixed() {
+        let at = |name: &'static str| Program::found(&Path::new("/p").join(name), name).unwrap();
+        let cli = Name::npm("@acme/cli").unwrap();
+        let ruff = Name::pypi("ruff").unwrap();
+        let cases = [
+            (
+                Action::NpmUpdate(at("npm"), cli.clone()),
+                "/p/npm update -g @acme/cli",
+                Some("/p/npm update -g --dry-run @acme/cli"),
+            ),
+            (
+                Action::NpmUninstall(at("npm"), cli),
+                "/p/npm uninstall -g @acme/cli",
+                Some("/p/npm uninstall -g --dry-run @acme/cli"),
+            ),
+            (
+                Action::UvToolUpgrade(at("uv"), ruff.clone()),
+                "/p/uv tool upgrade ruff",
+                None,
+            ),
+            (
+                Action::UvToolUninstall(at("uv"), ruff.clone()),
+                "/p/uv tool uninstall ruff",
+                None,
+            ),
+            (
+                Action::PipxUpgrade(at("pipx"), ruff.clone()),
+                "/p/pipx upgrade ruff",
+                None,
+            ),
+            (
+                Action::PipxUninstall(at("pipx"), ruff),
+                "/p/pipx uninstall ruff",
+                None,
+            ),
+        ];
+        for (action, line, preview) in cases {
+            assert_eq!(action.area(), Area::Toolchains);
+            assert_eq!(action.command_line(), line);
+            assert_eq!(action.preview_line().as_deref(), preview);
+            for word in action.args() {
+                assert!(
+                    !["--force", "-f", "--all", "--global-style"].contains(&word.as_str()),
+                    "{line}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn only_npm_and_python_package_names_become_commands() {
+        for good in ["prettier", "@acme/cli", "typescript", "a.b_c~d-e", "@a/b"] {
+            assert!(Name::npm(good).is_some(), "{good}");
+        }
+        for bad in [
+            "",
+            "-g",
+            "--force",
+            "Prettier",
+            "@acme",
+            "@acme/",
+            "@/x",
+            "a/b",
+            "../x",
+            "a b",
+            "a;rm",
+            "$(x)",
+            "\u{1b}[31m",
+            "@a/b/c",
+        ] {
+            assert!(Name::npm(bad).is_none(), "{bad:?}");
+        }
+        for good in ["ruff", "httpie", "Django", "zope.interface", "a_b-c"] {
+            assert!(Name::pypi(good).is_some(), "{good}");
+        }
+        for bad in [
+            "",
+            "-v",
+            "--force",
+            "a b",
+            "a;rm",
+            "ruff-",
+            ".x",
+            "a/b",
+            "\u{1b}[31m",
+        ] {
+            assert!(Name::pypi(bad).is_none(), "{bad:?}");
+        }
     }
 
     #[test]
     fn rustup_check_finding_an_update_is_a_finished_dry_run() {
         let rustup = Program::found(Path::new("/r/rustup"), "rustup").unwrap();
-        let update = Action::RustupUpdate(rustup, RustName::toolchain("stable", "stable").unwrap());
+        let update = Action::RustupUpdate(rustup, Name::toolchain("stable", "stable").unwrap());
         let mut s = State::new(Permit::granted(true));
         s.open(None, vec![Item::new(update.clone())]);
         let output = |code| CommandOutput {

@@ -4,7 +4,7 @@
 
 Den is a Rust terminal inspector for a developer machine: Homebrew, Codex and Claude Code,
 cloud profiles (AWS, Kubernetes), Docker and language toolchains. `den` is read-only; `dew`
-is the same program with confirmed write actions (Homebrew, Docker, rustup and cargo).
+is the same program with confirmed write actions (Homebrew, Docker and toolchains).
 Keep changes within the requested scope.
 
 | Location | Responsibility |
@@ -150,7 +150,10 @@ Toolchain writes are `dew` actions only, run by the full path of the copy that w
 (`Program::found`): `rustup update --no-self-update` (dry run `rustup check`, exit 100 means
 an update), `rustup toolchain uninstall` (never the default or an overridden toolchain),
 `cargo install --locked` (crates.io crates without chosen features) and `cargo uninstall`,
-on names checked by `RustName`. Never `--force`, `rustup self` or `cargo install --force`.
+`npm update -g` / `npm uninstall -g` (dry run: the same with `--dry-run`; never npm or
+corepack, which come with Node), `uv tool upgrade` / `uninstall` and `pipx upgrade` /
+`uninstall`, on names checked by `Name`. No actions for uv Pythons, bun or go programs.
+Never `--force`, `rustup self`, `cargo install --force` or a command without a name.
 
 Sanitize every untrusted string before terminal display. Preserve descriptor-relative,
 bounded filesystem reads and configuration/instruction symlink rejection. Do not query

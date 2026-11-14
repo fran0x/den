@@ -171,6 +171,12 @@ In Toolchains › Rust, `x` on a toolchain offers `rustup update` (its dry run i
 on PATH, by its full path, shown in the command. Upgrading a crate builds it, which runs
 its build scripts, as it would by hand.
 
+In Toolchains › Packages, `x` on a global npm package, uv tool or pipx package offers
+upgrading and uninstalling it with that manager, again the copy that wins on PATH. npm's
+actions show npm's own dry run first; uv and pipx have none, so the dialog says what will
+change. npm and corepack come with Node, so Den leaves them to Node's own upgrade. uv
+Pythons, bun packages and go programs have no actions.
+
 While a dry run or an action runs, a spinner shows it is working, with the seconds so far.
 `Esc` or `Ctrl-C` stops a running action, giving the tool 10 seconds to clean up.
 Afterwards Den reloads the area it changed and logs the action to `~/.local/state/den/actions.log`:

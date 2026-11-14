@@ -11,6 +11,9 @@ All notable changes to Den are recorded here. Versions follow
   copy that wins on PATH, by its full path. Den refuses to uninstall the default toolchain
   or one a folder override uses, and only upgrades crates.io crates installed without
   chosen features.
+- **Package clean-up in `dew`:** in Toolchains › Packages, `x` upgrades or uninstalls a
+  global npm package (after npm's own `--dry-run`), a uv tool or a pipx package, with the
+  manager that wins on PATH. npm and corepack are left to Node's own upgrade.
 
 ## [0.3.1] - 2026-11-14
 

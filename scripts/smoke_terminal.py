@@ -490,6 +490,47 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
         actions = (state / "den" / "actions.log").read_text()
         assert actions.endswith(f"\t{fake_cargo} uninstall bacon\tDone\n"), actions
     print("PASS: dew uninstalls a crate with the cargo found on PATH; reading ran nothing; Rust is read again")
+    with tempfile.TemporaryDirectory(prefix="den-npm-dew-") as npm_dir:
+        prefix = Path(npm_dir) / "prefix"
+        package = prefix / "lib" / "node_modules" / "prettier"
+        package.mkdir(parents=True)
+        (package / "package.json").write_text('{"name": "prettier", "version": "3.4.2"}')
+        bin_dir = prefix / "bin"
+        bin_dir.mkdir()
+        fake_npm = bin_dir / "npm"
+        # The dry run first, then the update; nothing else, and nothing while reading.
+        fake_npm.write_text(f"#!{sys.executable}\n" + """
+import os, pathlib, sys
+prefix = pathlib.Path(__file__).parent.parent
+args = sys.argv[1:]
+with open(prefix.parent / 'npm-calls', 'a') as f:
+    f.write(' '.join(args) + '\\n')
+assert os.environ.get('npm_config_fund') == 'false'
+if args == ['update', '-g', '--dry-run', 'prettier']:
+    print('change prettier 3.4.2 => 3.5.0')
+    sys.exit(0)
+assert args == ['update', '-g', 'prettier'], args
+(prefix / 'lib/node_modules/prettier/package.json').write_text('{"name": "prettier", "version": "3.5.0"}')
+print('changed 1 package')
+""")
+        fake_npm.chmod(0o700)
+        state = Path(npm_dir) / "state"
+        npm_env = dict(os.environ, PATH=str(bin_dir), HOME=str(Path(npm_dir) / "home"),
+                       NPM_CONFIG_PREFIX=str(prefix), XDG_STATE_HOME=str(state))
+        run_pty([str(Path(binary).with_name("dew"))], env=npm_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t\t"),
+            ("Toolchains  › PATH".encode(), b"\x1b[Z\x1b[Z"),
+            (b"1 package", b"x"),
+            # Enter waits for npm's dry run, then runs the update.
+            (b"3.4.2 => 3.5.0", b"\r"),
+            (b"changed 1 package", b"\r"),
+            (b"3.5.0", b"q"),
+        ])
+        npm_calls = (Path(npm_dir) / "npm-calls").read_text().splitlines()
+        assert npm_calls == ["update -g --dry-run prettier", "update -g prettier"], npm_calls
+        actions = (state / "den" / "actions.log").read_text()
+        assert actions.endswith(f"\t{fake_npm} update -g prettier\tDone\n"), actions
+    print("PASS: dew updates an npm package after npm's dry run, with the npm found on PATH")
     output = run_pty([binary, "--codex-fixture", "fixtures/mcp"], env=isolated_env, size=(80, 24), steps=[
         (b" skill", b"\x1b[Z\x1b[Z\x1b[Z"),
         (b"7 servers", b"/docs\r"),

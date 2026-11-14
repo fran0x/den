@@ -1,7 +1,7 @@
 //! Toolchains: which language tools win on PATH, Rust toolchains and `cargo install`
 //! crates, and global packages (npm, uv, pipx, bun, go). Read from files only: reading
 //! never runs a toolchain, package manager or program found on PATH. (dew's actions run
-//! rustup and cargo; see `crate::actions`.)
+//! rustup, cargo, npm, uv and pipx; see `crate::actions`.)
 //!
 //! Versions come from install paths and package metadata. Registry and git URLs, local
 //! source paths and folder-override paths outside the home folder are withheld or shortened.
@@ -224,6 +224,26 @@ pub enum Manage {
         /// Installed with chosen features: a plain `cargo install` would drop them.
         features: bool,
     },
+    /// A global npm package, uv tool or pipx package.
+    Package { manager: Manager, name: String },
+}
+
+/// The package managers dew can upgrade and uninstall with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Manager {
+    Npm,
+    UvTool,
+    Pipx,
+}
+impl Manager {
+    /// The command that wins on PATH and runs the action.
+    pub fn program(self) -> &'static str {
+        match self {
+            Self::Npm => "npm",
+            Self::UvTool => "uv",
+            Self::Pipx => "pipx",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1148,12 +1168,17 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             };
             for (name, dir) in dirs {
                 let version = package_version(context, &dir);
-                found.push(package_row(
+                let mut row = package_row(
                     &name,
                     "npm -g",
                     version,
                     vec![format!("Folder: {}", context.short(&dir))],
-                ));
+                );
+                row.manage = Some(Manage::Package {
+                    manager: Manager::Npm,
+                    name,
+                });
+                found.push(row);
             }
         }
         add("npm -g", found);
@@ -1192,7 +1217,12 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             if let Some(p) = python {
                 lines.push(format!("Python: {p}"));
             }
-            found.push(package_row(&name, "uv tool", version, lines));
+            let mut row = package_row(&name, "uv tool", version, lines);
+            row.manage = Some(Manage::Package {
+                manager: Manager::UvTool,
+                name,
+            });
+            found.push(row);
         }
         add("uv tool", found);
     }
@@ -1229,12 +1259,17 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             .into_iter()
             .map(|name| {
                 let (version, python) = dist_version(context, &venvs.join(&name), &name);
-                package_row(
+                let mut row = package_row(
                     &name,
                     "pipx",
                     version,
                     python.map(|p| format!("Python: {p}")).into_iter().collect(),
-                )
+                );
+                row.manage = Some(Manage::Package {
+                    manager: Manager::Pipx,
+                    name,
+                });
+                row
             })
             .collect();
         add("pipx", found);

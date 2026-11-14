@@ -55,7 +55,7 @@ to run the selected one.
 | --- | --- |
 | **Homebrew** | Upgrade, uninstall, update Homebrew's data, remove unneeded dependencies, clean up |
 | **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses |
-| **Toolchains** | Update or uninstall a Rust toolchain; upgrade or uninstall a `cargo install` crate |
+| **Toolchains** | Update or uninstall a Rust toolchain; upgrade or uninstall a crate, or a global npm, uv tool or pipx package |
 
 **What it promises:**
 

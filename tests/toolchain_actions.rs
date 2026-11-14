@@ -202,3 +202,81 @@ fn den_offers_no_toolchain_actions() {
     key(&mut a, KeyCode::Char('x'));
     assert!(a.actions.dialog.is_none());
 }
+
+fn fixture_path(rest: &str) -> PathBuf {
+    std::fs::canonicalize(FIXTURE).unwrap().join(rest)
+}
+
+#[test]
+fn global_packages_offer_upgrade_and_uninstall_with_their_own_manager() {
+    let mut a = app(true);
+    a.navigate(Destination::Packages);
+    let npm = fixture_path("opt/homebrew/bin/npm");
+    let n = npm.display();
+    assert_eq!(
+        menu(&mut a, "npm -g:@acme/cli"),
+        [
+            (format!("{n} update -g @acme/cli"), None),
+            (format!("{n} uninstall -g @acme/cli"), None),
+        ]
+    );
+    // npm itself comes with Node.
+    for (_, blocked) in menu(&mut a, "npm -g:npm") {
+        assert_eq!(
+            blocked.as_deref(),
+            Some("npm comes with Node; upgrade Node instead")
+        );
+    }
+    // uv and pipx are not on the fixture's PATH: refused, by name.
+    assert_eq!(
+        menu(&mut a, "uv tool:ruff"),
+        [
+            (
+                "uv tool upgrade ruff".to_owned(),
+                Some("uv is not on PATH".to_owned())
+            ),
+            (
+                "uv tool uninstall ruff".to_owned(),
+                Some("uv is not on PATH".to_owned())
+            ),
+        ]
+    );
+    // Found on PATH, they run by their full path.
+    let inventory = a.toolchains.inventory.as_mut().unwrap();
+    let pipx = fixture_path("home/.local/bin/pipx");
+    inventory.winners.insert("pipx", pipx.clone());
+    let p = pipx.display();
+    assert_eq!(
+        menu(&mut a, "pipx:httpie"),
+        [
+            (format!("{p} upgrade httpie"), None),
+            (format!("{p} uninstall httpie"), None),
+        ]
+    );
+    // No actions for uv Pythons, bun or go programs.
+    for key in [
+        "uv python:cpython-3.12.8-macos-aarch64-none",
+        "bun:prettier",
+        "go install:gopls",
+    ] {
+        assert!(menu(&mut a, key).is_empty(), "{key}");
+    }
+}
+
+#[test]
+fn npm_actions_show_npms_own_dry_run() {
+    let mut a = app(true);
+    a.navigate(Destination::Packages);
+    a.toolchains.select_key("npm -g:@acme/cli");
+    key(&mut a, KeyCode::Char('x'));
+    let Some(Request::Preview(action)) = a.actions.request.clone() else {
+        panic!("{:?}", a.actions.request);
+    };
+    assert_eq!(
+        action.preview_line().unwrap(),
+        format!(
+            "{} update -g --dry-run @acme/cli",
+            fixture_path("opt/homebrew/bin/npm").display()
+        )
+    );
+}

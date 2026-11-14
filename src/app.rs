@@ -739,11 +739,11 @@ impl App {
         (row.map(|r| r.name.clone()), items)
     }
 
-    /// Toolchains › Rust: update or uninstall a toolchain; upgrade or uninstall a crate.
-    /// rustup and cargo run as the copy that wins on PATH.
+    /// Toolchains: update or uninstall a Rust toolchain; upgrade or uninstall a crate or a
+    /// global npm, uv tool or pipx package. Each tool runs as the copy that wins on PATH.
     pub fn toolchains_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
-        use crate::actions::{Action, Item, Program, RustName};
-        use crate::areas::toolchains::{Manage, split_host};
+        use crate::actions::{Action, Item, Name, Program};
+        use crate::areas::toolchains::{Manage, Manager, split_host};
         let Some(row) = self.toolchains.selected_row() else {
             return (None, vec![]);
         };
@@ -776,7 +776,7 @@ impl App {
                 overrides,
             }) => {
                 let label = split_host(name).0;
-                if let Some(toolchain) = RustName::toolchain(name, label) {
+                if let Some(toolchain) = Name::toolchain(name, label) {
                     let (rustup, missing) = program("rustup");
                     items.push(item(
                         Action::RustupUpdate(rustup.clone(), toolchain.clone()),
@@ -811,7 +811,7 @@ impl App {
                 crates_io,
                 features,
             }) => {
-                if let Some(krate) = RustName::krate(name) {
+                if let Some(krate) = Name::krate(name) {
                     let (cargo, missing) = program("cargo");
                     if *crates_io {
                         let blocked = missing.clone().or_else(|| {
@@ -834,6 +834,54 @@ impl App {
                         format!(
                             "cargo has no dry run. Removes {name} and the programs it                              installed."
                         ),
+                    ));
+                }
+            }
+            Some(Manage::Package { manager, name }) => {
+                let checked = match manager {
+                    Manager::Npm => Name::npm(name),
+                    Manager::UvTool | Manager::Pipx => Name::pypi(name),
+                };
+                if let Some(package) = checked {
+                    let (program, missing) = program(manager.program());
+                    // npm and corepack come with Node (Homebrew's, with its node formula).
+                    let blocked = missing.or_else(|| {
+                        (*manager == Manager::Npm && matches!(name.as_str(), "npm" | "corepack"))
+                            .then(|| format!("{name} comes with Node; upgrade Node instead"))
+                    });
+                    let tool = manager.program();
+                    let dry = if *manager == Manager::Npm {
+                        String::new()
+                    } else {
+                        format!("{tool} has no dry run. ")
+                    };
+                    let (upgrade, uninstall) = match manager {
+                        Manager::Npm => (
+                            Action::NpmUpdate(program.clone(), package.clone()),
+                            Action::NpmUninstall(program, package),
+                        ),
+                        Manager::UvTool => (
+                            Action::UvToolUpgrade(program.clone(), package.clone()),
+                            Action::UvToolUninstall(program, package),
+                        ),
+                        Manager::Pipx => (
+                            Action::PipxUpgrade(program.clone(), package.clone()),
+                            Action::PipxUninstall(program, package),
+                        ),
+                    };
+                    items.push(item(
+                        upgrade,
+                        blocked.clone(),
+                        format!(
+                            "{dry}Upgrades {name} to the newest version {tool} allows. \
+                             Installing it runs the package's install steps, as it would by \
+                             hand."
+                        ),
+                    ));
+                    items.push(item(
+                        uninstall,
+                        blocked,
+                        format!("{dry}Removes {name} and the commands it added."),
                     ));
                 }
             }

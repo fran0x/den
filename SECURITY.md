@@ -7,10 +7,10 @@ security bug.
 
 `den` is always read-only. Changes need the `dew` command (the top bar then shows WRITE),
 and even there each action runs only when you choose it and press Enter, after its dry run
-where the tool has one. Actions are a fixed list of Homebrew, Docker, rustup and cargo
-commands built from checked names and IDs, run without a shell, sudo or a terminal for
-input, and never with force. rustup and cargo run as the copy Den shows winning on PATH,
-by its full path.
+where the tool has one. Actions are a fixed list of Homebrew, Docker, rustup, cargo, npm,
+uv and pipx commands built from checked names and IDs, run without a shell, sudo or a
+terminal for input, and never with force. Toolchain programs run as the copy Den shows
+winning on PATH, by its full path.
 
 ## Reporting
 
