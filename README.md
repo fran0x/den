@@ -47,6 +47,8 @@ only those plus what was removed. Den compares with how it first read each area,
 the snapshot you last saved with `S` (`~/.local/state/den/snapshot.json`), so the next run
 shows what changed since.
 
+![den listing what changed in Homebrew since a snapshot three days ago](docs/images/changes.svg)
+
 **Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `d` changes · `S` snapshot ·
 `?` help · `q` quit.
 Try it without reading your machine: `den --demo`.

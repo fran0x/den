@@ -1,7 +1,7 @@
 //! Renders a README screenshot as SVG from the fixtures: `just screenshots` writes them to
 //! docs/images. Run one with `cargo run --example screenshot -- dew > dew.svg`.
 //!
-//! Screens: `toolchains`, `agents-mcp` and `dew`.
+//! Screens: `toolchains`, `agents-mcp`, `changes` and `dew`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
@@ -13,6 +13,7 @@ use den::{
         toolchains,
     },
     inventory::{HomebrewMetadata, Inventory},
+    snapshot::{self, Entry},
     tui::{presentation::Destination, ui},
 };
 use ratatui::{
@@ -20,7 +21,11 @@ use ratatui::{
     backend::TestBackend,
     style::{Color, Modifier},
 };
-use std::{path::Path, sync::atomic::AtomicBool};
+use std::{
+    path::Path,
+    sync::atomic::AtomicBool,
+    time::{Duration, SystemTime},
+};
 
 const WIDTH: u16 = 120;
 const HEIGHT: u16 = 26;
@@ -38,8 +43,9 @@ fn main() {
     let mut app = match screen.as_str() {
         "toolchains" => toolchains_screen(),
         "agents-mcp" => agents_screen(),
+        "changes" => changes_screen(),
         "dew" => dew_screen(),
-        other => panic!("unknown screen {other}: use toolchains, agents-mcp or dew"),
+        other => panic!("unknown screen {other}: use toolchains, agents-mcp, changes or dew"),
     };
     let mut terminal = Terminal::new(TestBackend::new(WIDTH, HEIGHT)).unwrap();
     terminal.draw(|f| ui::render(f, &mut app)).unwrap();
@@ -87,8 +93,8 @@ fn agents_screen() -> App {
     app
 }
 
-/// dew: the actions for ripgrep, with the upgrade's dry run shown.
-fn dew_screen() -> App {
+/// Homebrew from the fixture, with ripgrep's newer version shown as a real one.
+fn brew() -> Inventory {
     let mut inventory = homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap();
     // The fixture's placeholder version (99.0) reads oddly in a picture.
     for resource in &mut inventory.resources {
@@ -98,7 +104,39 @@ fn dew_screen() -> App {
             *latest = Some("15.1.0".into());
         }
     }
-    let mut app = App::new(inventory, "Homebrew");
+    inventory
+}
+
+/// `d` in Homebrew: what changed since a snapshot saved three days ago, when ripgrep was
+/// older, requested-app was not installed and jq still was.
+fn changes_screen() -> App {
+    let now = brew();
+    let mut before: Vec<Entry> = snapshot::homebrew(&now)
+        .into_iter()
+        .filter(|e| e.key != "cask:requested-app")
+        .collect();
+    for entry in &mut before {
+        if entry.key == "formula:ripgrep" {
+            entry.value = "14.0.3".into();
+        }
+    }
+    before.push(Entry {
+        section: "Packages".into(),
+        key: "formula:jq".into(),
+        name: "jq".into(),
+        value: "1.7.1".into(),
+    });
+    let mut app = App::live_homebrew();
+    let taken = SystemTime::now() - Duration::from_secs(3 * 24 * 3600);
+    app.homebrew_changes.use_saved(Some((taken, before)));
+    app.finish_collection(Ok(now));
+    key(&mut app, KeyCode::Char('d'));
+    app
+}
+
+/// dew: the actions for ripgrep, with the upgrade's dry run shown.
+fn dew_screen() -> App {
+    let mut app = App::new(brew(), "Homebrew");
     app.actions = State::new(Permit::granted(true));
     key(&mut app, KeyCode::Char('/'));
     for c in "ripgrep".chars() {
@@ -184,6 +222,8 @@ fn svg(buffer: &ratatui::buffer::Buffer) -> String {
             };
             let underline = if modifier.contains(Modifier::UNDERLINED) {
                 " text-decoration='underline'"
+            } else if modifier.contains(Modifier::CROSSED_OUT) {
+                " text-decoration='line-through'"
             } else {
                 ""
             };

@@ -24,7 +24,7 @@ dew *args:
 
 # Regenerate the README screenshots in docs/images from the fixtures.
 screenshots:
-    for screen in toolchains agents-mcp dew; do cargo run --quiet --example screenshot -- "$screen" > "docs/images/$screen.svg"; done
+    for screen in toolchains agents-mcp changes dew; do cargo run --quiet --example screenshot -- "$screen" > "docs/images/$screen.svg"; done
 
 # Write the Homebrew formula for the current version into a fran0x/homebrew-tap checkout,
 # after the release is published; review, commit and push it there.
