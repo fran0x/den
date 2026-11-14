@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-14
+
 - **Homebrew:** `brew install fran0x/tap/den` installs `den` and `dew` from the release
   binaries.
 - **Faster loading:** Homebrew and Docker output is read as soon as it arrives instead of
@@ -68,7 +70,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/fran0x/den/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/fran0x/den/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fran0x/den/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fran0x/den/releases/tag/v0.1.0
