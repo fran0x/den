@@ -60,7 +60,7 @@ fn den_runs_only_fixed_listing_commands() {
         args,
         [
             "container ls --all --no-trunc --format {{json .}}",
-            "image ls --no-trunc --format {{json .}}",
+            "image ls --digests --no-trunc --format {{json .}}",
             "volume ls --format {{json .}}",
             "system df --format {{json .}}",
         ]

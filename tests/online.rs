@@ -424,3 +424,105 @@ fn homebrew_data_is_used_until_checked_online() {
         "{screen}"
     );
 }
+
+const D_LOCAL: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+const D_NEW: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+
+/// A session that has read the Docker fixture plus images pulled from Docker Hub and
+/// ghcr.io and one built here.
+fn docker_session(t: &Temp) -> App {
+    let root = t.0.join("docker");
+    fs::create_dir_all(root.join("home/.docker")).unwrap();
+    for f in [
+        "containers.jsonl",
+        "images.jsonl",
+        "volumes.jsonl",
+        "disk.jsonl",
+    ] {
+        fs::copy(Path::new("fixtures/docker").join(f), root.join(f)).unwrap();
+    }
+    let mut images = fs::read_to_string(root.join("images.jsonl")).unwrap();
+    for (repo, tag) in [
+        ("grafana/loki", "3.5"),
+        ("ghcr.io/astral-sh/uv", "latest"),
+        ("my-app", "local"),
+    ] {
+        images.push_str(&format!(
+            r#"{{"ID":"{D_LOCAL}","Digest":"{D_LOCAL}","Repository":"{repo}","Tag":"{tag}","Size":"1MB","CreatedSince":"1 day ago"}}"#
+        ));
+        images.push('\n');
+    }
+    fs::write(root.join("images.jsonl"), images).unwrap();
+    let mut a = App::new(
+        Inventory {
+            schema_version: 1,
+            resources: vec![],
+        },
+        "online test",
+    );
+    a.online.use_file(t.file());
+    let context = den::areas::docker::Context::fixture(&root).unwrap();
+    a.docker.configure(context.clone());
+    a.docker.finish(den::areas::docker::discover(
+        &context,
+        &AtomicBool::new(false),
+    ));
+    a.docker.requested = false;
+    a.navigate(Destination::Images);
+    a
+}
+
+#[test]
+fn docker_images_with_a_namespace_are_checked_for_a_newer_build() {
+    let t = Temp::new();
+    let mut a = docker_session(&t);
+    assert!(draw(&mut a).contains("u:check online"));
+    key(&mut a, KeyCode::Char('u'));
+    assert!(
+        draw(&mut a)
+            .contains("sends 2 package names to registry-1.docker.io, ghcr.io; versions stay here")
+    );
+    key(&mut a, KeyCode::Enter);
+    let asked: Vec<String> = a
+        .online
+        .request
+        .take()
+        .unwrap()
+        .iter()
+        .map(Package::key)
+        .collect();
+    // Single names (nginx, postgres, my-app) may be built here: they are not sent.
+    assert_eq!(
+        asked,
+        ["Docker Hub:grafana/loki:3.5", "ghcr.io:astral-sh/uv:latest"]
+    );
+    a.finish_online(
+        Ok(vec![
+            (
+                Package::new(Registry::DockerHub, "grafana/loki:3.5").unwrap(),
+                Answer::Latest(D_NEW.into()),
+            ),
+            (
+                Package::new(Registry::Ghcr, "astral-sh/uv:latest").unwrap(),
+                Answer::Latest(D_LOCAL.into()),
+            ),
+        ]),
+        SystemTime::now(),
+    );
+    assert!(draw(&mut a).contains("Checked 2 packages online: 1 newer"));
+    a.docker.select_key("image:grafana/loki:3.5");
+    let screen = draw(&mut a);
+    assert!(screen.contains("↑ newer build · Unused"), "{screen}");
+    assert!(
+        screen.contains("↑ 3.5 now points to a newer build on Docker Hub (222222222222)"),
+        "{screen}"
+    );
+    // Down moves to ghcr.io/astral-sh/uv, and the notice gives way to the status line.
+    key(&mut a, KeyCode::Down);
+    let screen = draw(&mut a);
+    assert!(
+        screen.contains("1 newer online, checked just now"),
+        "{screen}"
+    );
+    assert!(screen.contains("Same build as on ghcr.io"), "{screen}");
+}

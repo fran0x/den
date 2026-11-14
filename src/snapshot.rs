@@ -547,6 +547,7 @@ mod tests {
             detail: "SECRET_ENV=hunter2".into(),
             key: format!("container:{name}"),
             target: format!("{name}-id"),
+            online: None,
         }
     }
 

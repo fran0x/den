@@ -130,7 +130,10 @@ and at most four requests at once. Only a package name leaves the machine, after
 `Package::new` checks it against the registry's rules; installed versions, paths and
 settings never do. A registry's answer is believed only when it is a plain version
 (`updates::plausible`). Homebrew lookups cover only the homebrew/core and homebrew/cask
-taps (`online::homebrew`); their answer replaces Homebrew's own data. Answers go to `$XDG_STATE_HOME/den/online.json` through the same
+taps (`online::homebrew`); their answer replaces Homebrew's own data. Images are looked up
+by digest (`online::docker`), only Docker Hub and ghcr.io names with a namespace or
+registry (a single name may be a local build and is never sent), with an anonymous token
+and a manifest HEAD; Docker's credentials are never read for this. Answers go to `$XDG_STATE_HOME/den/online.json` through the same
 private read and write as snapshots. A new registry or host needs SECURITY.md, README and
 guide updates, and known-answer tests of its URL and parsing; tests never contact one.
 Reads use the existing bounded Homebrew runner:
@@ -138,7 +141,7 @@ Reads use the existing bounded Homebrew runner:
 `brew autoremove --dry-run`. Keep fixed arguments, time/output limits and cancellation;
 never add removal/repair commands or execute inspected scripts, MCP servers or helpers.
 Docker uses the same runner (`homebrew::run_bounded`) for exactly the four listings in
-`docker::COMMANDS`, only when the Docker area is opened; never read container internals
+`docker::COMMANDS` (`image ls` has `--digests`, for online checks), only when the Docker area is opened; never read container internals
 (`inspect`, `logs`, `exec`). Docker writes are `dew` actions only (`container stop`,
 `container rm`, `image rm`, `volume rm`), on IDs and names checked by `DockerObject`,
 offered only for what nothing uses, and never with `-f`, `--force` or `prune`.

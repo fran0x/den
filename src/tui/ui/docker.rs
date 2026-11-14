@@ -4,7 +4,8 @@ use crate::areas::docker::Section;
 
 pub(super) const HELP: &str = "Docker: containers, images and volumes\n\
 Shift+Tab switches Containers / Images / Volumes. Containers show their state and image (and Compose project); images and volumes say which containers use them, or Unused. The status line shows disk use and what docker system df could reclaim.\n\
-Den runs only: docker container ls --all, docker image ls, docker volume ls and docker system df, each with a 10-second limit, while this area is open: when you open it and every 5 seconds after. Reading never starts, stops, pulls, inspects or removes anything. In dew, x offers what Docker allows without force: stop a running container, or remove a stopped container or an image or volume nothing uses; Enter runs the selected one.\n\
+Den runs only: docker container ls --all, docker image ls --digests, docker volume ls and docker system df, each with a 10-second limit, while this area is open: when you open it and every 5 seconds after. Reading never starts, stops, pulls, inspects or removes anything.\n\
+u asks Docker Hub or ghcr.io whether a tag now points to a newer build, for images with a namespace or registry in their name (grafana/loki, ghcr.io/…). Single names such as postgres could be images built here, so they are not sent. Den asks without a login: Docker's saved logins are never used. In dew, x offers what Docker allows without force: stop a running container, or remove a stopped container or an image or volume nothing uses; Enter runs the selected one.\n\
 Not shown: container commands, environment, labels (except the Compose project) and logs. From ~/.docker/config.json only the context, registry names and credential helper are kept; saved logins are discarded. DOCKER_HOST is noted, not shown.\n\
 / searches; PgUp/PgDn scroll the panel; r refreshes.";
 
@@ -46,6 +47,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     disk("Local Volumes")
                 ),
             };
+            if section == Section::Images {
+                let lookups: Vec<_> = i.images.iter().filter_map(|r| r.online.clone()).collect();
+                text.push_str(&online_status(app, &lookups));
+            }
             // Lines Docker printed that were not JSON: rows are missing, so say so.
             if i.unreadable > 0 {
                 text.push_str(&format!(
@@ -71,11 +76,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         .iter()
         .map(|r| {
             let mark = d.changes.mark(name, &r.key);
-            (
-                format!("{mark}{}", r.name),
-                r.state.clone(),
-                r.status.clone(),
-            )
+            let status = match r.online.as_ref().and_then(|l| app.online.newer(l)) {
+                Some(newer) => format!("{UPDATE} {newer} · {}", r.status),
+                None => r.status.clone(),
+            };
+            (format!("{mark}{}", r.name), r.state.clone(), status)
         })
         .collect();
     let setup = d
@@ -95,8 +100,12 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             }
         },
         |r| {
+            let online = r
+                .online
+                .as_ref()
+                .map_or_else(String::new, |l| app.online.panel(l, now));
             format!(
-                "{HEADING}{}{}\n\n{HEADING}Docker setup\n{}\nRead with docker container ls, image ls, volume ls and system df; nothing else is run.",
+                "{HEADING}{}{online}{}\n\n{HEADING}Docker setup\n{}\nRead with docker container ls, image ls, volume ls and system df; nothing else is run.",
                 r.detail,
                 d.changes.panel(name, &r.key, now),
                 if setup.is_empty() { "No ~/.docker/config.json details" } else { &setup }

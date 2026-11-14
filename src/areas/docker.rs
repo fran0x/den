@@ -30,7 +30,15 @@ pub const COMMANDS: [(&str, &[&str]); 4] = [
     ),
     (
         "images",
-        &["image", "ls", "--no-trunc", "--format", "{{json .}}"],
+        // `--digests`: the registry digest a pulled tag had, for online checks (`u`).
+        &[
+            "image",
+            "ls",
+            "--digests",
+            "--no-trunc",
+            "--format",
+            "{{json .}}",
+        ],
     ),
     ("volumes", &["volume", "ls", "--format", "{{json .}}"]),
     ("disk", &["system", "df", "--format", "{{json .}}"]),
@@ -98,6 +106,8 @@ pub struct Row {
     /// What a `dew` action names: the container ID, the image's `repo:tag` (its ID when
     /// untagged) or the volume name. Unchecked here: actions check it before use.
     pub target: String,
+    /// For an image pulled from Docker Hub or ghcr.io: what `u` looks up.
+    pub online: Option<crate::online::Lookup>,
 }
 
 #[derive(Default)]
@@ -297,6 +307,11 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             // refreshes and in snapshots.
             key: format!("image:{}", if dangling { &id } else { &name }),
             target: if dangling { id.clone() } else { name.clone() },
+            online: if dangling {
+                None
+            } else {
+                crate::online::docker(&name, &text(image, "Digest"))
+            },
             status,
             name,
         });
@@ -343,6 +358,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             .join("\n"),
             key: format!("volume:{name}"),
             target: name.clone(),
+            online: None,
             status,
             name: display,
         });
@@ -408,6 +424,7 @@ fn container_row(c: &Map<String, Value>) -> Row {
         // By name: a recreated container is the same one, in selection and snapshots.
         key: format!("container:{name}"),
         target: text(c, "ID"),
+        online: None,
         name,
     }
 }

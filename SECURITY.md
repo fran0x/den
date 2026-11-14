@@ -6,8 +6,11 @@ contacts no service unless you ask it to check online, and never shows a secret.
 in that promise is a security bug.
 
 **Online checks** run only when you press `u` and then Enter. Den sends the names of your
-Homebrew formulas and casks, crates.io crates and npm, bun, uv and pipx packages over HTTPS
-to formulae.brew.sh, index.crates.io, registry.npmjs.org and pypi.org, and to no other host: redirects are not followed, and a
+Homebrew formulas and casks, crates.io crates, npm, bun, uv and pipx packages and Docker
+images (only those named with a namespace or registry, such as `grafana/loki:3.5`) over
+HTTPS to formulae.brew.sh, index.crates.io, registry.npmjs.org, pypi.org, Docker Hub
+(registry-1.docker.io and auth.docker.io for an anonymous read token) and ghcr.io, and to
+no other host. Docker's saved logins are never used: redirects are not followed, and a
 proxy set in `HTTPS_PROXY` is used. Installed versions, paths and settings stay on the
 machine; the comparison happens locally. The registries learn which packages you use.
 The answers are kept in `$XDG_STATE_HOME/den/online.json`, private like the snapshot.

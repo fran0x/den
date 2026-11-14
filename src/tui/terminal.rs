@@ -175,7 +175,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
             {
                 match crate::online::Collector::start_with(move |cancel| {
                     let agent = crate::online::agent();
-                    crate::online::check(&packages, &|url| crate::online::get(&agent, url), cancel)
+                    crate::online::check(&packages, &|p| crate::online::ask(&agent, p), cancel)
                 }) {
                     Ok(worker) => online = Some(worker.detach_on_drop()),
                     Err(error) => app.finish_online(Err(error), std::time::SystemTime::now()),

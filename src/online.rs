@@ -29,14 +29,20 @@ pub enum Registry {
     CratesIo,
     Npm,
     PyPI,
+    /// Docker Hub images, by `namespace/name:tag`.
+    DockerHub,
+    /// GitHub's container registry, `ghcr.io/owner/name:tag`.
+    Ghcr,
 }
 impl Registry {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Homebrew,
         Self::HomebrewCask,
         Self::CratesIo,
         Self::Npm,
         Self::PyPI,
+        Self::DockerHub,
+        Self::Ghcr,
     ];
     /// The only host Den contacts for this registry.
     pub fn host(self) -> &'static str {
@@ -45,7 +51,21 @@ impl Registry {
             Self::CratesIo => "index.crates.io",
             Self::Npm => "registry.npmjs.org",
             Self::PyPI => "pypi.org",
+            Self::DockerHub => "registry-1.docker.io",
+            Self::Ghcr => "ghcr.io",
         }
+    }
+    /// Where an image registry hands out the anonymous read token it asks for.
+    fn token_host(self) -> Option<&'static str> {
+        match self {
+            Self::DockerHub => Some("auth.docker.io"),
+            Self::Ghcr => Some("ghcr.io"),
+            _ => None,
+        }
+    }
+    /// Images are compared by digest (the same tag, a newer build), not by version.
+    pub fn is_images(self) -> bool {
+        matches!(self, Self::DockerHub | Self::Ghcr)
     }
     pub fn label(self) -> &'static str {
         match self {
@@ -53,6 +73,8 @@ impl Registry {
             Self::CratesIo => "crates.io",
             Self::Npm => "npm",
             Self::PyPI => "PyPI",
+            Self::DockerHub => "Docker Hub",
+            Self::Ghcr => "ghcr.io",
         }
     }
     /// How the results file names it; a formula and a cask may share a name.
@@ -83,6 +105,35 @@ impl Package {
                         c.is_ascii_lowercase()
                             || c.is_ascii_digit()
                             || matches!(c, '-' | '_' | '.' | '+' | '@')
+                    })
+            }
+            // Images: `repository:tag`, with lowercase path parts (`grafana/loki`) and
+            // Docker's tag rules. Docker Hub names need a namespace (see `docker`).
+            Registry::DockerHub | Registry::Ghcr => {
+                name.len() <= 255
+                    && name.rsplit_once(':').is_some_and(|(repo, tag)| {
+                        let part = |p: &str| {
+                            (1..=128).contains(&p.len())
+                                && p.starts_with(|c: char| {
+                                    c.is_ascii_lowercase() || c.is_ascii_digit()
+                                })
+                                && p.ends_with(|c: char| {
+                                    c.is_ascii_lowercase() || c.is_ascii_digit()
+                                })
+                                && p.chars().all(|c| {
+                                    c.is_ascii_lowercase()
+                                        || c.is_ascii_digit()
+                                        || matches!(c, '.' | '_' | '-')
+                                })
+                        };
+                        let parts: Vec<_> = repo.split('/').collect();
+                        (2..=8).contains(&parts.len())
+                            && parts.iter().all(|p| part(p))
+                            && (1..=128).contains(&tag.len())
+                            && tag.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
+                            && tag
+                                .chars()
+                                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
                     })
             }
             // crates.io: ASCII letters, digits, `-` and `_`, starting with a letter.
@@ -157,8 +208,69 @@ impl Package {
             }
             Registry::Npm => format!("https://{host}/{}/latest", self.name),
             Registry::PyPI => format!("https://{host}/pypi/{}/json", self.name),
+            Registry::DockerHub | Registry::Ghcr => {
+                let (repo, tag) = self.image();
+                format!("https://{host}/v2/{repo}/manifests/{tag}")
+            }
         }
     }
+    /// An image's repository and tag.
+    fn image(&self) -> (&str, &str) {
+        self.name.rsplit_once(':').unwrap_or((&self.name, "latest"))
+    }
+    /// For an image: the URL of the anonymous, read-only token for its repository.
+    fn token_url(&self) -> Option<String> {
+        let host = self.registry.token_host()?;
+        let (repo, _) = self.image();
+        Some(match self.registry {
+            Registry::DockerHub => format!(
+                "https://{host}/token?service=registry.docker.io&scope=repository:{repo}:pull"
+            ),
+            _ => format!("https://{host}/token?scope=repository:{repo}:pull"),
+        })
+    }
+}
+
+/// The lookup for a tagged image pulled from Docker Hub or ghcr.io, given its local
+/// `repo:tag` and digest. Only names with a namespace (`grafana/loki`) or a registry
+/// (`ghcr.io/…`, `docker.io/…`) are looked up: a single name such as `postgres` could just
+/// as well be an image built here, and its name stays on the machine. Other registries
+/// are not checked.
+pub fn docker(reference: &str, digest: &str) -> Option<Lookup> {
+    if !is_digest(digest) {
+        return None;
+    }
+    let (registry, name) = if let Some(rest) = reference.strip_prefix("ghcr.io/") {
+        (Registry::Ghcr, rest.to_owned())
+    } else if let Some(rest) = reference.strip_prefix("docker.io/") {
+        let rest = if rest.split(':').next()?.contains('/') {
+            rest.to_owned()
+        } else {
+            format!("library/{rest}")
+        };
+        (Registry::DockerHub, rest)
+    } else {
+        let first = reference.split('/').next()?;
+        // `quay.io/…`, `localhost:5000/…`: another registry. No `/`: a single name.
+        if !reference.contains('/') || first.contains(['.', ':']) || first == "localhost" {
+            return None;
+        }
+        (Registry::DockerHub, reference.to_owned())
+    };
+    Some(Lookup {
+        package: Package::new(registry, &name)?,
+        installed: digest.to_owned(),
+    })
+}
+
+/// `sha256:` and 64 lowercase hex digits.
+fn is_digest(text: &str) -> bool {
+    text.strip_prefix("sha256:").is_some_and(|hex| {
+        hex.len() == 64
+            && hex
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    })
 }
 
 /// A row's lookup: the package and the version installed here.
@@ -172,7 +284,8 @@ pub struct Lookup {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Answer {
-    /// The newest release (pre-releases and yanked versions left out).
+    /// The newest release (pre-releases and yanked versions left out), or for an image the
+    /// digest its tag points to now.
     Latest(String),
     /// The registry has no package by that name, such as one installed from a folder.
     NotFound,
@@ -258,6 +371,8 @@ pub fn latest(registry: Registry, body: &[u8]) -> Result<String, String> {
                 .info
                 .version
         }
+        // Answered by a header, in `image_digest`.
+        Registry::DockerHub | Registry::Ghcr => return Err(bad()),
     };
     if crate::updates::plausible(&version) {
         Ok(version)
@@ -314,8 +429,8 @@ pub fn homebrew(resource: &crate::inventory::Resource) -> Option<Lookup> {
     })
 }
 
-/// Gets one URL: the body, `None` for "no such package" (404), or why it failed.
-pub type Fetch<'a> = dyn Fn(&str) -> Result<Option<Vec<u8>>, String> + Sync + 'a;
+/// Looks up one package.
+pub type Ask<'a> = dyn Fn(&Package) -> Answer + Sync + 'a;
 
 /// Runs [`check`] in the background.
 pub(crate) type Collector = crate::worker::Worker<Vec<(Package, Answer)>, io::Error>;
@@ -327,7 +442,7 @@ const PARALLEL: usize = 4;
 /// already sent and then returns an error, so nothing partial is kept.
 pub fn check(
     packages: &[Package],
-    fetch: &Fetch<'_>,
+    ask: &Ask<'_>,
     cancel: &AtomicBool,
 ) -> io::Result<Vec<(Package, Answer)>> {
     let next = Mutex::new(packages.iter());
@@ -342,14 +457,7 @@ pub fn check(
                     let Some(package) = next.lock().ok().and_then(|mut n| n.next()) else {
                         return;
                     };
-                    let answer = match fetch(&package.url()) {
-                        Ok(Some(body)) => match latest(package.registry, &body) {
-                            Ok(version) => Answer::Latest(version),
-                            Err(why) => Answer::Failed(why),
-                        },
-                        Ok(None) => Answer::NotFound,
-                        Err(why) => Answer::Failed(why),
-                    };
+                    let answer = ask(package);
                     if let Ok(mut answers) = answers.lock() {
                         answers.push((package.clone(), answer));
                     }
@@ -393,12 +501,79 @@ pub fn agent() -> ureq::Agent {
         .into()
 }
 
+/// Looks up one package with `agent`: a GET of its URL, or for an image an anonymous
+/// token and then the digest its tag points to.
+pub fn ask(agent: &ureq::Agent, package: &Package) -> Answer {
+    let fetched = if package.registry.is_images() {
+        image_digest(agent, package)
+    } else {
+        get(agent, &package.url())
+            .and_then(|body| body.map(|b| latest(package.registry, &b)).transpose())
+    };
+    match fetched {
+        Ok(Some(version)) => Answer::Latest(version),
+        Ok(None) => Answer::NotFound,
+        Err(why) => Answer::Failed(why),
+    }
+}
+
+/// Only HTTPS to the registries' hosts and their token hosts.
+fn allowed(url: &str) -> bool {
+    Registry::ALL
+        .iter()
+        .flat_map(|r| [Some(r.host()), r.token_host()])
+        .flatten()
+        .any(|host| url.starts_with(&format!("https://{host}/")))
+}
+
+/// The manifest types a tag may point to: multi-platform indexes first.
+const MANIFESTS: &str = "application/vnd.oci.image.index.v1+json, \
+    application/vnd.docker.distribution.manifest.list.v2+json, \
+    application/vnd.docker.distribution.manifest.v2+json, \
+    application/vnd.oci.image.manifest.v1+json";
+
+/// The digest an image's tag points to now: an anonymous read token (no saved login is
+/// used), then a HEAD of the manifest, which Docker Hub does not count as a pull. `None`
+/// when the registry has no such public image.
+fn image_digest(agent: &ureq::Agent, package: &Package) -> Result<Option<String>, String> {
+    #[derive(Deserialize)]
+    struct Token {
+        token: String,
+    }
+    let token_url = package.token_url().ok_or("not an image registry")?;
+    let Some(body) = get(agent, &token_url)? else {
+        return Ok(None);
+    };
+    let token: Token = serde_json::from_slice(&body).map_err(|_| "unexpected answer")?;
+    let url = package.url();
+    if !allowed(&url) {
+        return Err("not a registry Den checks".into());
+    }
+    let response = agent
+        .head(&url)
+        .header("Authorization", format!("Bearer {}", token.token))
+        .header("Accept", MANIFESTS)
+        .call();
+    match response {
+        Ok(response) if response.status() == 200 => {
+            let digest = response
+                .headers()
+                .get("docker-content-digest")
+                .and_then(|v| v.to_str().ok())
+                .filter(|d| is_digest(d))
+                .ok_or("unexpected answer")?;
+            Ok(Some(digest.to_owned()))
+        }
+        Ok(response) => Err(format!("HTTP {}", response.status().as_u16())),
+        // A private or missing repository looks the same to an anonymous reader.
+        Err(ureq::Error::StatusCode(401 | 403 | 404)) => Ok(None),
+        Err(e) => Err(failure(&e)),
+    }
+}
+
 /// One GET with `agent`. Only the hosts in [`Registry::host`] are asked.
 pub fn get(agent: &ureq::Agent, url: &str) -> Result<Option<Vec<u8>>, String> {
-    let allowed = Registry::ALL
-        .iter()
-        .any(|r| url.starts_with(&format!("https://{}/", r.host())));
-    if !allowed {
+    if !allowed(url) {
         return Err("not a registry Den checks".into());
     }
     match agent.get(url).call() {
@@ -533,6 +708,9 @@ impl State {
     /// The newer version a registry has, when it has one.
     pub fn newer(&self, lookup: &Lookup) -> Option<&str> {
         match &self.answer(&lookup.package)?.answer {
+            Answer::Latest(d) if lookup.package.registry.is_images() => {
+                (*d != lookup.installed).then_some("newer build")
+            }
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => Some(v),
             _ => None,
         }
@@ -551,7 +729,23 @@ impl State {
         };
         let registry = lookup.package.registry.label();
         let when = crate::updates::age(checked.when(), now);
+        let short = |d: &str| {
+            d.trim_start_matches("sha256:")
+                .chars()
+                .take(12)
+                .collect::<String>()
+        };
         let what = match &checked.answer {
+            Answer::Latest(d) if lookup.package.registry.is_images() && *d != lookup.installed => {
+                format!(
+                    "↑ {} now points to a newer build on {registry} ({})",
+                    lookup.package.image().1,
+                    short(d)
+                )
+            }
+            Answer::Latest(_) if lookup.package.registry.is_images() => {
+                format!("Same build as on {registry}")
+            }
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => {
                 format!("↑ {v} available on {registry}")
             }
@@ -749,14 +943,12 @@ mod tests {
     #[test]
     fn a_check_asks_each_package_once_and_keeps_every_answer() {
         let asked = Mutex::new(vec![]);
-        let fetch = |url: &str| {
-            asked.lock().unwrap().push(url.to_owned());
-            match url {
-                "https://registry.npmjs.org/npm/latest" => {
-                    Ok(Some(br#"{"version":"12.2.2"}"#.to_vec()))
-                }
-                "https://pypi.org/pypi/gone/json" => Ok(None),
-                _ => Err("timed out".into()),
+        let fetch = |p: &Package| {
+            asked.lock().unwrap().push(p.key());
+            match p.name() {
+                "npm" => Answer::Latest("12.2.2".into()),
+                "gone" => Answer::NotFound,
+                _ => Answer::Failed("timed out".into()),
             }
         };
         let packages = [
@@ -778,7 +970,7 @@ mod tests {
 
     #[test]
     fn a_stopped_check_keeps_nothing() {
-        let fetch = |_: &str| Ok(None);
+        let fetch = |_: &Package| Answer::NotFound;
         let packages = [package(Registry::Npm, "npm")];
         let err = check(&packages, &fetch, &AtomicBool::new(true)).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::Interrupted);
@@ -798,6 +990,92 @@ mod tests {
         // A look-alike host is not a registry either.
         assert!(get(&agent, "https://pypi.org.example.com/x").is_err());
         assert!(get(&agent, "http://pypi.org/pypi/ruff/json").is_err());
+        assert!(allowed("https://auth.docker.io/token?x"));
+        assert!(!allowed("https://auth.docker.io.example.com/token"));
+    }
+
+    const D1: &str = "sha256:839fbb5a4942aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const D2: &str = "sha256:40865bc877a2bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    #[test]
+    fn only_images_from_docker_hub_and_ghcr_with_a_namespace_are_looked_up() {
+        let key = |r: &str| docker(r, D1).map(|l| l.package.key());
+        assert_eq!(
+            key("grafana/loki:3.5").as_deref(),
+            Some("Docker Hub:grafana/loki:3.5")
+        );
+        assert_eq!(
+            key("ghcr.io/gnzsnz/ib-gateway:stable").as_deref(),
+            Some("ghcr.io:gnzsnz/ib-gateway:stable")
+        );
+        assert_eq!(
+            key("docker.io/postgres:17").as_deref(),
+            Some("Docker Hub:library/postgres:17")
+        );
+        // A single name may be an image built here: its name stays on the machine.
+        assert_eq!(key("postgres:17-bookworm"), None);
+        assert_eq!(key("freya-demo:local"), None);
+        // Other registries are not checked.
+        assert_eq!(key("quay.io/prometheus/node-exporter:v1"), None);
+        assert_eq!(key("localhost:5000/team/app:1"), None);
+        assert_eq!(key("localhost/team/app:1"), None);
+        // Names Docker would not accept never reach a URL.
+        assert_eq!(key("Grafana/loki:3"), None);
+        assert_eq!(key("grafana/loki:-x"), None);
+        assert_eq!(key("grafana/../loki:3"), None);
+        assert_eq!(key("grafana/loki:3?x"), None);
+        assert!(docker("grafana/loki:3", "sha256:short").is_none());
+        assert!(docker("grafana/loki:3", "<none>").is_none());
+    }
+
+    #[test]
+    fn image_urls_are_fixed() {
+        let hub = docker("grafana/loki:3.5", D1).unwrap().package;
+        assert_eq!(
+            hub.url(),
+            "https://registry-1.docker.io/v2/grafana/loki/manifests/3.5"
+        );
+        assert_eq!(
+            hub.token_url().unwrap(),
+            "https://auth.docker.io/token?service=registry.docker.io&scope=repository:grafana/loki:pull"
+        );
+        let ghcr = docker("ghcr.io/astral-sh/uv:latest", D1).unwrap().package;
+        assert_eq!(
+            ghcr.url(),
+            "https://ghcr.io/v2/astral-sh/uv/manifests/latest"
+        );
+        assert_eq!(
+            ghcr.token_url().unwrap(),
+            "https://ghcr.io/token?scope=repository:astral-sh/uv:pull"
+        );
+        assert!(package(Registry::Npm, "npm").token_url().is_none());
+    }
+
+    #[test]
+    fn an_image_is_newer_when_its_tag_points_elsewhere() {
+        let lookup = docker("grafana/loki:3.5", D1).unwrap();
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let mut state = State::default();
+        state.finish(
+            Ok(vec![(lookup.package.clone(), Answer::Latest(D2.into()))]),
+            &[],
+            now,
+        );
+        assert_eq!(state.newer(&lookup), Some("newer build"));
+        assert_eq!(
+            state.panel(&lookup, now),
+            "\n\n↑ 3.5 now points to a newer build on Docker Hub (40865bc877a2) · checked online just now"
+        );
+        state.finish(
+            Ok(vec![(lookup.package.clone(), Answer::Latest(D1.into()))]),
+            &[],
+            now,
+        );
+        assert_eq!(state.newer(&lookup), None);
+        assert_eq!(
+            state.panel(&lookup, now),
+            "\n\nSame build as on Docker Hub · checked online just now"
+        );
     }
 
     #[test]

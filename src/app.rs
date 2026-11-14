@@ -1187,8 +1187,9 @@ impl App {
         }
         self.snapshot_path = Some(path);
     }
-    /// What `u` looks up: Homebrew's formulas and casks from its main taps, and each
-    /// Toolchains row with a registry name and a version.
+    /// What `u` looks up: Homebrew's formulas and casks from its main taps, each
+    /// Toolchains row with a registry name and a version, and images pulled from Docker
+    /// Hub or ghcr.io.
     pub fn online_lookups(&self) -> Vec<crate::online::Lookup> {
         let homebrew = self
             .inventory
@@ -1201,7 +1202,13 @@ impl App {
             .iter()
             .flat_map(|i| i.rust.iter().chain(&i.packages))
             .filter_map(|r| r.online.clone());
-        homebrew.chain(toolchains).collect()
+        let docker = self
+            .docker
+            .inventory
+            .iter()
+            .flat_map(|i| &i.images)
+            .filter_map(|r| r.online.clone());
+        homebrew.chain(toolchains).chain(docker).collect()
     }
     /// A Homebrew package's newer version: from the last online check when it found the
     /// newest version, otherwise from Homebrew's own data (as of its last update).
@@ -1234,8 +1241,8 @@ impl App {
             if self.toolchains.inventory.is_none() {
                 "Nothing to check online yet: open Toolchains first"
             } else {
-                "Nothing to check online: no Homebrew packages, crates.io crates or npm, bun, uv \
-                 or pipx packages"
+                "Nothing to check online: no Homebrew packages, crates.io crates, npm, bun, uv \
+                 or pipx packages or Docker images"
             }
         };
         self.actions.notice = Some(notice.into());

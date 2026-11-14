@@ -378,7 +378,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
 import os, pathlib, sys
 allowed = {
     ('container', 'ls', '--all', '--no-trunc', '--format', '{{json .}}'): 'containers',
-    ('image', 'ls', '--no-trunc', '--format', '{{json .}}'): 'images',
+    ('image', 'ls', '--digests', '--no-trunc', '--format', '{{json .}}'): 'images',
     ('volume', 'ls', '--format', '{{json .}}'): 'volumes',
     ('system', 'df', '--format', '{{json .}}'): 'disk',
 }
@@ -403,7 +403,7 @@ print(pathlib.Path('fixtures/docker', allowed[args] + '.jsonl').read_text())
         log = (Path(docker_dir) / "docker-calls").read_text().splitlines()
         assert sorted(log) == sorted([
             "container ls --all --no-trunc --format {{json .}}",
-            "image ls --no-trunc --format {{json .}}",
+            "image ls --digests --no-trunc --format {{json .}}",
             "volume ls --format {{json .}}",
             "system df --format {{json .}}",
         ]), log
@@ -423,7 +423,7 @@ import os, pathlib, sys
 here = pathlib.Path(__file__).parent
 allowed = {
     ('container', 'ls', '--all', '--no-trunc', '--format', '{{json .}}'): 'containers',
-    ('image', 'ls', '--no-trunc', '--format', '{{json .}}'): 'images',
+    ('image', 'ls', '--digests', '--no-trunc', '--format', '{{json .}}'): 'images',
     ('volume', 'ls', '--format', '{{json .}}'): 'volumes',
     ('system', 'df', '--format', '{{json .}}'): 'disk',
 }

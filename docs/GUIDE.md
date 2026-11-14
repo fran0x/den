@@ -137,6 +137,12 @@ shows disk use and how much `docker system df` says you could reclaim.
 The lists refresh every 5 seconds while Docker is open; `r` refreshes now. If Docker is not
 running, the status line says so and the last results stay.
 
+`u` checks whether an image's tag now points to a newer build on Docker Hub or ghcr.io,
+marked **↑ newer build** (see [Newer versions online](#newer-versions-online)). Only images
+with a namespace or registry in their name are checked, such as `grafana/loki` or
+`ghcr.io/astral-sh/uv`: a single name such as `postgres` could just as well be an image you
+built, so it is not sent.
+
 ## Toolchains
 
 - **PATH:** for about twenty common commands (`node`, `python3`, `go`, `java`, `cargo`,
@@ -157,12 +163,16 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 ## Newer versions online
 
 Press `u` to ask the registries for the newest version of your Homebrew formulas and casks,
-your `cargo install` crates and your global npm, bun, uv and pipx packages. Den asks first, on the status line, saying how
+your `cargo install` crates and your global npm, bun, uv and pipx packages, and whether
+your Docker images' tags point to a newer build. Den asks first, on the status line, saying how
 many names it will send and to which sites; `Enter` checks and any other key cancels.
 
 - **Where it looks:** Homebrew formulas and casks at formulae.brew.sh; crates.io crates at
   index.crates.io; npm and bun packages at registry.npmjs.org; uv tools and pipx packages
-  at pypi.org. Nothing else is contacted.
+  at pypi.org; images at Docker Hub (registry-1.docker.io, with a read-only token from
+  auth.docker.io) and ghcr.io. Nothing else is contacted. Image registries are asked
+  without a login: Docker's saved logins are never used, so private images show as not
+  found.
 - **What it sends:** only package names. Your installed versions stay on this machine: Den
   compares them itself. The registries do learn which packages you use.
 - **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
@@ -178,8 +188,8 @@ many names it will send and to which sites; `Enter` checks and any other key can
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
 - **Live data only:** demo, `--inventory` and fixture modes never go online.
 
-Not checked yet: Homebrew packages from other taps, crates from git, a folder or another
-registry; Rust toolchains, uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
+Not checked yet: Homebrew packages from other taps; images with a single name, from other
+registries or untagged; crates from git, a folder or another registry; Rust toolchains, uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
 (`~/.local/state/den/online.json`), private like the snapshot. A file Den can't use is
 reported and left alone; deleting it forgets the answers.
 
@@ -290,8 +300,8 @@ In `den` there are no actions at all: `x` does nothing.
 `S` and `Enter` (see [Snapshots](#snapshots)), and the online answers, after `u` and
 `Enter` (see [Newer versions online](#newer-versions-online)). Online checks are the only
 time Den contacts a website itself. The only commands `den` runs are `brew info`,
-`missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`, `image ls`,
-`volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
+`missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`,
+`image ls --digests`, `volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
 metadata when asked). Everything else comes from files. By area:
 
 - **Agents:** URLs, command arguments, environment values and credential helpers are
