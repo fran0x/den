@@ -5,22 +5,24 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
-- **Newer versions online:** `u` checks the registries for the newest version of your
-  Homebrew formulas and casks (formulae.brew.sh), `cargo install` crates (index.crates.io)
-  and global npm, bun (registry.npmjs.org), uv and pipx (pypi.org) packages, and marks the
-  newer ones `↑` with when they were checked. For Homebrew the answer replaces Homebrew's
-  own data, which is only as current as the last `brew update`, in the Homebrew list, the
-  Agents status line and Toolchains. Docker images named with a namespace or registry
-  (`grafana/loki`, `ghcr.io/…`) show **↑ newer build** when their tag points to a new
-  build on Docker Hub or ghcr.io; Den asks without a login, and single names such as
-  `postgres` (which may be local builds) are never sent. The image listing now runs with
-  `--digests` for this. Rust's `stable` and line toolchains (`1.98`) and the `node`,
-  `python3`, `ruby` and `go` on PATH are compared with their release lines at
-  endoflife.date: the newest patch, and **End of life** when their line is no longer
-  supported. Den
-  asks first, sends only package names over HTTPS to those hosts, and keeps the answers in
-  `~/.local/state/den/online.json` for the next run. `Esc` stops a check. This is the first
-  time Den contacts a website itself, and only after `u` and `Enter`.
+## [0.6.0] - 2026-11-14
+
+- **Newer versions online:** `u` checks for newer versions and marks them `↑` with when
+  they were checked. Den asks first, sends only names over HTTPS to fixed hosts, and keeps
+  the answers in `~/.local/state/den/online.json` for the next run. `Esc` stops a check.
+  This is the first time Den contacts a website itself, and only after `u` and `Enter`.
+  - **Homebrew** formulas and casks (formulae.brew.sh). The answer replaces Homebrew's own
+    data, which is only as current as the last `brew update`, in the Homebrew list, the
+    Agents status line and Toolchains.
+  - **Packages:** `cargo install` crates (index.crates.io), global npm and bun packages
+    (registry.npmjs.org), and uv and pipx packages (pypi.org).
+  - **Docker images** named with a namespace or registry (`grafana/loki`, `ghcr.io/…`)
+    show **↑ newer build** when their tag points to a new build on Docker Hub or ghcr.io. Den
+    asks without a login, and single names such as `postgres`, which may be local builds,
+    are never sent. The image listing now runs with `--digests` for this.
+  - **Release lines** (endoflife.date): Rust's `stable` and line toolchains (`1.98`) and
+    the `node`, `python3`, `ruby` and `go` on PATH get the newest patch of their line, and
+    **End of life** when the line is no longer supported.
 - **Notices** now clear the whole status line instead of leaving the end of the old one.
 
 ## [0.5.0] - 2026-11-14
@@ -119,7 +121,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/fran0x/den/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/fran0x/den/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/fran0x/den/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/fran0x/den/compare/v0.3.0...v0.3.1

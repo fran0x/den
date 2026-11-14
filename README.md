@@ -50,13 +50,11 @@ shows what changed since.
 
 ![den listing what changed in Homebrew since a snapshot three days ago](docs/images/changes.svg)
 
-**Newer versions online:** `u` asks the registries (Homebrew, crates.io, npm, PyPI, Docker
-Hub and ghcr.io) for the newest version of your Homebrew formulas and casks, `cargo install`
-crates and global npm, bun, uv and pipx packages, whether your Docker images' tags point
-to a newer build, and how your Rust toolchains and `node`, `python3`, `ruby` and `go`
-compare with their release lines (endoflife.date). Newer ones are marked `↑`, and a line
-whose support has ended **End of life**. Den asks before it sends anything, sends only names, and keeps the
-answers with the time of the check.
+**Newer versions online:** `u` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io and
+endoflife.date what is newer than what you have: packages, builds of your Docker images,
+Rust toolchains and the runtimes on PATH. Newer ones are marked `↑`, and a release line
+whose support has ended **End of life**. Den asks before it sends anything, sends only
+names, and keeps the answers with the time of the check.
 
 **Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `d` changes · `S` snapshot ·
 `u` check online · `?` help · `q` quit.

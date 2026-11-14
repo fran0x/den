@@ -156,7 +156,8 @@ built, so it is not sent.
 
 Den reads all of this from files and runs none of these tools. Commands that Homebrew
 installed show its newer version, like `↑ 22.12.0`, from Homebrew's data or the last
-online check. Crates and packages show theirs after an online check with `u` (see [Newer versions online](#newer-versions-online)).
+online check. Crates, packages, Rust toolchains and runtimes show theirs after an online
+check with `u` (see [Newer versions online](#newer-versions-online)).
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
@@ -165,8 +166,9 @@ It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 Press `u` to ask the registries for the newest version of your Homebrew formulas and casks,
 your `cargo install` crates and your global npm, bun, uv and pipx packages, whether your
 Docker images' tags point to a newer build, and how your Rust toolchains and the `node`,
-`python3`, `ruby` and `go` on PATH compare with their release lines. Den asks first, on the status line, saying how
-many names it will send and to which sites; `Enter` checks and any other key cancels.
+`python3`, `ruby` and `go` on PATH compare with their release lines. Den asks first, on
+the status line, saying how many names it will send and to which sites; `Enter` checks
+and any other key cancels.
 
 - **Where it looks:** Homebrew formulas and casks at formulae.brew.sh; crates.io crates at
   index.crates.io; npm and bun packages at registry.npmjs.org; uv tools and pipx packages
@@ -178,8 +180,9 @@ many names it will send and to which sites; `Enter` checks and any other key can
   compares them itself. The registries do learn which packages you use.
 - **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
   the online answer is newer than Homebrew's own data, so it takes its place; Codex and
-  Claude Code installed with Homebrew show it on the Agents status line too. The panel says where it came from and when, for example **↑ 15.2.0 available on
-  crates.io · checked online 3 min ago**, or that it is up to date, not found (such as a
+  Claude Code installed with Homebrew show it on the Agents status line too. The panel
+  says where it came from and when, for example **↑ 15.2.0 available on crates.io ·
+  checked online 3 min ago**, or that it is up to date, not found (such as a
   package installed from a folder) or that the check failed. The status line counts them:
   **2 newer online, checked 3 min ago**.
 - **Kept for later:** the answers are saved with the time of the check, so the next run
@@ -201,8 +204,10 @@ installed the command, the newer version still comes from Homebrew, because
 Not checked yet: Homebrew packages from other taps; images with a single name, from other
 registries or untagged; crates from git, a folder or another registry; exact, beta and
 nightly Rust toolchains (pinned on purpose, or moving daily); `java`, whose vendor Den
-can't tell; uv Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
-(`~/.local/state/den/online.json`), private like the snapshot. A file Den can't use is
+can't tell; uv Pythons and go programs.
+
+The answers file is `$XDG_STATE_HOME/den/online.json` (`~/.local/state/den/online.json`),
+private like the snapshot. A file Den can't use is
 reported and left alone; deleting it forgets the answers.
 
 ## What changed
@@ -313,8 +318,8 @@ In `den` there are no actions at all: `x` does nothing.
 `Enter` (see [Newer versions online](#newer-versions-online)). Online checks are the only
 time Den contacts a website itself. The only commands `den` runs are `brew info`,
 `missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`,
-`image ls --digests`, `volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
-metadata when asked). Everything else comes from files. By area:
+`image ls --digests`, `volume ls` and `system df`, each bounded in time and output
+(Homebrew may refresh its own metadata when asked). Everything else comes from files. By area:
 
 - **Agents:** URLs, command arguments, environment values and credential helpers are
   withheld; only their names are shown. No MCP server, hook or helper is ever started.
