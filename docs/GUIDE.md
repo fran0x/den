@@ -188,7 +188,7 @@ cancels. The file is `$XDG_STATE_HOME/den/snapshot.json`
   (0600). It is written to a temporary file and then renamed, so it is never half
   written, and never written through a link.
 - **Live data only:** Den uses it only when it reads this machine. `--demo`,
-  `--snapshot <file>` (which loads a saved inventory instead) and the fixture options
+  `--inventory <file>` (which loads a saved inventory instead) and the fixture options
   neither read nor save it.
 
 When Den can't use the file (it is not a Den snapshot, it was saved by a newer Den, it is

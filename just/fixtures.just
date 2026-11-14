@@ -11,9 +11,9 @@ default:
 demo:
     cargo run -- --demo
 
-# Load a Den JSON snapshot, without live collection.
-snapshot path="fixtures/demo.json":
-    cargo run -- --snapshot "$1"
+# Load a saved Den JSON inventory, without live collection.
+inventory path="fixtures/demo.json":
+    cargo run -- --inventory "$1"
 
 # Load raw Homebrew JSON, without invoking Homebrew.
 brew path="fixtures/brew.json":

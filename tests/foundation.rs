@@ -135,7 +135,7 @@ fn empty_inventory_renders_and_navigates() {
             schema_version: 1,
             resources: vec![],
         },
-        "snapshot (unverified)",
+        "inventory (unverified)",
     );
     key(&mut app, KeyCode::End);
     key(&mut app, KeyCode::Right);
@@ -247,7 +247,7 @@ fn fixture_round_trips_and_local_snapshot_matches_embedded_demo() {
         inventory
     );
     assert_eq!(
-        source::load_snapshot(std::path::Path::new("fixtures/demo.json")).unwrap(),
+        source::load_inventory(std::path::Path::new("fixtures/demo.json")).unwrap(),
         inventory
     );
 }
@@ -281,6 +281,6 @@ fn snapshot_limits_are_enforced() {
     let mut inventory = source::demo().unwrap();
     inventory.resources[0].description = "a".repeat(8193);
     assert!(source::read_snapshot(Cursor::new(serde_json::to_vec(&inventory).unwrap())).is_err());
-    assert!(source::load_snapshot(std::path::Path::new("fixtures")).is_err());
-    assert!(source::load_snapshot(std::path::Path::new("fixtures/does-not-exist.json")).is_err());
+    assert!(source::load_inventory(std::path::Path::new("fixtures")).is_err());
+    assert!(source::load_inventory(std::path::Path::new("fixtures/does-not-exist.json")).is_err());
 }

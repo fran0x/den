@@ -39,7 +39,7 @@ every section and scrolls with PgUp/PgDn. Only Homebrew Diagnostics uses `[` / `
 - `cargo run -- --demo`: launch the embedded synthetic inventory, offline.
 - `cargo run -- --skills`: start in Codex Skills; defer Homebrew until opened.
 - `cargo run -- --project /path/to/repo --skills`: select the live Codex project context.
-- `cargo run -- --snapshot fixtures/demo.json`: load a local snapshot.
+- `cargo run -- --inventory fixtures/demo.json`: load a saved inventory.
 - `cargo run -- --brew-snapshot fixtures/brew-dependencies.json`: explore synthetic dependencies.
 - `cargo run -- --codex-fixture fixtures/codex`: inspect isolated synthetic Codex data.
 - `cargo run -- --help`: print CLI help without entering the TUI or collecting data.

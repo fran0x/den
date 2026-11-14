@@ -16,6 +16,8 @@ All notable changes to Den are recorded here. Versions follow
   `den` writes.
 - **Docker:** containers and images are now identified by name and tag rather than ID,
   so a recreated container counts as the same one.
+- **`--inventory <file>` replaces `--snapshot <file>`** for loading a saved Den
+  inventory, so it isn't confused with `S`. `--snapshot` is no longer accepted.
 
 ## [0.4.0] - 2026-11-14
 

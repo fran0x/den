@@ -72,7 +72,7 @@ struct Cli {
         value_name = "NAME",
         value_parser = profile,
         conflicts_with_all = [
-            "demo", "snapshot", "brew_snapshot", "skills_fixture", "claude_fixture",
+            "demo", "inventory", "brew_snapshot", "skills_fixture", "claude_fixture",
             "aws_fixture", "kube_fixture", "docker_fixture", "toolchains_fixture",
         ],
     )]
@@ -95,7 +95,7 @@ struct Source {
     demo: bool,
     /// A Den JSON inventory (schema_version 1)
     #[arg(long, value_name = "FILE", help_heading = "Offline sources")]
-    snapshot: Option<PathBuf>,
+    inventory: Option<PathBuf>,
     /// Raw Homebrew JSON, without running Homebrew
     #[arg(long, value_name = "FILE", help_heading = "Offline sources")]
     brew_snapshot: Option<PathBuf>,
@@ -127,7 +127,7 @@ struct Source {
 enum Mode {
     Live,
     Demo,
-    Snapshot(PathBuf),
+    Inventory(PathBuf),
     BrewSnapshot(PathBuf),
     Skills(PathBuf),
     Codex(PathBuf),
@@ -143,7 +143,7 @@ impl Source {
     fn mode(self) -> Mode {
         let Self {
             demo,
-            snapshot,
+            inventory,
             brew_snapshot,
             skills_fixture,
             codex_fixture,
@@ -156,8 +156,8 @@ impl Source {
         if demo {
             return Mode::Demo;
         }
-        snapshot
-            .map(Mode::Snapshot)
+        inventory
+            .map(Mode::Inventory)
             .or(brew_snapshot.map(Mode::BrewSnapshot))
             .or(skills_fixture.map(Mode::Skills))
             .or(codex_fixture.map(Mode::Codex))
@@ -270,8 +270,8 @@ fn app(program: Program, cli: Cli) -> io::Result<App> {
             (app, None)
         }
         Mode::Demo => (App::new(source::demo()?, "synthetic demo"), None),
-        Mode::Snapshot(path) => (
-            App::new(source::load_snapshot(&path)?, "snapshot (unverified)"),
+        Mode::Inventory(path) => (
+            App::new(source::load_inventory(&path)?, "inventory (unverified)"),
             None,
         ),
         Mode::BrewSnapshot(path) => (
@@ -405,7 +405,7 @@ mod tests {
     fn dew_allows_writes_on_this_machine_only() {
         assert!(dew(&[]).is_ok());
         assert!(dew(&["--project", "p", "--skills"]).is_ok());
-        let offline = dew(&["--snapshot", "s.json"]).map(|_| ()).unwrap_err();
+        let offline = dew(&["--inventory", "s.json"]).map(|_| ()).unwrap_err();
         assert_eq!(offline.kind(), ErrorKind::ArgumentConflict);
         assert!(offline.to_string().contains("use den"), "{offline}");
         assert_eq!(
@@ -420,10 +420,17 @@ mod tests {
             help.contains("dew is den with write actions allowed"),
             "{help}"
         );
-        assert!(!help.contains("--snapshot"), "{help}");
+        assert!(!help.contains("--inventory"), "{help}");
         let help = den(&["--help"]).map(|_| ()).unwrap_err().to_string();
         assert!(help.contains("run dew instead"), "{help}");
-        assert!(help.contains("--snapshot"), "{help}");
+        assert!(help.contains("--inventory"), "{help}");
+        assert_eq!(
+            den(&["--snapshot", "s.json"])
+                .map(|_| ())
+                .unwrap_err()
+                .kind(),
+            ErrorKind::UnknownArgument
+        );
     }
 
     #[test]

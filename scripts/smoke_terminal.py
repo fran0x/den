@@ -161,9 +161,9 @@ def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None, 
 binary = sys.argv[1] if len(sys.argv) > 1 else "target/release/den"
 run_pty([binary, "--demo"], b"j\t\x1b[B\t/rust\r??q", resize=True)
 print("PASS: demo navigation, search, help, resize and q restore terminal")
-run_pty([binary, "--snapshot", "fixtures/demo.json"], b"/rust\x03")
+run_pty([binary, "--inventory", "fixtures/demo.json"], b"/rust\x03")
 print("PASS: snapshot and Ctrl-C during search restore terminal")
-run_pty([binary, "--snapshot", "Cargo.toml"], expected=1)
+run_pty([binary, "--inventory", "Cargo.toml"], expected=1)
 print("PASS: invalid snapshot fails before terminal setup")
 
 with tempfile.TemporaryDirectory(prefix="den-smoke-") as temporary:
