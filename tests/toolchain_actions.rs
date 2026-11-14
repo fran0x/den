@@ -6,8 +6,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
     actions::{Dialog, Permit, Request, State},
     app::App,
-    areas::{homebrew::CommandOutput, toolchains},
-    inventory::Inventory,
+    areas::{
+        homebrew::{self, CommandOutput},
+        toolchains,
+    },
+    inventory::{HomebrewMetadata, Inventory},
     tui::{presentation::Destination, ui},
 };
 use ratatui::{Terminal, backend::TestBackend};
@@ -279,4 +282,81 @@ fn npm_actions_show_npms_own_dry_run() {
             fixture_path("opt/homebrew/bin/npm").display()
         )
     );
+}
+
+/// The fixture's Homebrew data, with ripgrep standing in for the node Homebrew installed
+/// on the fixture's PATH, and a newer version known.
+fn app_with_homebrew_node() -> App {
+    let mut inventory = homebrew::load_snapshot(Path::new("fixtures/brew.json")).unwrap();
+    let resource = inventory
+        .resources
+        .iter_mut()
+        .find(|r| r.name == "ripgrep")
+        .unwrap();
+    resource.name = "node".into();
+    if let Some(HomebrewMetadata::Formula {
+        full_name, latest, ..
+    }) = &mut resource.homebrew
+    {
+        *full_name = Some("node".into());
+        *latest = Some("23.0.0".into());
+    }
+    let mut a = App::new(inventory, "Homebrew");
+    let context = toolchains::Context::fixture(Path::new(FIXTURE)).unwrap();
+    a.toolchains.configure(context.clone());
+    a.toolchains
+        .finish(toolchains::discover(&context, &AtomicBool::new(false)));
+    a.toolchains.requested = false;
+    a.actions = State::new(Permit::granted(true));
+    a.navigate(Destination::OnPath);
+    a
+}
+
+#[test]
+fn a_command_homebrew_installed_gets_its_homebrew_actions() {
+    let mut a = app_with_homebrew_node();
+    assert_eq!(
+        menu(&mut a, "command:node")
+            .into_iter()
+            .map(|(line, _)| line)
+            .collect::<Vec<_>>(),
+        [
+            "brew upgrade --formula node",
+            "brew update",
+            "brew autoremove",
+            "brew cleanup",
+            "brew uninstall --formula node",
+        ]
+    );
+    // x starts Homebrew's dry run for the upgrade, as in Homebrew.
+    a.toolchains.select_key("command:node");
+    key(&mut a, KeyCode::Char('x'));
+    let Some(Request::Preview(action)) = a.actions.request.take() else {
+        panic!("{:?}", a.actions.request);
+    };
+    assert_eq!(
+        action.preview_line().as_deref(),
+        Some("brew upgrade --dry-run --formula node")
+    );
+    // Afterwards Homebrew and Toolchains are read again.
+    a.actions.request = Some(Request::Run(action.clone()));
+    a.actions.dialog = Some(Dialog::Running {
+        action,
+        started: std::time::Instant::now(),
+        stopping: false,
+    });
+    let log = std::env::temp_dir().join(format!("den-path-homebrew-{}", std::process::id()));
+    a.finish_action(
+        Ok(CommandOutput {
+            code: Some(0),
+            stdout: vec![],
+            stderr: vec![],
+        }),
+        Some(&log.join("actions.log")),
+    );
+    assert!(a.toolchains.requested, "PATH is read again");
+    let _ = std::fs::remove_dir_all(&log);
+    // A command Homebrew did not install has no actions.
+    a.actions.close();
+    assert!(menu(&mut a, "command:cargo").is_empty());
 }

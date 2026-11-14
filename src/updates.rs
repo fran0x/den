@@ -30,6 +30,11 @@ pub fn is_newer(installed: &str, candidate: &str) -> bool {
 
 /// The installed Homebrew formula or cask with this name.
 pub fn homebrew<'a>(inventory: &'a Inventory, name: &str, cask: bool) -> Option<&'a Resource> {
+    homebrew_index(inventory, name, cask).map(|i| &inventory.resources[i])
+}
+
+/// Where that package is in the inventory (its node in the dependency graph).
+pub fn homebrew_index(inventory: &Inventory, name: &str, cask: bool) -> Option<usize> {
     let kind = if cask {
         ResourceKind::Cask
     } else {
@@ -38,7 +43,7 @@ pub fn homebrew<'a>(inventory: &'a Inventory, name: &str, cask: bool) -> Option<
     inventory
         .resources
         .iter()
-        .find(|r| r.kind == kind && r.name == name)
+        .position(|r| r.kind == kind && r.name == name)
 }
 
 /// The newer version Homebrew reports for an installed package, if any.

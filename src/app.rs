@@ -582,14 +582,21 @@ impl App {
     /// only), Homebrew-wide maintenance, and its uninstall last, so opening the dialog and
     /// pressing Enter never removes a package. Also the package's name, for the title.
     pub fn action_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
+        let node = (self.destination() == crate::tui::presentation::Destination::Homebrew)
+            .then(|| self.selected_node())
+            .flatten();
+        self.homebrew_menu(node)
+    }
+
+    /// The Homebrew actions for the package at this inventory index (none: only
+    /// Homebrew-wide maintenance), shared by Homebrew and Toolchains › PATH.
+    fn homebrew_menu(&self, node: Option<usize>) -> (Option<String>, Vec<crate::actions::Item>) {
         use crate::actions::{Action, Item, Package};
         use crate::inventory::HomebrewMetadata;
         let mut title = None;
         let mut items = vec![];
         let mut uninstall = None;
-        let package = (self.destination() == crate::tui::presentation::Destination::Homebrew)
-            .then(|| self.selected_node().zip(self.resource()))
-            .flatten();
+        let package = node.and_then(|i| self.inventory.resources.get(i).map(|r| (i, r)));
         if let Some((index, resource)) = package
             && let Some(meta) = &resource.homebrew
         {
@@ -741,12 +748,19 @@ impl App {
 
     /// Toolchains: update or uninstall a Rust toolchain; upgrade or uninstall a crate or a
     /// global npm, uv tool or pipx package. Each tool runs as the copy that wins on PATH.
+    /// A command Homebrew installed gets that package's Homebrew actions.
     pub fn toolchains_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
         use crate::actions::{Action, Item, Name, Program};
         use crate::areas::toolchains::{Manage, Manager, split_host};
         let Some(row) = self.toolchains.selected_row() else {
             return (None, vec![]);
         };
+        if let Some(package) = &row.homebrew {
+            let node = crate::updates::homebrew_index(&self.inventory, &package.name, package.cask);
+            if node.is_some() {
+                return self.homebrew_menu(node);
+            }
+        }
         let program = |name: &'static str| -> (Program, Option<String>) {
             self.toolchains
                 .inventory
@@ -907,13 +921,16 @@ impl App {
             Some(Area::Toolchains) => {
                 self.toolchains.requested = self.toolchains.context.is_some();
             }
-            Some(Area::Homebrew)
-                if self.live
-                    && !matches!(self.collection_status, CollectionStatus::Loading { .. }) =>
-            {
-                self.refresh_requested = true;
+            Some(Area::Homebrew) => {
+                if self.live && !matches!(self.collection_status, CollectionStatus::Loading { .. })
+                {
+                    self.refresh_requested = true;
+                }
+                // Commands on PATH may come from what changed.
+                self.toolchains.requested =
+                    self.toolchains.context.is_some() && self.toolchains.inventory.is_some();
             }
-            _ => {}
+            None => {}
         }
     }
 

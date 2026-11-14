@@ -153,6 +153,7 @@ an update), `rustup toolchain uninstall` (never the default or an overridden too
 `npm update -g` / `npm uninstall -g` (dry run: the same with `--dry-run`; never npm or
 corepack, which come with Node), `uv tool upgrade` / `uninstall` and `pipx upgrade` /
 `uninstall`, on names checked by `Name`. No actions for uv Pythons, bun or go programs.
+A PATH command Homebrew installed reuses that package's Homebrew menu (`homebrew_menu`).
 Never `--force`, `rustup self`, `cargo install --force` or a command without a name.
 
 Sanitize every untrusted string before terminal display. Preserve descriptor-relative,

@@ -171,6 +171,10 @@ In Toolchains › Rust, `x` on a toolchain offers `rustup update` (its dry run i
 on PATH, by its full path, shown in the command. Upgrading a crate builds it, which runs
 its build scripts, as it would by hand.
 
+In Toolchains › PATH, `x` on a command Homebrew installed (such as `node` or `python3`
+from Homebrew) offers the same actions as that package in Homebrew, with Homebrew's dry
+run. Afterwards both Homebrew and Toolchains are read again.
+
 In Toolchains › Packages, `x` on a global npm package, uv tool or pipx package offers
 upgrading and uninstalling it with that manager, again the copy that wins on PATH. npm's
 actions show npm's own dry run first; uv and pipx have none, so the dialog says what will

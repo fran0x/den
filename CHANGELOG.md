@@ -14,6 +14,9 @@ All notable changes to Den are recorded here. Versions follow
 - **Package clean-up in `dew`:** in Toolchains › Packages, `x` upgrades or uninstalls a
   global npm package (after npm's own `--dry-run`), a uv tool or a pipx package, with the
   manager that wins on PATH. npm and corepack are left to Node's own upgrade.
+- **PATH and Homebrew:** in Toolchains › PATH, `x` on a command Homebrew installed offers
+  that package's Homebrew actions, with Homebrew's dry run; both areas are read again
+  afterwards.
 
 ## [0.3.1] - 2026-11-14
 
