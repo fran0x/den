@@ -12,6 +12,7 @@ Keep changes within the requested scope.
 | `src/main.rs` | CLI arguments and choosing live or offline sources |
 | `src/app.rs`, `src/listing.rs`, `src/status.rs` | Application state; shared list state (selection, search, refresh); the typed row status (Ready, Problem, Off, Installed) |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
+| `src/snapshot.rs` | What changed: rows reduced to entries (section, key, name, one list value; never panel text) and their diff |
 | `src/tui/` | Terminal lifecycle and event loop (`terminal`), split escape sequences (`keys`), section/inspector navigation and Back history (`presentation`), rendering and help (`ui/`) |
 | `src/areas/homebrew/` | Homebrew normalization, bounded subprocesses, dependency graph, tree projection, diagnostics and reconciliation tests |
 | `src/areas/agents/` | Rows matched across Codex and Claude Code (`agents.rs`); `claude/`, `codex/`, `skills/` collectors |
