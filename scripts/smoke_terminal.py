@@ -63,6 +63,19 @@ def visible_text(output):
     return "\n".join("".join(cells.get((row, col), " ") for col in range(200)) for row in range(80))
 
 
+# Where Toolchains looks for package managers: CI machines set some of these (pipx, go), so
+# toolchain steps drop them all and set only what the step needs.
+MANAGER_VARS = ("CARGO_HOME", "RUSTUP_HOME", "NPM_CONFIG_PREFIX", "UV_TOOL_DIR",
+                "UV_PYTHON_INSTALL_DIR", "PIPX_HOME", "BUN_INSTALL", "GOBIN", "GOPATH",
+                "XDG_DATA_HOME", "JAVA_HOME")
+
+
+def toolchain_env(**values):
+    env = {k: v for k, v in os.environ.items() if k not in MANAGER_VARS}
+    env.update(values)
+    return env
+
+
 def run_pty(command, keys=None, resize=False, expected=0, env=None, steps=None, size=(100, 30)):
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", size[1], size[0], 0, 0))
@@ -471,9 +484,9 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
 """)
         fake_cargo.chmod(0o700)
         state = Path(tool_dir) / "state"
-        tool_env = dict(os.environ, PATH=str(bin_dir), HOME=str(home),
-                        CARGO_HOME=str(home / ".cargo"), RUSTUP_HOME=str(home / ".rustup"),
-                        XDG_STATE_HOME=str(state))
+        tool_env = toolchain_env(PATH=str(bin_dir), HOME=str(home),
+                                 CARGO_HOME=str(home / ".cargo"), RUSTUP_HOME=str(home / ".rustup"),
+                                 XDG_STATE_HOME=str(state))
         run_pty([str(Path(binary).with_name("dew"))], env=tool_env, steps=[
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z"),
@@ -515,8 +528,8 @@ print('changed 1 package')
 """)
         fake_npm.chmod(0o700)
         state = Path(npm_dir) / "state"
-        npm_env = dict(os.environ, PATH=str(bin_dir), HOME=str(Path(npm_dir) / "home"),
-                       NPM_CONFIG_PREFIX=str(prefix), XDG_STATE_HOME=str(state))
+        npm_env = toolchain_env(PATH=str(bin_dir), HOME=str(Path(npm_dir) / "home"),
+                                NPM_CONFIG_PREFIX=str(prefix), XDG_STATE_HOME=str(state))
         run_pty([str(Path(binary).with_name("dew"))], env=npm_env, steps=[
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z\x1b[Z"),
