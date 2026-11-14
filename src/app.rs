@@ -108,6 +108,8 @@ pub struct App {
     pub snapshot_path: Option<std::path::PathBuf>,
     /// `S` asked to save; Enter saves, anything else cancels.
     pub save_prompt: bool,
+    /// `u`: newer versions from the registries, and the check asked for or running.
+    pub online: crate::online::State,
 }
 
 impl App {
@@ -159,6 +161,7 @@ impl App {
             homebrew_changes: crate::snapshot::Tracking::default(),
             snapshot_path: None,
             save_prompt: false,
+            online: crate::online::State::default(),
         };
         app.refresh();
         app
@@ -439,10 +442,29 @@ impl App {
             }
             return;
         }
+        if !self.online.asking.is_empty() {
+            let asked = std::mem::take(&mut self.online.asking);
+            if key.code == KeyCode::Enter {
+                self.online.running = Some(asked.len());
+                self.online.request = Some(asked);
+            } else {
+                self.actions.notice = Some("Nothing was checked online".into());
+            }
+            return;
+        }
+        if self.online.running.is_some() && key.code == KeyCode::Esc {
+            self.online.stop = true;
+            self.actions.notice = Some("Stopping the online check…".into());
+            return;
+        }
         if !self.active_searching() && !self.presentation.menu_searching {
             match key.code {
                 KeyCode::Char('S') => {
                     self.ask_save();
+                    return;
+                }
+                KeyCode::Char('u') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.ask_online();
                     return;
                 }
                 // In den there are no actions at all, not even commands to copy.
@@ -1164,6 +1186,56 @@ impl App {
             }
         }
         self.snapshot_path = Some(path);
+    }
+    /// What `u` looks up: each Toolchains row with a registry name and a version.
+    pub fn online_lookups(&self) -> Vec<crate::online::Lookup> {
+        self.toolchains
+            .inventory
+            .as_ref()
+            .map(|i| {
+                i.rust
+                    .iter()
+                    .chain(&i.packages)
+                    .filter_map(|r| r.online.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+    /// `u`: asks before looking anything up online.
+    fn ask_online(&mut self) {
+        let notice = if self.online.path.is_none() {
+            "Online checks use live data only, not demo or fixture modes"
+        } else if self.online.running.is_some() {
+            "Already checking online · Esc stops"
+        } else {
+            let mut packages: Vec<_> = self
+                .online_lookups()
+                .into_iter()
+                .map(|l| l.package)
+                .collect();
+            packages.sort();
+            packages.dedup();
+            if !packages.is_empty() {
+                self.online.asking = packages;
+                return;
+            }
+            if self.toolchains.inventory.is_none() {
+                "Nothing to check online yet: open Toolchains first"
+            } else {
+                "Nothing to check online: no crates.io crates or npm, bun, uv or pipx packages"
+            }
+        };
+        self.actions.notice = Some(notice.into());
+    }
+    /// A finished online check: keeps and saves its answers, and says what it found.
+    pub fn finish_online(
+        &mut self,
+        result: std::io::Result<Vec<(crate::online::Package, crate::online::Answer)>>,
+        now: std::time::SystemTime,
+    ) {
+        let lookups = self.online_lookups();
+        let notice = self.online.finish(result, &lookups, now);
+        self.actions.notice = Some(notice);
     }
     /// `S`: asks before saving what each area has read.
     fn ask_save(&mut self) {

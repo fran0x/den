@@ -140,6 +140,7 @@ Esc        go back\n\
 r          refresh\n\
 d          only what changed: since the saved snapshot, then since Den started, then every row\n\
 S          save a snapshot of what Den has read, to compare with later (asks first)\n\
+u          check online for newer versions of crates and npm, bun, uv and pipx packages (asks first; Esc stops)\n\
 q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
 What changed: + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory, and with the snapshot S saved, if any. S is the only thing den writes: Den's own file, $XDG_STATE_HOME/den/snapshot.json (~/.local/state/den/snapshot.json), private to you, holding only what the lists show. Running or stopped containers and newer Homebrew versions are not changes.\n\n\

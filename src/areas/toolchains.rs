@@ -259,6 +259,8 @@ pub struct Row {
     pub detail: String,
     /// Stable identity for selection across refreshes.
     pub key: String,
+    /// What `u` looks up online, with the version installed here.
+    pub online: Option<crate::online::Lookup>,
 }
 
 #[derive(Default)]
@@ -322,6 +324,7 @@ impl<'a> Reader<'a> {
                 "{short}\n\nDen could not use this: {why}. What it describes is missing here, so this section may be incomplete."
             ),
             key,
+            online: None,
         });
     }
     fn text(&self, path: &Path) -> Option<String> {
@@ -420,7 +423,7 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         coverage: vec![
             "Read: PATH folders, rustup settings, ~/.cargo/.crates2.json and package metadata (package.json, uv receipts, dist-info folder names).".into(),
             "Nothing is run: versions come from install paths and metadata, so a program installed directly in a system folder shows no version.".into(),
-            "Not checked: newer versions (that needs registries), disk use, and per-folder selections such as rust-toolchain.toml, .nvmrc or .python-version.".into(),
+            "Newer versions: u checks crates.io crates and npm, bun, uv and pipx packages online. Not checked: Rust toolchains, uv Pythons, go programs, disk use, and per-folder selections such as rust-toolchain.toml, .nvmrc or .python-version.".into(),
         ],
     })
 }
@@ -483,6 +486,7 @@ fn on_path(
                 "PATH entry '{entry}'\n\nA relative entry makes the shell look for commands in whatever folder you are in, so a file there can run in place of a real command. Use absolute folders only."
             ),
             key: format!("relative:{entry}"),
+            online: None,
         });
     }
     // Manager folders that hold programs but are not on PATH.
@@ -523,6 +527,7 @@ fn on_path(
                     .join(", ")
             ),
             key: format!("folder:{}", dir.display()),
+            online: None,
         });
     }
     for name in COMMANDS {
@@ -823,6 +828,7 @@ fn command_row(context: &Reader<'_>, name: &str, copies: &[Found]) -> Row {
         status,
         detail: lines.join("\n"),
         key: format!("command:{name}"),
+        online: None,
     }
 }
 
@@ -959,6 +965,7 @@ fn rust(context: &Reader<'_>) -> (Vec<Row>, Option<String>) {
                 status,
                 detail: lines.join("\n"),
                 key: format!("toolchain:{name}"),
+                online: None,
             });
         }
         // The default first, then by name.
@@ -1075,6 +1082,9 @@ fn crates(context: &Reader<'_>, cargo: &Path) -> Vec<Row> {
             status,
             detail: lines.join("\n"),
             key: format!("crate:{name}"),
+            online: crates_io
+                .then(|| lookup(crate::online::Registry::CratesIo, name, Some(version)))
+                .flatten(),
         });
     }
     rows
@@ -1135,7 +1145,22 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
         status: Status::ready(version.as_deref().unwrap_or("version unknown")),
         detail: detail.join("\n"),
         key: format!("{manager}:{name}"),
+        online: None,
     }
+}
+
+/// What `u` looks up for a package: only a name the registry accepts, with a plain
+/// installed version to compare with.
+fn lookup(
+    registry: crate::online::Registry,
+    name: &str,
+    version: Option<&str>,
+) -> Option<crate::online::Lookup> {
+    let installed = version.filter(|v| crate::updates::plausible(v))?;
+    Some(crate::online::Lookup {
+        package: crate::online::Package::new(registry, name)?,
+        installed: installed.to_owned(),
+    })
 }
 
 fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(String, usize)>) {
@@ -1168,6 +1193,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             };
             for (name, dir) in dirs {
                 let version = package_version(context, &dir);
+                let online = lookup(crate::online::Registry::Npm, &name, version.as_deref());
                 let mut row = package_row(
                     &name,
                     "npm -g",
@@ -1178,6 +1204,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
                     manager: Manager::Npm,
                     name,
                 });
+                row.online = online;
                 found.push(row);
             }
         }
@@ -1206,6 +1233,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
                 })
                 .unwrap_or_default();
             let (version, python) = dist_version(context, &dir, &name);
+            let online = lookup(crate::online::Registry::PyPI, &name, version.as_deref());
             let mut lines = vec![format!(
                 "Commands: {}",
                 if commands.is_empty() {
@@ -1222,6 +1250,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
                 manager: Manager::UvTool,
                 name,
             });
+            row.online = online;
             found.push(row);
         }
         add("uv tool", found);
@@ -1259,6 +1288,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             .into_iter()
             .map(|name| {
                 let (version, python) = dist_version(context, &venvs.join(&name), &name);
+                let online = lookup(crate::online::Registry::PyPI, &name, version.as_deref());
                 let mut row = package_row(
                     &name,
                     "pipx",
@@ -1269,6 +1299,7 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
                     manager: Manager::Pipx,
                     name,
                 });
+                row.online = online;
                 row
             })
             .collect();
@@ -1290,7 +1321,10 @@ fn packages(context: &Reader<'_>, npm_dir: Option<PathBuf>) -> (Vec<Row>, Vec<(S
             .iter()
             .map(|name| {
                 let version = package_version(context, &global.join("node_modules").join(name));
-                package_row(name, "bun", version, vec![])
+                let online = lookup(crate::online::Registry::Npm, name, version.as_deref());
+                let mut row = package_row(name, "bun", version, vec![]);
+                row.online = online;
+                row
             })
             .collect();
         add("bun", found);

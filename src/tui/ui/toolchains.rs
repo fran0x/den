@@ -6,7 +6,8 @@ pub(super) const HELP: &str = "Toolchains: language tools on this machine, read 
 PATH: for each common command (node, python3, go, java, cargo, …) the copy the shell runs, who provides it (Homebrew, rustup, uv, nvm, mise, the system, …), its version when the install path shows it, and the copies it hides. Problems: a relative PATH entry, a manager folder that is not on PATH, a system copy hiding a managed one, or a macOS stub with nothing behind it (java without a JDK, python3 without the Command Line Tools).\n\
 Rust: rustup toolchains (the default, folder overrides, targets and components), then cargo install crates with their version, source and programs.\n\
 Packages: global npm packages, uv tools and Pythons, pipx, bun and go install programs.\n\
-Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has; nothing else is checked for updates.\n\
+Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has.\n\
+u checks online, after asking: it sends the names of crates.io crates and npm, bun, uv and pipx packages to index.crates.io, registry.npmjs.org and pypi.org (versions stay here), and marks the newer ones ↑. The answers are kept with the time of the check; only u checks again. Esc stops a check.\n\
 In dew, x on a Rust toolchain offers rustup update or uninstall; on a cargo install crate, cargo install --locked (crates.io only) or uninstall; on a global npm, uv tool or pipx package, upgrade or uninstall; on a PATH command Homebrew installed, that package's Homebrew actions. Each tool runs as the copy that wins on PATH.\n\
 / searches; PgUp/PgDn scroll the panel; Shift+Tab switches sections; r refreshes.";
 
@@ -38,7 +39,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     )
                 }
                 Section::Rust => format!(
-                    "{} · default {} · {} · {problems}",
+                    "{} · default {} · {} · {problems}{}",
                     crate::inventory::count(
                         rows.iter().filter(|r| r.class == Class::Toolchain).count(),
                         "toolchain"
@@ -48,12 +49,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                         rows.iter().filter(|r| r.class == Class::Crate).count(),
                         "crate"
                     ),
+                    online(app, rows),
                 ),
                 Section::Packages => {
                     let mut text = crate::inventory::count(rows.len(), "package");
                     for (manager, n) in &i.managers {
                         text.push_str(&format!(" · {manager} {n}"));
                     }
+                    text.push_str(&online(app, rows));
                     text
                 }
             }
@@ -84,9 +87,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             }
         },
         |r| {
-            let update = update(app, r).map_or_else(String::new, |v| {
+            let homebrew = r.homebrew.as_ref().and_then(|_| update(app, r));
+            let mut update = homebrew.map_or_else(String::new, |v| {
                 format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
             });
+            if let Some(lookup) = &r.online {
+                update.push_str(&app.online.panel(lookup, now));
+            }
             format!(
                 "{HEADING}{}{update}{}\n\n{HEADING}Coverage\n{coverage}",
                 r.detail,
@@ -142,10 +149,49 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
     list_view(frame, view, &mut t.page, &mut t.panel);
 }
 
-/// Homebrew's newer version of a command it installed, from the Homebrew data Den
-/// already has (none in offline modes).
+/// A newer version: for a command Homebrew installed, from the Homebrew data Den already
+/// has (none in offline modes); for a package, from the last online check (`u`).
 fn update(app: &App, row: &Row) -> Option<String> {
-    let package = row.homebrew.as_ref()?;
-    crate::updates::homebrew(&app.inventory, &package.name, package.cask)
-        .and_then(crate::updates::from_homebrew)
+    if let Some(package) = &row.homebrew {
+        return crate::updates::homebrew(&app.inventory, &package.name, package.cask)
+            .and_then(crate::updates::from_homebrew);
+    }
+    row.online
+        .as_ref()
+        .and_then(|l| app.online.newer(l))
+        .map(str::to_owned)
+}
+
+/// The status line's online part for a section's rows: the check running, how many are
+/// newer and when they were checked, or a hint to check.
+fn online(app: &App, rows: &[Row]) -> String {
+    let lookups: Vec<_> = rows.iter().filter_map(|r| r.online.as_ref()).collect();
+    // Demo and fixture modes never go online.
+    if lookups.is_empty() || app.online.path.is_none() {
+        return String::new();
+    }
+    if let Some(n) = app.online.running {
+        return format!(
+            " · {} checking {} online… Esc:stop",
+            spinner(),
+            crate::inventory::count(n, "package")
+        );
+    }
+    let last = lookups
+        .iter()
+        .filter_map(|l| app.online.answer(&l.package))
+        .map(crate::online::Checked::when)
+        .max();
+    let Some(last) = last else {
+        return " · u:check online".into();
+    };
+    let newer = lookups
+        .iter()
+        .filter(|l| app.online.newer(l).is_some())
+        .count();
+    format!(
+        " · {} newer online, checked {}",
+        newer,
+        crate::updates::age(last, std::time::SystemTime::now())
+    )
 }

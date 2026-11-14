@@ -20,6 +20,11 @@ fn parts(version: &str) -> Option<Vec<u64>> {
     version.split(['.', '_']).map(|p| p.parse().ok()).collect()
 }
 
+/// A plain release: numbers only, so pre-releases such as `2.0.0-rc.1` are not.
+pub fn is_release(version: &str) -> bool {
+    parts(version).is_some()
+}
+
 /// True only when both are plain versions and `candidate` is newer than `installed`.
 pub fn is_newer(installed: &str, candidate: &str) -> bool {
     match (parts(installed), parts(candidate)) {

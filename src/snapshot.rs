@@ -15,7 +15,6 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    io::Read,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -143,41 +142,9 @@ pub fn parse(bytes: &[u8]) -> Result<File, String> {
 /// a file over 4 MiB or an unreadable one is an error that says why; Den never changes
 /// or removes it on its own.
 pub fn load(path: &Path) -> Result<Option<File>, String> {
-    #[cfg(unix)]
-    let file = {
-        use std::os::unix::fs::OpenOptionsExt;
-        std::fs::OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-            .open(path)
-    };
-    #[cfg(not(unix))]
-    let file = std::fs::File::open(path);
-    let file = match file {
-        Ok(file) => file,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(_) if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) => {
-            return Err("it is a link; Den does not follow it".into());
-        }
-        Err(e) => return Err(crate::inventory::safe_text(&e.to_string())),
-    };
-    let meta = file
-        .metadata()
-        .map_err(|e| crate::inventory::safe_text(&e.to_string()))?;
-    if !meta.is_file() {
-        return Err("it is not a file".into());
-    }
-    if meta.len() > MAX_BYTES {
-        return Err("it is larger than 4 MiB".into());
-    }
-    let mut bytes = vec![];
-    file.take(MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| crate::inventory::safe_text(&e.to_string()))?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err("it is larger than 4 MiB".into());
-    }
-    parse(&bytes).map(Some)
+    crate::actions::read_private(path, MAX_BYTES)?
+        .map(|bytes| parse(&bytes))
+        .transpose()
 }
 
 /// The file's text: indented JSON, so it reads and diffs well.
@@ -627,6 +594,7 @@ mod tests {
                 status: crate::status::Status::ready("1.0.0"),
                 detail: "registry https://token@private.example/".into(),
                 key: "npm:tool".into(),
+                online: None,
             }],
             ..Default::default()
         });

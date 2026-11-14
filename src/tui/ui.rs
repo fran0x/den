@@ -16,7 +16,9 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Clear, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap,
+    },
 };
 
 use crate::{
@@ -33,27 +35,28 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.actions.dialog.is_some() {
         actions::render(frame, app);
-    } else if app.save_prompt {
-        let question = app.save_question();
-        frame.render_widget(
-            Paragraph::new(fit(&question, area.width as usize)).style(theme::theme().warn()),
-            Rect {
-                y: area.y + 1,
-                height: 1,
-                ..area
-            },
-        );
+    } else if app.save_prompt || !app.online.asking.is_empty() {
+        let question = if app.save_prompt {
+            app.save_question()
+        } else {
+            app.online.question()
+        };
+        status_row(frame, area, fit(&question, area.width as usize));
     } else if let Some(notice) = &app.actions.notice {
         // Replaces the status line until the next key.
-        frame.render_widget(
-            Paragraph::new(safe_text(notice)).style(theme::theme().warn()),
-            Rect {
-                y: area.y + 1,
-                height: 1,
-                ..area
-            },
-        );
+        status_row(frame, area, safe_text(notice));
     }
+}
+
+/// A question or notice in place of the status line, clearing what was there.
+fn status_row(frame: &mut Frame, area: Rect, text: String) {
+    let row = Rect {
+        y: area.y + 1,
+        height: 1,
+        ..area
+    };
+    frame.render_widget(Clear, row);
+    frame.render_widget(Paragraph::new(text).style(theme::theme().warn()), row);
 }
 
 fn screen(frame: &mut Frame, app: &mut App) {

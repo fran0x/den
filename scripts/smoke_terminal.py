@@ -547,7 +547,25 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
             ("− bacon".encode(), b"q"),
         ])
         assert snapshot.read_bytes() == saved, "reading never rewrites the snapshot"
+        # u asks first, then checks online. A proxy on a closed local port makes every
+        # request fail at once, so this needs no network: the check must still finish
+        # and say so, and its answers are kept privately.
+        offline = dict(snap_env, HTTPS_PROXY="http://127.0.0.1:9", https_proxy="http://127.0.0.1:9",
+                       NO_PROXY="", no_proxy="")
+        run_pty([binary], env=offline, steps=[
+            (b"Homebrew unavailable", b"\t\t\t\t"),
+            ("Toolchains  › PATH".encode(), b"\x1b[Z"),
+            (b"u:check online", b"u"),
+            (b"sends 1 package name to index.crates.io", b"\r"),
+            (b"Checked 1 package online: 0 newer \xc2\xb7 1 failed", b"q"),
+        ])
+        results = state / "den" / "online.json"
+        assert oct(results.stat().st_mode & 0o777) == "0o600", oct(results.stat().st_mode)
+        answers = json.loads(results.read_text())["packages"]
+        assert list(answers) == ["crates.io:just"], answers
+        assert "failed" in answers["crates.io:just"]["answer"], answers
     print("PASS: S saves a private snapshot after Enter; the next run shows what changed since it")
+    print("PASS: u asks, checks online and keeps the answers privately; a failed request is reported")
     with tempfile.TemporaryDirectory(prefix="den-npm-dew-") as npm_dir:
         prefix = Path(npm_dir) / "prefix"
         package = prefix / "lib" / "node_modules" / "prettier"

@@ -777,6 +777,49 @@ pub fn log_path() -> Option<PathBuf> {
     state_dir().map(|dir| dir.join("actions.log"))
 }
 
+/// Reads one of Den's own files: `None` when there is none. A link (never followed),
+/// something other than a file, a file over `max` bytes or an unreadable one is an error
+/// that says why.
+pub fn read_private(path: &Path, max: u64) -> Result<Option<Vec<u8>>, String> {
+    use std::io::Read;
+    #[cfg(unix)]
+    let file = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(path)
+    };
+    #[cfg(not(unix))]
+    let file = std::fs::File::open(path);
+    let file = match file {
+        Ok(file) => file,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) => {
+            return Err("it is a link; Den does not follow it".into());
+        }
+        Err(e) => return Err(crate::inventory::safe_text(&e.to_string())),
+    };
+    let meta = file
+        .metadata()
+        .map_err(|e| crate::inventory::safe_text(&e.to_string()))?;
+    if !meta.is_file() {
+        return Err("it is not a file".into());
+    }
+    let too_large = || format!("it is larger than {} MiB", max >> 20);
+    if meta.len() > max {
+        return Err(too_large());
+    }
+    let mut bytes = vec![];
+    file.take(max + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| crate::inventory::safe_text(&e.to_string()))?;
+    if bytes.len() as u64 > max {
+        return Err(too_large());
+    }
+    Ok(Some(bytes))
+}
+
 /// Replaces the file at `path` with `bytes`, for Den's own files. The new content goes to
 /// a private file beside it first and is then renamed over it, so a crash leaves the old
 /// file or the new one, never half of one. A link at `path` is refused: not followed, not

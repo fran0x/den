@@ -5,6 +5,14 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Newer versions online:** `u` checks the registries for the newest version of your
+  `cargo install` crates (index.crates.io) and global npm, bun (registry.npmjs.org), uv and
+  pipx (pypi.org) packages, and marks the newer ones `↑` with when they were checked. Den
+  asks first, sends only package names over HTTPS to those hosts, and keeps the answers in
+  `~/.local/state/den/online.json` for the next run. `Esc` stops a check. This is the first
+  time Den contacts a website itself, and only after `u` and `Enter`.
+- **Notices** now clear the whole status line instead of leaving the end of the old one.
+
 ## [0.5.0] - 2026-11-14
 
 - **What changed:** after a refresh, new rows are marked `+` and changed ones `~`, with

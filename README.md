@@ -39,8 +39,9 @@ When something is wrong, the panel beside the row says why.
 - Runs only a fixed set of read commands (`brew info`, `docker container ls`, …); the
   rest comes from files.
 - Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
+- Goes online only when you press `u` and confirm, and then sends only package names.
 - Never shows secrets: tokens, keys and credential values are dropped as they are read.
-- Writes nothing, except a snapshot when you press `S` and confirm.
+- Writes nothing, except its own snapshot and online results, each after you confirm.
 
 **What changed:** after a refresh, `+` marks new rows and `~` changed ones, and `d` lists
 only those plus what was removed. Den compares with how it first read each area, and with
@@ -49,8 +50,13 @@ shows what changed since.
 
 ![den listing what changed in Homebrew since a snapshot three days ago](docs/images/changes.svg)
 
+**Newer versions online:** `u` asks the registries (crates.io, npm and PyPI) for the newest
+version of your `cargo install` crates and global npm, bun, uv and pipx packages, and marks
+the newer ones `↑`. Den asks before it sends anything, sends only names, and keeps the
+answers with the time of the check.
+
 **Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `d` changes · `S` snapshot ·
-`?` help · `q` quit.
+`u` check online · `?` help · `q` quit.
 Try it without reading your machine: `den --demo`.
 
 ## dew: with changes

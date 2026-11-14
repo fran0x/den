@@ -35,6 +35,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
         let mut kube: Option<crate::areas::cloud::kube::Collector> = None;
         let mut toolchains: Option<crate::areas::toolchains::Collector> = None;
         let mut docker: Option<crate::areas::docker::Collector> = None;
+        let mut online: Option<crate::online::Collector> = None;
         let mut diagnostic: Option<(Check, u64, Collector<CommandOutput>)> = None;
         // A write action's preview (false) or the action itself (true), with its action.
         let mut action: Option<(bool, crate::actions::Action, crate::actions::Worker)> = None;
@@ -168,6 +169,27 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.toolchains.finish(result);
                 toolchains = None;
             }
+            // Online checks run only after `u` and Enter.
+            if online.is_none()
+                && let Some(packages) = app.online.request.take()
+            {
+                match crate::online::Collector::start_with(move |cancel| {
+                    let agent = crate::online::agent();
+                    crate::online::check(&packages, &|url| crate::online::get(&agent, url), cancel)
+                }) {
+                    Ok(worker) => online = Some(worker.detach_on_drop()),
+                    Err(error) => app.finish_online(Err(error), std::time::SystemTime::now()),
+                }
+            }
+            if let Some(worker) = &online {
+                if app.online.stop {
+                    worker.cancel();
+                }
+                if let Some(result) = worker.poll() {
+                    app.finish_online(result, std::time::SystemTime::now());
+                    online = None;
+                }
+            }
             // Docker is collected only when its area is open: it runs the docker CLI.
             // While it stays open, live listings refresh so outside changes show up.
             if app.module == crate::app::Module::Docker {
@@ -293,6 +315,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 || kube.is_some()
                 || toolchains.is_some()
                 || docker.is_some()
+                || online.is_some()
                 || action.is_some();
             let wait = if collecting {
                 // About one frame: results show up promptly; idle still blocks on input.

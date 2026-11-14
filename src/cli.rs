@@ -267,6 +267,11 @@ fn app(program: Program, cli: Cli) -> io::Result<App> {
             if let Some(path) = crate::snapshot::path() {
                 app.use_snapshot(path);
             }
+            if let Some(path) = crate::online::path()
+                && let Some(notice) = app.online.use_file(path)
+            {
+                app.actions.notice = Some(notice);
+            }
             (app, None)
         }
         Mode::Demo => (App::new(source::demo()?, "synthetic demo"), None),

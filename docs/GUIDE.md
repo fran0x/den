@@ -18,6 +18,7 @@ everything Den knows about it.
 | `r` | Refresh |
 | `d` | Only what changed; press again for the next comparison ([What changed](#what-changed)) |
 | `S` | Save a snapshot to compare with later (asks first) |
+| `u` | Check online for newer versions ([Newer versions online](#newer-versions-online)) |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -145,9 +146,37 @@ running, the status line says so and the last results stay.
 - **Packages:** global packages from npm, uv, pipx, bun and `go install`.
 
 Den reads all of this from files and runs none of these tools. Commands that Homebrew
-installed show its newer version, like `↑ 22.12.0`; nothing else is checked for updates.
+installed show its newer version, like `↑ 22.12.0`. Crates and packages show theirs after
+an online check with `u` (see [Newer versions online](#newer-versions-online)).
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
+
+## Newer versions online
+
+Press `u` to ask the registries for the newest version of your `cargo install` crates and
+your global npm, bun, uv and pipx packages. Den asks first, on the status line, saying how
+many names it will send and to which sites; `Enter` checks and any other key cancels.
+
+- **Where it looks:** crates.io crates at index.crates.io; npm and bun packages at
+  registry.npmjs.org; uv tools and pipx packages at pypi.org. Nothing else is contacted.
+- **What it sends:** only package names. Your installed versions stay on this machine: Den
+  compares them itself. The registries do learn which packages you use.
+- **What you see:** a newer version shows as `↑ 15.2.0` before the status, as Homebrew's
+  do. The panel says where it came from and when, for example **↑ 15.2.0 available on
+  crates.io · checked online 3 min ago**, or that it is up to date, not found (such as a
+  package installed from a folder) or that the check failed. The status line counts them:
+  **2 newer online, checked 3 min ago**.
+- **Kept for later:** the answers are saved with the time of the check, so the next run
+  shows them. Only `u` checks again. A newer version is not a change for `d`.
+- **Safe to stop:** `Esc` stops a running check, and then nothing from it is kept. Den
+  sends four requests at a time, each limited to 10 seconds, over HTTPS only, and
+  follows no redirects. A proxy set in `HTTPS_PROXY` is used.
+- **Live data only:** demo, `--inventory` and fixture modes never go online.
+
+Not checked yet: crates from git, a folder or another registry; Rust toolchains, uv
+Pythons and go programs. The answers file is `$XDG_STATE_HOME/den/online.json`
+(`~/.local/state/den/online.json`), private like the snapshot. A file Den can't use is
+reported and left alone; deleting it forgets the answers.
 
 ## What changed
 
@@ -177,7 +206,8 @@ read. Homebrew's Diagnostics are not compared.
 `S` saves what Den has read so far, to compare with on later runs. It asks first, on the
 status line, saying which areas it will save and where; `Enter` saves and any other key
 cancels. The file is `$XDG_STATE_HOME/den/snapshot.json`
-(`~/.local/state/den/snapshot.json` by default). It is the only file `den` writes.
+(`~/.local/state/den/snapshot.json` by default). Besides the online answers, it is the
+only file `den` writes.
 
 - **What is in it:** for each row in the lists, its name and what the list shows (version,
   status). Some rows are named by a local path, such as an instruction file or a PATH
@@ -251,8 +281,10 @@ In `den` there are no actions at all: `x` does nothing.
 ## What Den reads, and what it never does
 
 `den` only looks, and `dew` changes only what you choose (see
-[Making changes](#making-changes)). The one file `den` writes is its own snapshot, after
-`S` and `Enter` (see [Snapshots](#snapshots)). The only commands `den` runs are `brew info`,
+[Making changes](#making-changes)). `den` writes only its own files: the snapshot, after
+`S` and `Enter` (see [Snapshots](#snapshots)), and the online answers, after `u` and
+`Enter` (see [Newer versions online](#newer-versions-online)). Online checks are the only
+time Den contacts a website itself. The only commands `den` runs are `brew info`,
 `missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`, `image ls`,
 `volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
 metadata when asked). Everything else comes from files. By area:
