@@ -138,10 +138,11 @@ PgUp PgDn  scroll the panel\n\
 /          search; Enter or Esc finishes and keeps the search\n\
 Esc        go back\n\
 r          refresh\n\
-d          only what changed since Den started; d again shows every row\n\
+d          only what changed: since the saved snapshot, then since Den started, then every row\n\
+S          save a snapshot of what Den has read, to compare with later (asks first)\n\
 q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
-What changed: after a refresh, + marks a new row and ~ a changed one (the panel says what it was before). d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory: nothing is saved, and quitting forgets it. Running or stopped containers and newer Homebrew versions are not changes.\n\n\
+What changed: + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory, and with the snapshot S saved, if any. S is the only thing den writes: Den's own file, $XDG_STATE_HOME/den/snapshot.json (~/.local/state/den/snapshot.json), private to you, holding only what the lists show. Running or stopped containers and newer Homebrew versions are not changes.\n\n\
 {context}\n\n\
 F2 is Tab and F3 is Shift+Tab. Esc closes this help.\n\
 Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. Changes happen only in dew, each one chosen and confirmed with Enter."

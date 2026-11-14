@@ -751,7 +751,7 @@ impl crate::app::App {
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('/') => self.agents.searching = true,
             KeyCode::Char('d') => {
-                self.agents.changes.only = !self.agents.changes.only;
+                self.agents.changes.next_view();
                 // Changes are tracked for settings, not Codex's source files.
                 self.codex.sources = false;
                 self.agents.selected = [0; 6];

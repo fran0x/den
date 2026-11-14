@@ -264,6 +264,9 @@ fn app(program: Program, cli: Cli) -> io::Result<App> {
             app.toolchains
                 .configure(crate::areas::toolchains::Context::local());
             app.docker.configure(crate::areas::docker::Context::local());
+            if let Some(path) = crate::snapshot::path() {
+                app.use_snapshot(path);
+            }
             (app, None)
         }
         Mode::Demo => (App::new(source::demo()?, "synthetic demo"), None),

@@ -456,7 +456,7 @@ pub(super) fn tracked<C, I: crate::listing::Listing>(
     let now = std::time::SystemTime::now();
     let t = &state.changes;
     let removed: Vec<String> = state.removed().iter().map(|e| safe_text(&e.name)).collect();
-    let empty = t.only.then(|| {
+    let empty = t.only().then(|| {
         if !removed.is_empty() {
             format!(
                 "Removed {}: {}.",
@@ -472,7 +472,7 @@ pub(super) fn tracked<C, I: crate::listing::Listing>(
     Tracked {
         filter: t.filter(state.section_name(), now).unwrap_or_default(),
         removed,
-        changed: !t.changes().is_empty() || t.only,
+        changed: t.any(),
         status: t.status(),
         empty,
     }

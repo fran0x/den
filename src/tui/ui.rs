@@ -33,6 +33,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.actions.dialog.is_some() {
         actions::render(frame, app);
+    } else if app.save_prompt {
+        let question = app.save_question();
+        frame.render_widget(
+            Paragraph::new(fit(&question, area.width as usize)).style(theme::theme().warn()),
+            Rect {
+                y: area.y + 1,
+                height: 1,
+                ..area
+            },
+        );
     } else if let Some(notice) = &app.actions.notice {
         // Replaces the status line until the next key.
         frame.render_widget(
@@ -121,11 +131,7 @@ fn screen(frame: &mut Frame, app: &mut App) {
         &if app.is_homebrew() && !app.searching {
             format!(
                 "a:tools/all {}",
-                list_actions(
-                    false,
-                    app.actions.allowed(),
-                    !app.homebrew_changes.changes().is_empty() || app.homebrew_changes.only
-                )
+                list_actions(false, app.actions.allowed(), app.homebrew_changes.any())
             )
         } else if app.searching {
             actions(true).into()
@@ -180,9 +186,9 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
         .collect();
     if app.visible.is_empty() && removed.is_empty() {
         frame.render_widget(
-            Paragraph::new(if changes.only && !app.query.is_empty() {
+            Paragraph::new(if changes.only() && !app.query.is_empty() {
                 "No matching changes.\n/:search · d:all packages".into()
-            } else if changes.only {
+            } else if changes.only() {
                 format!("No changes {}.\nd:all packages", changes.since(now))
             } else if app.live && app.inventory.resources.is_empty() {
                 loading(app, app.collection_message())

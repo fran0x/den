@@ -12,7 +12,7 @@ Keep changes within the requested scope.
 | `src/main.rs` | CLI arguments and choosing live or offline sources |
 | `src/app.rs`, `src/listing.rs`, `src/status.rs` | Application state; shared list state (selection, search, refresh); the typed row status (Ready, Problem, Off, Installed) |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
-| `src/snapshot.rs` | What changed: rows reduced to entries (section, key, name, one list value; never panel text) and their diff |
+| `src/snapshot.rs` | What changed: rows reduced to entries (section, key, name, one list value; never panel text), their diff, per-list tracking (`d`) and the saved snapshot file (`S`) |
 | `src/tui/` | Terminal lifecycle and event loop (`terminal`), split escape sequences (`keys`), section/inspector navigation and Back history (`presentation`), rendering and help (`ui/`) |
 | `src/areas/homebrew/` | Homebrew normalization, bounded subprocesses, dependency graph, tree projection, diagnostics and reconciliation tests |
 | `src/areas/agents/` | Rows matched across Codex and Claude Code (`agents.rs`); `claude/`, `codex/`, `skills/` collectors |
@@ -116,6 +116,12 @@ SIGKILL. Never add `--force`, `--ignore-dependencies`, `--zap`, sudo or free-for
 arguments; each new action needs known-answer tests of its command line, a smoke step
 with a fake tool, and SECURITY.md/README/guide updates. The action log
 (`$XDG_STATE_HOME/den/actions.log`) keeps time, command and result, never output.
+Snapshots: `den` writes one file of its own, `$XDG_STATE_HOME/den/snapshot.json`, only
+after `S` and Enter, only in live mode (never demo, snapshot or fixture modes), through
+`actions::write_private` (0700 folder, 0600 file, temp file then rename, links refused).
+Reading it (`snapshot::load`) refuses links and files over 4 MiB, rejects unknown fields
+and newer versions, and never changes or removes the file. Entries hold list columns only:
+a new entry field must never carry panel text or anything Den withholds.
 Reads use the existing bounded Homebrew runner:
 `brew info --json=v2 --installed`, `brew missing`, `brew leaves` and
 `brew autoremove --dry-run`. Keep fixed arguments, time/output limits and cancellation;

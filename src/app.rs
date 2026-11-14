@@ -104,6 +104,10 @@ pub struct App {
     pub page_size: usize,
     /// What changed in Homebrew since Den first read it.
     pub homebrew_changes: crate::snapshot::Tracking,
+    /// Where `S` saves the snapshot: set only for live data, never for demo or fixtures.
+    pub snapshot_path: Option<std::path::PathBuf>,
+    /// `S` asked to save; Enter saves, anything else cancels.
+    pub save_prompt: bool,
 }
 
 impl App {
@@ -153,6 +157,8 @@ impl App {
             help_max: 0,
             page_size: 1,
             homebrew_changes: crate::snapshot::Tracking::default(),
+            snapshot_path: None,
+            save_prompt: false,
         };
         app.refresh();
         app
@@ -392,7 +398,7 @@ impl App {
             .filter_map(|(i, r)| {
                 // The changes view shows every changed package, tools or not.
                 let changes = &self.homebrew_changes;
-                let shown = if changes.only {
+                let shown = if changes.only() {
                     changes.keeps("Packages", &crate::snapshot::homebrew_key(r))
                 } else {
                     !self.tools_only() || self.is_tool(i)
@@ -424,8 +430,21 @@ impl App {
             self.quit = true;
             return;
         }
+        if self.save_prompt {
+            self.save_prompt = false;
+            if key.code == KeyCode::Enter {
+                self.save_snapshot(std::time::SystemTime::now());
+            } else {
+                self.actions.notice = Some("Snapshot not saved".into());
+            }
+            return;
+        }
         if !self.active_searching() && !self.presentation.menu_searching {
             match key.code {
+                KeyCode::Char('S') => {
+                    self.ask_save();
+                    return;
+                }
                 // In den there are no actions at all, not even commands to copy.
                 KeyCode::Char('x')
                     if matches!(
@@ -530,11 +549,11 @@ impl App {
             }
             KeyCode::Char('a') if self.is_homebrew() && self.focus == Focus::Inventory => {
                 self.show_all = !self.show_all;
-                self.homebrew_changes.only = false;
+                self.homebrew_changes.view = crate::snapshot::View::All;
                 self.refresh();
             }
             KeyCode::Char('d') if self.is_homebrew() && self.focus == Focus::Inventory => {
-                self.homebrew_changes.only = !self.homebrew_changes.only;
+                self.homebrew_changes.next_view();
                 self.refresh();
             }
             KeyCode::Char('r')
@@ -1112,5 +1131,130 @@ impl App {
                 self.sync_explorer();
             }
         }
+    }
+}
+
+/// The snapshot saved with `S`, by area.
+impl App {
+    fn trackings(&mut self) -> [(&'static str, &mut crate::snapshot::Tracking); 6] {
+        [
+            ("Homebrew", &mut self.homebrew_changes),
+            ("Agents", &mut self.agents.changes),
+            ("AWS", &mut self.aws.changes),
+            ("Kubernetes", &mut self.kube.changes),
+            ("Docker", &mut self.docker.changes),
+            ("Toolchains", &mut self.toolchains.changes),
+        ]
+    }
+    /// Live data only: reads the saved snapshot to compare with, and lets `S` save one
+    /// there. A file Den cannot use is reported, never changed.
+    pub fn use_snapshot(&mut self, path: std::path::PathBuf) {
+        match crate::snapshot::load(&path) {
+            Ok(Some(file)) => {
+                for (area, tracking) in self.trackings() {
+                    tracking.use_saved(file.areas.get(area).map(crate::snapshot::Saved::point));
+                }
+            }
+            Ok(None) => {}
+            Err(why) => {
+                self.actions.notice = Some(format!(
+                    "Saved snapshot not used: {why} ({})",
+                    short_home(&path)
+                ));
+            }
+        }
+        self.snapshot_path = Some(path);
+    }
+    /// `S`: asks before saving what each area has read.
+    fn ask_save(&mut self) {
+        if self.snapshot_path.is_none() {
+            self.actions.notice = Some(
+                "Snapshots are saved from live data only, not in demo or fixture modes".into(),
+            );
+        } else if self.saveable().is_empty() {
+            self.actions.notice = Some("Nothing to save yet: no area has been read".into());
+        } else {
+            self.save_prompt = true;
+        }
+    }
+    /// The areas with a reading to save.
+    fn saveable(&mut self) -> Vec<&'static str> {
+        self.trackings()
+            .into_iter()
+            .filter(|(_, t)| t.last().is_some())
+            .map(|(area, _)| area)
+            .collect()
+    }
+    /// The question `S` asks; the keys come first so a narrow terminal keeps them.
+    pub fn save_question(&mut self) -> String {
+        let areas = self.saveable();
+        let path = self
+            .snapshot_path
+            .as_deref()
+            .map(short_home)
+            .unwrap_or_default();
+        format!(
+            "Save a snapshot? Enter:save Esc:cancel · {} ({}) to {path}",
+            crate::inventory::count(areas.len(), "area"),
+            areas.join(", ")
+        )
+    }
+    /// Saves each area that has been read; areas not read this time keep what the file
+    /// had. On success the saved readings become what `d` compares with.
+    pub fn save_snapshot(&mut self, now: std::time::SystemTime) {
+        let Some(path) = self.snapshot_path.clone() else {
+            return;
+        };
+        // An unreadable file is replaced: saving was asked for and confirmed.
+        let mut file = crate::snapshot::load(&path)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        file.version = crate::snapshot::FILE_VERSION;
+        let mut saved = 0;
+        for (area, tracking) in self.trackings() {
+            if let Some(last) = tracking.last() {
+                file.areas.insert(
+                    area.to_owned(),
+                    crate::snapshot::Saved::new(now, last.to_vec()),
+                );
+                saved += 1;
+            }
+        }
+        let written = crate::snapshot::encode(&file)
+            .and_then(|bytes| crate::actions::write_private(&path, &bytes));
+        self.actions.notice = Some(match written {
+            Ok(()) => {
+                for (_, tracking) in self.trackings() {
+                    tracking.saved_now(now);
+                }
+                // A view of changes since the snapshot is now empty.
+                self.refresh();
+                self.aws.clamp();
+                self.kube.clamp();
+                self.docker.clamp();
+                self.toolchains.clamp();
+                self.agents_clamp();
+                format!(
+                    "Saved a snapshot of {} to {}",
+                    crate::inventory::count(saved, "area"),
+                    short_home(&path)
+                )
+            }
+            Err(e) => format!(
+                "Snapshot not saved: {} ({})",
+                safe_text(&e.to_string()),
+                short_home(&path)
+            ),
+        });
+    }
+}
+
+/// `~/…` under home, otherwise the full path; terminal-safe.
+fn short_home(path: &std::path::Path) -> String {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    match home.as_deref().and_then(|h| path.strip_prefix(h).ok()) {
+        Some(rest) => safe_text(&format!("~/{}", rest.display())),
+        None => safe_text(&path.display().to_string()),
     }
 }

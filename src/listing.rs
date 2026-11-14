@@ -184,7 +184,7 @@ impl<C, I: Listing> State<C, I> {
             KeyCode::Char('q') => return true,
             KeyCode::Char('/') => self.searching = true,
             KeyCode::Char('d') => {
-                self.changes.only = !self.changes.only;
+                self.changes.next_view();
                 let slot = self.slot();
                 self.selected[slot] = 0;
                 self.panel.offset = 0;

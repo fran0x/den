@@ -762,13 +762,69 @@ fn tail(output: &CommandOutput) -> String {
     }
 }
 
-/// `$XDG_STATE_HOME/den/actions.log`, or `~/.local/state/den/actions.log`.
-pub fn log_path() -> Option<PathBuf> {
+/// Den's own folder: `$XDG_STATE_HOME/den`, or `~/.local/state/den`. It holds the action
+/// log and the snapshot saved with `S`, and nothing else.
+pub fn state_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))
-        .map(|state| state.join("den/actions.log"))
+        .map(|state| state.join("den"))
+}
+
+/// `$XDG_STATE_HOME/den/actions.log`, or `~/.local/state/den/actions.log`.
+pub fn log_path() -> Option<PathBuf> {
+    state_dir().map(|dir| dir.join("actions.log"))
+}
+
+/// Replaces the file at `path` with `bytes`, for Den's own files. The new content goes to
+/// a private file beside it first and is then renamed over it, so a crash leaves the old
+/// file or the new one, never half of one. A link at `path` is refused: not followed, not
+/// replaced.
+pub fn write_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
+            return Err(io::Error::other("no folder to save in"));
+        };
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)?;
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(io::Error::other("it is a link; Den leaves it as it is"));
+            }
+            Ok(meta) if !meta.is_file() => return Err(io::Error::other("it is not a file")),
+            _ => {}
+        }
+        let temp = dir.join(format!(
+            ".{}.{}.tmp",
+            name.to_string_lossy(),
+            std::process::id()
+        ));
+        let written = (|| {
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(libc::O_NOFOLLOW)
+                .open(&temp)?;
+            file.write_all(bytes)?;
+            file.sync_all()?;
+            std::fs::rename(&temp, path)
+        })();
+        if written.is_err() {
+            let _ = std::fs::remove_file(&temp);
+        }
+        written
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, bytes);
+        Err(io::Error::other("saving needs macOS or Linux"))
+    }
 }
 
 /// One line per action: UTC time, command and result; never its output. The folder is

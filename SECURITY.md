@@ -12,6 +12,14 @@ uv and pipx commands built from checked names and IDs, run without a shell, sudo
 terminal for input, and never with force. Toolchain programs run as the copy Den shows
 winning on PATH, by its full path.
 
+`den` changes nothing on the machine. The one file it writes is its own snapshot, and only
+when you press `S` and confirm: `$XDG_STATE_HOME/den/snapshot.json`
+(`~/.local/state/den/snapshot.json`), private to you (folder 0700, file 0600), replaced in
+one step and never written through a link. It holds what the lists show: each row's name
+and its version or status. Some rows are named by a local path, such as an instruction
+file or a PATH folder; what Den withholds is never in it. `dew` also keeps
+`actions.log` there.
+
 ## Reporting
 
 Please report vulnerabilities privately through
@@ -31,6 +39,8 @@ with an advisory crediting you, unless you prefer otherwise.
   action you chose.
 - A write action running in `den`, or in `dew` without being chosen and confirmed with
   Enter; or running anything other than the command its dialog showed.
+- Den writing any file other than its snapshot (after `S` and Enter) and, in `dew`, its
+  action log; writing either through a link; or putting withheld values in them.
 - Reading outside the files and folders documented for each area, following a link the
   docs say is rejected, or escaping a fixture root.
 - Terminal escape sequences or other untrusted text reaching the terminal unsanitized.

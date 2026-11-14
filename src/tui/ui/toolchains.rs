@@ -111,7 +111,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         },
         header,
         // Until rows exist, the list carries the message; the status line stays quiet.
-        status: if t.inventory.is_some() && !(t.rows().is_empty() && !t.changes.only) {
+        status: if t.inventory.is_some() && !(t.rows().is_empty() && !t.changes.only()) {
             format!("{message}{}", tracked.status)
         } else {
             String::new()

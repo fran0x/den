@@ -137,15 +137,15 @@ fn view(app: &App) -> View {
     let all = sources.rows(section);
     let selected = rows.get(a.selected[a.slot()].min(rows.len().saturating_sub(1)));
     // With no rows the list says why once; the panel only adds what follows (coverage).
-    let nothing = if changes.only && !a.query.is_empty() {
+    let nothing = if changes.only() && !a.query.is_empty() {
         "No matching changes.\n/:search · d:all rows".into()
-    } else if changes.only && !removed.is_empty() {
+    } else if changes.only() && !removed.is_empty() {
         format!(
             "Removed {}: {}.",
             changes.since(now),
             crate::inventory::count(removed.len(), "row")
         )
-    } else if changes.only {
+    } else if changes.only() {
         format!("No changes {}.\nd:all rows", changes.since(now))
     } else {
         empty(app, &sources, section, !a.query.is_empty())
@@ -172,7 +172,7 @@ fn view(app: &App) -> View {
         Section::Settings if app.codex.sources => filter.push("Codex source files".into()),
         _ => {}
     }
-    let changed = !changes.changes().is_empty() || changes.only;
+    let changed = changes.any();
     View {
         status: format!(
             "{}{}",

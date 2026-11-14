@@ -504,6 +504,50 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
         actions = (state / "den" / "actions.log").read_text()
         assert actions.endswith(f"\t{fake_cargo} uninstall bacon\tDone\n"), actions
     print("PASS: dew uninstalls a crate with the cargo found on PATH; reading ran nothing; Rust is read again and d shows it removed")
+    with tempfile.TemporaryDirectory(prefix="den-snapshot-") as snap_dir:
+        home = Path(snap_dir) / "home"
+        bin_dir = home / ".cargo" / "bin"
+        bin_dir.mkdir(parents=True)
+        crates = home / ".cargo" / ".crates2.json"
+        def installed(*names):
+            crates.write_text(json.dumps({"installs": {
+                f"{n} 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)": {"bins": [n]}
+                for n in names}}))
+            for n in names:
+                (bin_dir / n).write_text("")
+                (bin_dir / n).chmod(0o700)
+        installed("bacon", "just")
+        state = Path(snap_dir) / "state"
+        snap_env = toolchain_env(PATH=str(bin_dir), HOME=str(home),
+                                 CARGO_HOME=str(home / ".cargo"), RUSTUP_HOME=str(home / ".rustup"),
+                                 XDG_STATE_HOME=str(state))
+        # den saves a snapshot only after S and Enter.
+        run_pty([binary], env=snap_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t\t"),
+            ("Toolchains  › PATH".encode(), b"\x1b[Z"),
+            (b"2 crates", b"S"),
+            (b"Enter:save Esc:cancel", b"\r"),
+            (b"Saved a snapshot of", b"q"),
+        ])
+        snapshot = state / "den" / "snapshot.json"
+        assert oct(snapshot.stat().st_mode & 0o777) == "0o600", oct(snapshot.stat().st_mode)
+        assert oct(snapshot.parent.stat().st_mode & 0o777) == "0o700"
+        saved_file = json.loads(snapshot.read_text())
+        assert saved_file["version"] == 1
+        # Tabbing to Toolchains opens the areas on the way; each is saved as it was read.
+        assert "Toolchains" in saved_file["areas"], saved_file["areas"].keys()
+        saved = snapshot.read_bytes()
+        # The next run, after a crate went away while Den was closed.
+        installed("just")
+        (bin_dir / "bacon").unlink()
+        run_pty([binary], env=snap_env, steps=[
+            (b"Homebrew unavailable", b"\t\t\t\t"),
+            ("Toolchains  › PATH".encode(), b"\x1b[Z"),
+            (b"1 change since the snapshot", b"d"),
+            ("− bacon".encode(), b"q"),
+        ])
+        assert snapshot.read_bytes() == saved, "reading never rewrites the snapshot"
+    print("PASS: S saves a private snapshot after Enter; the next run shows what changed since it")
     with tempfile.TemporaryDirectory(prefix="den-npm-dew-") as npm_dir:
         prefix = Path(npm_dir) / "prefix"
         package = prefix / "lib" / "node_modules" / "prettier"
