@@ -46,6 +46,12 @@ impl crate::listing::Listing for Inventory {
     fn failure(error: &io::Error) -> String {
         safe_text(&error.to_string())
     }
+    fn section_name(section: Section) -> &'static str {
+        section.label()
+    }
+    fn entries(&self) -> Vec<crate::snapshot::Entry> {
+        crate::snapshot::docker(self)
+    }
 }
 
 impl State {

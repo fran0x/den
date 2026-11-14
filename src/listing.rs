@@ -4,6 +4,7 @@
 //! reselecting the same row key.
 use crate::{
     inventory::{matches_query, safe_text},
+    snapshot::{Entry, Tracking},
     tui::presentation::PanelScroll,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -34,6 +35,10 @@ pub trait Listing {
     fn search_text(row: &Self::Row) -> String;
     /// The status-line message for a failed collection.
     fn failure(error: &io::Error) -> String;
+    /// The section's name in snapshot entries.
+    fn section_name(section: Self::Section) -> &'static str;
+    /// Every row, as a snapshot keeps it.
+    fn entries(&self) -> Vec<Entry>;
 }
 
 pub struct State<C, I: Listing> {
@@ -51,6 +56,8 @@ pub struct State<C, I: Listing> {
     pub page: usize,
     /// When the last collection finished (Docker refreshes from here).
     pub finished_at: Option<Instant>,
+    /// What changed since Den first read this list.
+    pub changes: Tracking,
 }
 impl<C, I: Listing> Default for State<C, I> {
     fn default() -> Self {
@@ -67,6 +74,7 @@ impl<C, I: Listing> Default for State<C, I> {
             panel: PanelScroll::default(),
             page: 0,
             finished_at: None,
+            changes: Tracking::default(),
         }
     }
 }
@@ -84,6 +92,8 @@ impl<C, I: Listing> State<C, I> {
         let key = self.selected_row().map(|r| I::key(r).to_owned());
         match result {
             Ok(inventory) => {
+                self.changes
+                    .observe(inventory.entries(), std::time::SystemTime::now());
                 self.inventory = Some(inventory);
                 self.error = None;
                 if let Some(key) = key {
@@ -101,15 +111,32 @@ impl<C, I: Listing> State<C, I> {
     pub fn selected(&self) -> usize {
         self.selected[self.slot()]
     }
-    /// The rows shown in the current section, after the search.
+    /// The rows shown in the current section, after the search (and with `d`, changed
+    /// rows only).
     pub fn rows(&self) -> Vec<&I::Row> {
         let Some(i) = &self.inventory else {
             return vec![];
         };
+        let section = I::section_name(self.section);
         i.rows(self.section)
             .iter()
-            .filter(|r| matches_query(&self.query, &safe_text(&I::search_text(r))))
+            .filter(|r| {
+                self.changes.keeps(section, I::key(r))
+                    && matches_query(&self.query, &safe_text(&I::search_text(r)))
+            })
             .collect()
+    }
+    /// Rows removed since Den started, shown after the rows with `d`, after the search.
+    pub fn removed(&self) -> Vec<&Entry> {
+        self.changes
+            .removed(I::section_name(self.section))
+            .into_iter()
+            .filter(|e| matches_query(&self.query, &safe_text(&e.name)))
+            .collect()
+    }
+    /// The current section's name in snapshot entries.
+    pub fn section_name(&self) -> &'static str {
+        I::section_name(self.section)
     }
     pub fn selected_row(&self) -> Option<&I::Row> {
         self.rows().get(self.selected()).copied()
@@ -156,6 +183,12 @@ impl<C, I: Listing> State<C, I> {
         match key.code {
             KeyCode::Char('q') => return true,
             KeyCode::Char('/') => self.searching = true,
+            KeyCode::Char('d') => {
+                self.changes.only = !self.changes.only;
+                let slot = self.slot();
+                self.selected[slot] = 0;
+                self.panel.offset = 0;
+            }
             KeyCode::Char('r') if self.context.is_some() && !self.running => self.requested = true,
             KeyCode::Down | KeyCode::Char('j') => self.move_by(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_by(-1),

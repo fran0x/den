@@ -26,9 +26,10 @@ struct View {
     filter: String,
     header: (&'static str, &'static str, &'static str),
     rows: Vec<(String, String, String)>,
+    removed: Vec<String>,
     empty: String,
     text: String,
-    actions: &'static str,
+    actions: String,
 }
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
@@ -42,7 +43,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         if app.agents.searching {
             actions(true)
         } else {
-            view.actions
+            &view.actions
         },
     );
     let panes = panes(body);
@@ -57,7 +58,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
             &app.agents.query,
             app.agents.searching,
         );
-        let inner = if inner.height > 2 && !view.rows.is_empty() {
+        let inner = if inner.height > 2 && !(view.rows.is_empty() && view.removed.is_empty()) {
             // Rows start after the 2-cell selection marker; so does the header.
             let (a, b, c) = view.header;
             frame.render_widget(
@@ -79,15 +80,16 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         };
         let page = inner.height.max(1) as usize;
         app.agents.page = page;
-        if view.rows.is_empty() {
+        if view.rows.is_empty() && view.removed.is_empty() {
             frame.render_widget(
                 Paragraph::new(view.empty.as_str()).wrap(Wrap { trim: true }),
                 inner,
             );
         } else {
-            let selected = app.agents.selected[app.agents.slot()].min(view.rows.len() - 1);
+            let selected =
+                app.agents.selected[app.agents.slot()].min(view.rows.len().saturating_sub(1));
             let start = (selected / page) * page;
-            let items: Vec<_> = view
+            let mut items: Vec<_> = view
                 .rows
                 .iter()
                 .skip(start)
@@ -97,10 +99,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     status_item((name, a, b), inner.width, start + i == selected)
                 })
                 .collect();
-            let mut state = ListState::default().with_selected(Some(selected - start));
+            let room = page - items.len();
+            items.extend(removed_items(&view.removed, room, inner.width));
+            let mut state = ListState::default()
+                .with_selected((!view.rows.is_empty()).then_some(selected - start));
             frame.render_stateful_widget(
                 List::new(items)
                     .highlight_symbol("> ")
+                    .highlight_spacing(HighlightSpacing::Always)
                     .highlight_style(status_selection()),
                 inner,
                 &mut state,
@@ -117,23 +123,45 @@ fn view(app: &App) -> View {
     let a = &app.agents;
     let section = a.section;
     let rows = a.rows(&sources);
+    let now = std::time::SystemTime::now();
+    let changes = &a.changes;
     let cells: Vec<_> = rows
         .iter()
         .map(|row| {
             let (x, y) = sources.cells(section, row);
-            (row.name.clone(), x, y)
+            let mark = changes.mark(section.label(), &row.key);
+            (format!("{mark}{}", row.name), x, y)
         })
         .collect();
+    let removed: Vec<String> = a.removed().iter().map(|e| safe_text(&e.name)).collect();
     let all = sources.rows(section);
     let selected = rows.get(a.selected[a.slot()].min(rows.len().saturating_sub(1)));
     // With no rows the list says why once; the panel only adds what follows (coverage).
-    let nothing = empty(app, &sources, section, !a.query.is_empty());
+    let nothing = if changes.only && !a.query.is_empty() {
+        "No matching changes.\n/:search · d:all rows".into()
+    } else if changes.only && !removed.is_empty() {
+        format!(
+            "Removed {}: {}.",
+            changes.since(now),
+            crate::inventory::count(removed.len(), "row")
+        )
+    } else if changes.only {
+        format!("No changes {}.\nd:all rows", changes.since(now))
+    } else {
+        empty(app, &sources, section, !a.query.is_empty())
+    };
     let (nothing, more) = match nothing.split_once("\n\n") {
         Some((short, more)) => (short.to_owned(), more.to_owned()),
         None => (nothing, String::new()),
     };
-    let text = selected.map_or(more, |row| panel(app, &sources, section, row));
+    let text = selected.map_or(more, |row| {
+        let what = changes.panel(section.label(), &row.key, now);
+        format!("{}{what}", panel(app, &sources, section, row))
+    });
     let mut filter: Vec<String> = vec![];
+    if let Some(text) = changes.filter(section.label(), now) {
+        filter.push(text);
+    }
     match section {
         Section::Instructions => {
             filter.push("In reading order".into());
@@ -144,8 +172,13 @@ fn view(app: &App) -> View {
         Section::Settings if app.codex.sources => filter.push("Codex source files".into()),
         _ => {}
     }
+    let changed = !changes.changes().is_empty() || changes.only;
     View {
-        status: status(app, &sources, section, &all),
+        status: format!(
+            "{}{}",
+            status(app, &sources, section, &all),
+            changes.status()
+        ),
         filter: filter.join(" · "),
         header: match section {
             Section::Instructions => ("Folder", "Tools", "Status"),
@@ -153,15 +186,18 @@ fn view(app: &App) -> View {
             _ => ("Name", "Tools", "Status"),
         },
         rows: cells,
+        removed,
         empty: nothing,
         text,
-        actions: match section {
-            Section::Instructions => "t:if trusted Tab:area Shift+Tab:section",
-            Section::Settings => "s:sources Tab:area Shift+Tab:section",
-            Section::Skills | Section::Mcp | Section::Hooks | Section::Plugins => {
-                "Tab:area Shift+Tab:section"
-            }
-        },
+        actions: format!(
+            "{}{}",
+            match section {
+                Section::Instructions => "t:if trusted ",
+                Section::Settings => "s:sources ",
+                Section::Skills | Section::Mcp | Section::Hooks | Section::Plugins => "",
+            },
+            list_actions(false, false, changed)
+        ),
     }
 }
 

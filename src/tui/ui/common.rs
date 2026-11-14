@@ -432,6 +432,85 @@ pub(super) struct ListView {
     pub(super) current: Option<usize>,
     /// dew offers actions here: the footer shows `x:actions`.
     pub(super) actions: bool,
+    /// The filter line, such as "Changes 3 · since Den started 5 min ago".
+    pub(super) filter: String,
+    /// Rows removed since Den started, listed after the rows in the changes view.
+    pub(super) removed: Vec<String>,
+    /// Something changed: the footer shows `d:changes`.
+    pub(super) changed: bool,
+}
+
+/// The parts of a list view that come from its change tracking.
+pub(super) struct Tracked {
+    pub(super) filter: String,
+    pub(super) removed: Vec<String>,
+    pub(super) changed: bool,
+    /// " · 3 changes since Den started", for the status line.
+    pub(super) status: String,
+    /// With `d` and no changed row selected, what the panel says instead.
+    pub(super) empty: Option<String>,
+}
+pub(super) fn tracked<C, I: crate::listing::Listing>(
+    state: &crate::listing::State<C, I>,
+) -> Tracked {
+    let now = std::time::SystemTime::now();
+    let t = &state.changes;
+    let removed: Vec<String> = state.removed().iter().map(|e| safe_text(&e.name)).collect();
+    let empty = t.only.then(|| {
+        if !removed.is_empty() {
+            format!(
+                "Removed {}: {}.",
+                t.since(now),
+                crate::inventory::count(removed.len(), "row")
+            )
+        } else if !state.query.is_empty() {
+            "No matching changes.\n/:search · d:all rows".into()
+        } else {
+            format!("No changes {}.\nd:all rows", t.since(now))
+        }
+    });
+    Tracked {
+        filter: t.filter(state.section_name(), now).unwrap_or_default(),
+        removed,
+        changed: !t.changes().is_empty() || t.only,
+        status: t.status(),
+        empty,
+    }
+}
+
+/// The footer for a list area.
+pub(super) fn list_actions(searching: bool, offers_actions: bool, changed: bool) -> String {
+    if searching {
+        return actions(true).into();
+    }
+    format!(
+        "{}{}Tab:area Shift+Tab:section",
+        if offers_actions { "x:actions " } else { "" },
+        if changed { "d:changes " } else { "" }
+    )
+}
+
+/// The changes view's removed rows, dimmed and struck through, after the others. They
+/// cannot be selected; when they do not all fit, the last line says how many more.
+pub(super) fn removed_items(removed: &[String], room: usize, width: u16) -> Vec<ListItem<'static>> {
+    let style = muted().add_modifier(Modifier::CROSSED_OUT);
+    let width = width.saturating_sub(2) as usize;
+    let shown = if removed.len() > room {
+        room.saturating_sub(1)
+    } else {
+        removed.len()
+    };
+    let mut items: Vec<_> = removed[..shown]
+        .iter()
+        .map(|name| ListItem::new(Line::styled(fit(&format!("− {name}"), width), style)))
+        .collect();
+    if shown < removed.len() && room > 0 {
+        items.push(ListItem::new(Line::styled(
+            fit(&format!("… {} more removed", removed.len() - shown), width),
+            muted(),
+        )));
+    }
+    items
 }
 
 /// A searchable three-column list with a header, and a scrolling information panel.
@@ -453,19 +532,16 @@ pub(super) fn list_view(
         searching,
         current,
         actions: offers_actions,
+        filter,
+        removed,
+        changed,
     } = view;
     let body = chrome(
         frame,
         title,
         &status,
         searching,
-        if searching {
-            actions(true)
-        } else if offers_actions {
-            "x:actions Tab:area Shift+Tab:section"
-        } else {
-            "Tab:area Shift+Tab:section"
-        },
+        &list_actions(searching, offers_actions, changed),
     );
     let selected = selected.min(rows.len().saturating_sub(1));
     let panes = panes(body);
@@ -473,8 +549,8 @@ pub(super) fn list_view(
         let block = pane(pane_title, true);
         let inner = block.inner(panes[0]);
         frame.render_widget(block, panes[0]);
-        let inner = filter_line(frame, inner, String::new(), &query, searching);
-        let inner = if inner.height > 2 && !rows.is_empty() {
+        let inner = filter_line(frame, inner, filter, &query, searching);
+        let inner = if inner.height > 2 && !(rows.is_empty() && removed.is_empty()) {
             frame.render_widget(
                 Paragraph::new(columns(header.0, header.1, header.2, inner.width)).style(muted()),
                 Rect {
@@ -494,7 +570,7 @@ pub(super) fn list_view(
         };
         let page = inner.height.max(1) as usize;
         *page_size = page;
-        if rows.is_empty() {
+        if rows.is_empty() && removed.is_empty() {
             // The reason, once; the panel shows only what follows it.
             let first = text
                 .split_once("\n\n")
@@ -505,7 +581,7 @@ pub(super) fn list_view(
             );
         } else {
             let start = (selected / page) * page;
-            let items: Vec<_> = rows
+            let mut items: Vec<_> = rows
                 .iter()
                 .skip(start)
                 .take(page)
@@ -519,10 +595,14 @@ pub(super) fn list_view(
                     }
                 })
                 .collect();
-            let mut state = ListState::default().with_selected(Some(selected - start));
+            let room = page - items.len();
+            items.extend(removed_items(&removed, room, inner.width));
+            let mut state =
+                ListState::default().with_selected((!rows.is_empty()).then_some(selected - start));
             frame.render_stateful_widget(
                 List::new(items)
                     .highlight_symbol("> ")
+                    .highlight_spacing(HighlightSpacing::Always)
                     .highlight_style(status_selection()),
                 inner,
                 &mut state,
@@ -530,7 +610,7 @@ pub(super) fn list_view(
         }
     }
     if panes[1].width > 0 {
-        let text = if rows.is_empty() {
+        let text = if rows.is_empty() && removed.is_empty() {
             text.split_once("\n\n").map_or("", |(_, more)| more)
         } else {
             &text

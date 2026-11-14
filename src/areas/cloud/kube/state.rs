@@ -19,4 +19,10 @@ impl crate::listing::Listing for Inventory {
     fn failure(_: &io::Error) -> String {
         "Kubernetes collection failed; previous results retained".into()
     }
+    fn section_name(_: ()) -> &'static str {
+        "Kubernetes"
+    }
+    fn entries(&self) -> Vec<crate::snapshot::Entry> {
+        crate::snapshot::kube(self)
+    }
 }

@@ -97,6 +97,8 @@ pub struct State {
     pub searching: bool,
     pub panel: PanelScroll,
     pub page: usize,
+    /// What changed since Den first read both tools.
+    pub changes: crate::snapshot::Tracking,
 }
 
 /// Everything the Agents area reads, borrowed from the per-tool states.
@@ -573,6 +575,7 @@ impl State {
         sources
             .rows(self.section)
             .into_iter()
+            .filter(|row| self.changes.keeps(self.section.label(), &row.key))
             .filter(|row| {
                 let (a, b) = sources.cells(self.section, row);
                 // Skills also match their description, as before.
@@ -586,6 +589,14 @@ impl State {
                     &safe_text(&format!("{} {a} {b} {description}", row.name)),
                 )
             })
+            .collect()
+    }
+    /// Rows removed since Den started, shown after the rows with `d`, after the search.
+    pub fn removed(&self) -> Vec<&crate::snapshot::Entry> {
+        self.changes
+            .removed(self.section.label())
+            .into_iter()
+            .filter(|e| matches_query(&self.query, &safe_text(&e.name)))
             .collect()
     }
     pub fn selected_row(&self, sources: &Sources) -> Option<Row> {
@@ -666,6 +677,20 @@ impl crate::app::App {
     fn keep_selection(&mut self, finish: impl FnOnce(&mut Self)) {
         let key = self.agent_row().map(|r| r.key);
         finish(self);
+        // Rows combine both tools: compare only once every collection has settled.
+        let settled = [
+            (self.codex.requested, self.codex.running),
+            (self.claude.requested, self.claude.running),
+            (self.skills.requested, self.skills.running),
+        ]
+        .iter()
+        .all(|&(requested, running)| !requested && !running);
+        if settled {
+            let entries = crate::snapshot::agents(&self.agent_sources());
+            self.agents
+                .changes
+                .observe(entries, std::time::SystemTime::now());
+        }
         if let Some(key) = key {
             self.agents_select(&key);
         }
@@ -725,6 +750,13 @@ impl crate::app::App {
         match key.code {
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('/') => self.agents.searching = true,
+            KeyCode::Char('d') => {
+                self.agents.changes.only = !self.agents.changes.only;
+                // Changes are tracked for settings, not Codex's source files.
+                self.codex.sources = false;
+                self.agents.selected = [0; 6];
+                self.agents_reset_panel();
+            }
             KeyCode::Char('r') => self.request_agents(),
             KeyCode::Down | KeyCode::Char('j') => self.agents_move(1),
             KeyCode::Up | KeyCode::Char('k') => self.agents_move(-1),

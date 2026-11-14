@@ -63,26 +63,20 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
     } else {
         String::new()
     };
-    let label = format!("Docker / {}", section.label());
-    let body = chrome(
-        frame,
-        &label,
-        &status,
-        d.searching,
-        if d.searching {
-            actions(true)
-        } else {
-            if app.actions.allowed() {
-                "x:actions Tab:area Shift+Tab:section"
-            } else {
-                "Tab:area Shift+Tab:section"
-            }
-        },
-    );
+    let tracked = tracked(d);
+    let now = std::time::SystemTime::now();
+    let name = section.label();
     let rows: Vec<_> = d
         .rows()
         .iter()
-        .map(|r| (r.name.clone(), r.state.clone(), r.status.clone()))
+        .map(|r| {
+            let mark = d.changes.mark(name, &r.key);
+            (
+                format!("{mark}{}", r.name),
+                r.state.clone(),
+                r.status.clone(),
+            )
+        })
         .collect();
     let setup = d
         .inventory
@@ -90,7 +84,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         .map_or(String::new(), |i| i.setup.join("\n"));
     let text = d.selected_row().map_or_else(
         || {
-            if !d.query.is_empty() {
+            if let Some(empty) = &tracked.empty {
+                empty.clone()
+            } else if !d.query.is_empty() {
                 "No matches.\n/:search".into()
             } else if d.inventory.is_some() {
                 format!("No {} found.", section.label().to_lowercase())
@@ -100,81 +96,46 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         },
         |r| {
             format!(
-                "{HEADING}{}\n\n{HEADING}Docker setup\n{}\nRead with docker container ls, image ls, volume ls and system df; nothing else is run.",
+                "{HEADING}{}{}\n\n{HEADING}Docker setup\n{}\nRead with docker container ls, image ls, volume ls and system df; nothing else is run.",
                 r.detail,
+                d.changes.panel(name, &r.key, now),
                 if setup.is_empty() { "No ~/.docker/config.json details" } else { &setup }
             )
         },
     );
-    let header = match section {
-        Section::Containers => ("Container", "State", "Image"),
-        Section::Images => ("Image", "Size", "Used by"),
-        Section::Volumes => ("Volume", "Driver", "Used by"),
+    let (title, pane, header) = match section {
+        Section::Containers => (
+            "Docker / Containers",
+            " Containers ",
+            ("Container", "State", "Image"),
+        ),
+        Section::Images => ("Docker / Images", " Images ", ("Image", "Size", "Used by")),
+        Section::Volumes => (
+            "Docker / Volumes",
+            " Volumes ",
+            ("Volume", "Driver", "Used by"),
+        ),
     };
-    let selected = d.selected[d.slot()].min(rows.len().saturating_sub(1));
-    let query = d.query.clone();
-    let searching = d.searching;
-    let panes = panes(body);
-    if panes[0].width > 0 {
-        let block = pane(&format!(" {} ", section.label()), true);
-        let inner = block.inner(panes[0]);
-        frame.render_widget(block, panes[0]);
-        let inner = filter_line(frame, inner, String::new(), &query, searching);
-        let inner = if inner.height > 2 && !rows.is_empty() {
-            let (a, b, c) = header;
-            frame.render_widget(
-                Paragraph::new(columns(a, b, c, inner.width)).style(muted()),
-                Rect {
-                    x: inner.x + 2,
-                    width: inner.width.saturating_sub(2),
-                    height: 1,
-                    ..inner
-                },
-            );
-            Rect {
-                y: inner.y + 1,
-                height: inner.height - 1,
-                ..inner
-            }
+    let view = ListView {
+        title,
+        pane,
+        header,
+        status: if d.inventory.is_some() {
+            format!("{status}{}", tracked.status)
         } else {
-            inner
-        };
-        let page = inner.height.max(1) as usize;
-        app.docker.page = page;
-        if rows.is_empty() {
-            // The reason, once; the panel shows only what follows it.
-            let first = text
-                .split_once("\n\n")
-                .map_or(text.as_str(), |(first, _)| first);
-            frame.render_widget(
-                Paragraph::new(first.to_owned()).wrap(Wrap { trim: true }),
-                inner,
-            );
-        } else {
-            let start = (selected / page) * page;
-            let items: Vec<_> = rows
-                .iter()
-                .skip(start)
-                .take(page)
-                .enumerate()
-                .map(|(i, (n, x, y))| status_item((n, x, y), inner.width, start + i == selected))
-                .collect();
-            let mut state = ListState::default().with_selected(Some(selected - start));
-            frame.render_stateful_widget(
-                List::new(items)
-                    .highlight_symbol("> ")
-                    .highlight_style(status_selection()),
-                inner,
-                &mut state,
-            );
-        }
-    }
-    if panes[1].width > 0 {
-        let text = if rows.is_empty() {
-            text.split_once("\n\n").map_or("", |(_, more)| more)
-        } else {
-            &text
-        };
-        scrolled(frame, panes[1], text, &mut app.docker.panel);
-    }
+            status
+        },
+        rows,
+        text,
+        selected: d.selected(),
+        query: d.query.clone(),
+        searching: d.searching,
+        current: None,
+        actions: app.actions.allowed(),
+        filter: tracked.filter,
+        removed: tracked.removed,
+        changed: tracked.changed,
+    };
+    let d = &mut app.docker;
+    list_view(frame, view, &mut d.page, &mut d.panel);
 }

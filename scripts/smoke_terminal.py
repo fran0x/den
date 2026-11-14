@@ -495,14 +495,15 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
             (b"Upgrade bacon", b"\x1b[B"),
             (b"Removes bacon", b"\r"),
             (b"Done", b"\r"),
-            # Read again: the crate is gone.
-            (b"Rust not set up here", b"q"),
+            # Read again: the crate is gone, and d lists it as removed.
+            (b"Rust not set up here", b"d"),
+            ("− bacon".encode(), b"q"),
         ])
         cargo_calls = (Path(tool_dir) / "cargo-calls").read_text().splitlines()
         assert cargo_calls == ["uninstall bacon"], cargo_calls
         actions = (state / "den" / "actions.log").read_text()
         assert actions.endswith(f"\t{fake_cargo} uninstall bacon\tDone\n"), actions
-    print("PASS: dew uninstalls a crate with the cargo found on PATH; reading ran nothing; Rust is read again")
+    print("PASS: dew uninstalls a crate with the cargo found on PATH; reading ran nothing; Rust is read again and d shows it removed")
     with tempfile.TemporaryDirectory(prefix="den-npm-dew-") as npm_dir:
         prefix = Path(npm_dir) / "prefix"
         package = prefix / "lib" / "node_modules" / "prettier"

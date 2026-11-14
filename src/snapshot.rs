@@ -13,7 +13,7 @@ use crate::{
     inventory::{self, ResourceKind},
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::SystemTime};
 
 /// One row as a snapshot keeps it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,7 +68,94 @@ impl Changes {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Added, changed and removed rows in one section.
+    pub fn in_section(&self, section: &str) -> usize {
+        self.current.keys().filter(|(s, _)| s == section).count() + self.removed(section).count()
+    }
 }
+
+/// What changed in one list since a point in time: for now, since Den first read it.
+/// `d` switches the list to the changed rows only.
+#[derive(Clone, Debug, Default)]
+pub struct Tracking {
+    start: Option<(SystemTime, Vec<Entry>)>,
+    changes: Changes,
+    /// Changes only (`d`).
+    pub only: bool,
+}
+impl Tracking {
+    /// A fresh reading: the first one is the starting point, later ones are compared to it.
+    pub fn observe(&mut self, entries: Vec<Entry>, now: SystemTime) {
+        match &self.start {
+            None => self.start = Some((now, entries)),
+            Some((_, start)) => self.changes = diff(start, &entries),
+        }
+    }
+    pub fn changes(&self) -> &Changes {
+        &self.changes
+    }
+    /// Whether the list shows this row: every row, or with `d` only changed ones.
+    pub fn keeps(&self, section: &str, key: &str) -> bool {
+        !self.only || self.changes.of(section, key).is_some()
+    }
+    /// "+ " before a new row's name, "~ " before a changed one.
+    pub fn mark(&self, section: &str, key: &str) -> &'static str {
+        match self.changes.of(section, key) {
+            Some(Change::Added) => "+ ",
+            Some(Change::Changed { .. }) => "~ ",
+            None => "",
+        }
+    }
+    /// Removed rows, listed after the others in the changes view.
+    pub fn removed<'a>(&'a self, section: &'a str) -> Vec<&'a Entry> {
+        if self.only {
+            self.changes.removed(section).collect()
+        } else {
+            vec![]
+        }
+    }
+    /// "since Den started 5 min ago".
+    pub fn since(&self, now: SystemTime) -> String {
+        self.start.as_ref().map_or_else(
+            || "since Den started".into(),
+            |(when, _)| format!("since Den started {}", crate::updates::age(*when, now)),
+        )
+    }
+    /// The filter line in the changes view: "Changes 3 · since Den started 5 min ago".
+    pub fn filter(&self, section: &str, now: SystemTime) -> Option<String> {
+        self.only.then(|| {
+            format!(
+                "Changes {} · {}",
+                self.changes.in_section(section),
+                self.since(now)
+            )
+        })
+    }
+    /// The status line's count: " · 3 changes since Den started", or nothing.
+    pub fn status(&self) -> String {
+        match self.changes.len() {
+            0 => String::new(),
+            n => format!(
+                " · {} since Den started",
+                crate::inventory::count(n, "change")
+            ),
+        }
+    }
+    /// The panel lines for a row that changed, or nothing.
+    pub fn panel(&self, section: &str, key: &str, now: SystemTime) -> String {
+        let since = self.since(now);
+        match self.changes.of(section, key) {
+            Some(Change::Added) => format!("\n\n{HEADING}What changed\nNew {since}."),
+            Some(Change::Changed { before }) => format!(
+                "\n\n{HEADING}What changed\nChanged {since}. Before: {}",
+                crate::inventory::safe_text(before)
+            ),
+            None => String::new(),
+        }
+    }
+}
+/// Panel section headings, as the list areas mark them.
+const HEADING: &str = "## ";
 
 /// Compares two lists of entries by section and key. A key repeated within a section
 /// counts once, by its last entry.
@@ -108,6 +195,16 @@ pub fn diff(before: &[Entry], now: &[Entry]) -> Changes {
     changes
 }
 
+/// A Homebrew package's key: `formula:git`, `cask:firefox`.
+pub fn homebrew_key(r: &inventory::Resource) -> String {
+    let kind = if r.kind == ResourceKind::Cask {
+        "cask"
+    } else {
+        "formula"
+    };
+    format!("{kind}:{}", r.name)
+}
+
 /// Homebrew: each installed formula and cask, with its installed version.
 pub fn homebrew(inventory: &inventory::Inventory) -> Vec<Entry> {
     inventory
@@ -115,14 +212,9 @@ pub fn homebrew(inventory: &inventory::Inventory) -> Vec<Entry> {
         .iter()
         .filter(|r| matches!(r.kind, ResourceKind::Formula | ResourceKind::Cask))
         .map(|r| {
-            let kind = if r.kind == ResourceKind::Cask {
-                "cask"
-            } else {
-                "formula"
-            };
             Entry::new(
                 "Packages",
-                format!("{kind}:{}", r.name),
+                homebrew_key(r),
                 &r.display_name(),
                 r.version.clone().unwrap_or_default(),
             )
@@ -182,18 +274,14 @@ pub fn kube(inventory: &kube::Inventory) -> Vec<Entry> {
 /// Docker: containers by name with their image (running or not is not a change),
 /// images by name with their size, volumes with their driver.
 pub fn docker(inventory: &docker::Inventory) -> Vec<Entry> {
-    let containers = inventory.containers.iter().map(|r| {
-        Entry::new(
-            "Containers",
-            format!("container:{}", r.name),
-            &r.name,
-            &r.status,
-        )
-    });
+    let containers = inventory
+        .containers
+        .iter()
+        .map(|r| Entry::new("Containers", &r.key, &r.name, &r.status));
     let images = inventory
         .images
         .iter()
-        .map(|r| Entry::new("Images", format!("image:{}", r.target), &r.name, &r.state));
+        .map(|r| Entry::new("Images", &r.key, &r.name, &r.state));
     let volumes = inventory
         .volumes
         .iter()
@@ -292,7 +380,7 @@ mod tests {
             state: state.into(),
             status: image.into(),
             detail: "SECRET_ENV=hunter2".into(),
-            key: format!("container:{name}-id"),
+            key: format!("container:{name}"),
             target: format!("{name}-id"),
         }
     }

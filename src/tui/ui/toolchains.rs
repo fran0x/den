@@ -63,9 +63,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         .inventory
         .as_ref()
         .map_or(String::new(), |i| i.coverage.join("\n"));
+    let tracked = tracked(t);
+    let now = std::time::SystemTime::now();
+    let name = section.label();
     let text = t.selected_row().map_or_else(
         || {
-            if !t.query.is_empty() {
+            if let Some(empty) = &tracked.empty {
+                format!("{empty}\n\n{HEADING}Coverage\n{coverage}")
+            } else if !t.query.is_empty() {
                 "No matches.\n/:search".into()
             } else if t.inventory.is_some() {
                 let empty = match section {
@@ -83,8 +88,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                 format!("\n\n{UPDATE} {v} available from Homebrew, as of its last data refresh")
             });
             format!(
-                "{HEADING}{}{update}\n\n{HEADING}Coverage\n{coverage}",
-                r.detail
+                "{HEADING}{}{update}{}\n\n{HEADING}Coverage\n{coverage}",
+                r.detail,
+                t.changes.panel(name, &r.key, now)
             )
         },
     );
@@ -105,8 +111,8 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         },
         header,
         // Until rows exist, the list carries the message; the status line stays quiet.
-        status: if t.inventory.is_some() && !t.rows().is_empty() {
-            message
+        status: if t.inventory.is_some() && !(t.rows().is_empty() && !t.changes.only) {
+            format!("{message}{}", tracked.status)
         } else {
             String::new()
         },
@@ -118,7 +124,8 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
                     Some(v) => format!("{UPDATE} {v} · {}", r.status),
                     None => r.status.to_string(),
                 };
-                (r.name.clone(), r.kind.clone(), status)
+                let mark = t.changes.mark(name, &r.key);
+                (format!("{mark}{}", r.name), r.kind.clone(), status)
             })
             .collect(),
         text,
@@ -127,6 +134,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         searching: t.searching,
         current: None,
         actions: app.actions.allowed(),
+        filter: tracked.filter,
+        removed: tracked.removed,
+        changed: tracked.changed,
     };
     let t = &mut app.toolchains;
     list_view(frame, view, &mut t.page, &mut t.panel);

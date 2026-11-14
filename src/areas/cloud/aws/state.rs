@@ -19,4 +19,10 @@ impl crate::listing::Listing for Inventory {
     fn failure(_: &io::Error) -> String {
         "AWS collection failed; previous results retained".into()
     }
+    fn section_name(_: ()) -> &'static str {
+        "AWS"
+    }
+    fn entries(&self) -> Vec<crate::snapshot::Entry> {
+        crate::snapshot::aws(self)
+    }
 }

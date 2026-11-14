@@ -16,7 +16,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap},
 };
 
 use crate::{
@@ -105,7 +105,11 @@ fn screen(frame: &mut Frame, app: &mut App) {
     let status = if nothing {
         String::new()
     } else if app.live {
-        loading(app, app.collection_message())
+        format!(
+            "{}{}",
+            loading(app, app.collection_message()),
+            app.homebrew_changes.status()
+        )
     } else {
         format!("{}{}", app.source_label, app.outdated_text())
     };
@@ -114,14 +118,19 @@ fn screen(frame: &mut Frame, app: &mut App) {
         app.destination().label(),
         &status,
         app.searching,
-        if app.searching {
-            actions(true)
-        } else if app.is_homebrew() && app.actions.allowed() {
-            "a:tools/all x:actions Tab:area Shift+Tab:section"
-        } else if app.is_homebrew() {
-            "a:tools/all Tab:area Shift+Tab:section"
+        &if app.is_homebrew() && !app.searching {
+            format!(
+                "a:tools/all {}",
+                list_actions(
+                    false,
+                    app.actions.allowed(),
+                    !app.homebrew_changes.changes().is_empty() || app.homebrew_changes.only
+                )
+            )
+        } else if app.searching {
+            actions(true).into()
         } else {
-            "f:type Tab:area"
+            "f:type Tab:area".into()
         },
     );
     let panes = panes(body);
@@ -161,9 +170,21 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
     if app.focus == Focus::Inventory {
         app.page_size = inner.height.max(1) as usize;
     }
-    if app.visible.is_empty() {
+    let now = std::time::SystemTime::now();
+    let changes = &app.homebrew_changes;
+    let removed: Vec<String> = changes
+        .removed("Packages")
+        .into_iter()
+        .filter(|e| crate::inventory::matches_query(&app.query, &safe_text(&e.name)))
+        .map(|e| safe_text(&e.name))
+        .collect();
+    if app.visible.is_empty() && removed.is_empty() {
         frame.render_widget(
-            Paragraph::new(if app.live && app.inventory.resources.is_empty() {
+            Paragraph::new(if changes.only && !app.query.is_empty() {
+                "No matching changes.\n/:search · d:all packages".into()
+            } else if changes.only {
+                format!("No changes {}.\nd:all packages", changes.since(now))
+            } else if app.live && app.inventory.resources.is_empty() {
                 loading(app, app.collection_message())
             } else if app.is_homebrew() && app.inventory.resources.is_empty() {
                 "No installed Homebrew packages in snapshot".into()
@@ -218,7 +239,11 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 r.description.clone()
             };
-            let name = r.display_name();
+            let name = format!(
+                "{}{}",
+                changes.mark("Packages", &crate::snapshot::homebrew_key(r)),
+                r.display_name()
+            );
             let cells = (
                 name.as_str(),
                 r.version.as_deref().unwrap_or("Unknown"),
@@ -239,8 +264,12 @@ fn render_inventory(frame: &mut Frame, app: &mut App, area: Rect) {
             }
         })
         .collect();
+    let mut items = items;
+    // Removed packages follow, in the changes view; they cannot be selected.
+    items.extend(removed_items(&removed, removed.len(), inner.width));
     let list = List::new(items)
         .highlight_symbol("> ")
+        .highlight_spacing(HighlightSpacing::Always)
         .highlight_style(status_selection());
     let mut state = ListState::default()
         .with_selected(app.selected)

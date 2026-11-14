@@ -198,6 +198,45 @@ fn x_then_enter_runs_the_first_action_and_toolchains_is_read_again() {
 }
 
 #[test]
+fn an_uninstalled_crate_shows_as_removed_after_the_refresh() {
+    let mut a = app(true);
+    a.toolchains.select_key("crate:bacon");
+    key(&mut a, KeyCode::Char('x'));
+    key(&mut a, KeyCode::End);
+    key(&mut a, KeyCode::Enter);
+    let Some(Request::Run(action)) = a.actions.request.take() else {
+        panic!("{:?}", a.actions.request);
+    };
+    assert_eq!(
+        action.command_line(),
+        format!("{} uninstall bacon", cargo().display())
+    );
+    let log = std::env::temp_dir().join(format!("den-toolchain-removed-{}", std::process::id()));
+    a.finish_action(
+        Ok(CommandOutput {
+            code: Some(0),
+            stdout: vec![],
+            stderr: b"Removing ~/.cargo/bin/bacon\n".to_vec(),
+        }),
+        Some(&log.join("actions.log")),
+    );
+    a.actions.close();
+    assert!(a.toolchains.requested, "Toolchains is read again");
+    // The read after the action: bacon is gone.
+    let context = a.toolchains.context.clone().unwrap();
+    let mut now = toolchains::discover(&context, &AtomicBool::new(false)).unwrap();
+    now.rust.retain(|r| r.key != "crate:bacon");
+    a.toolchains.finish(Ok(now));
+    let screen = draw(&mut a);
+    assert!(screen.contains("1 change since Den started"), "{screen}");
+    key(&mut a, KeyCode::Char('d'));
+    let screen = draw(&mut a);
+    assert!(screen.contains("− bacon"), "{screen}");
+    assert!(screen.contains("Removed since Den started"), "{screen}");
+    let _ = std::fs::remove_dir_all(&log);
+}
+
+#[test]
 fn den_offers_no_toolchain_actions() {
     let mut a = app(false);
     a.toolchains.select_key("crate:bacon");

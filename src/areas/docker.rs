@@ -293,7 +293,9 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
             ]
             .join("\n")
             .replace("\n\n\n", "\n\n"),
-            key: format!("image:{id}:{name}"),
+            // The tag, or the ID when untagged: what an action names, and stable across
+            // refreshes and in snapshots.
+            key: format!("image:{}", if dangling { &id } else { &name }),
             target: if dangling { id.clone() } else { name.clone() },
             status,
             name,
@@ -403,7 +405,8 @@ fn container_row(c: &Map<String, Value>) -> Row {
             project.map(|p| format!(" · {p}")).unwrap_or_default()
         ),
         detail: detail.join("\n"),
-        key: format!("container:{}", text(c, "ID")),
+        // By name: a recreated container is the same one, in selection and snapshots.
+        key: format!("container:{name}"),
         target: text(c, "ID"),
         name,
     }

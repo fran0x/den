@@ -120,7 +120,7 @@ fn each_row_offers_only_what_docker_allows_without_force() {
 fn x_selects_the_first_action_and_docker_refreshes_after() {
     let mut a = app(true);
     a.navigate(Destination::Containers);
-    a.docker.select_key(&format!("container:{DB}"));
+    a.docker.select_key("container:web-db-1");
     assert!(draw(&mut a, 140, 32).contains("x:actions"));
     // x selects the first action and says what goes; Enter runs it.
     key(&mut a, KeyCode::Char('x'));
@@ -153,7 +153,7 @@ fn x_selects_the_first_action_and_docker_refreshes_after() {
 #[test]
 fn den_offers_no_docker_actions() {
     let mut a = app(false);
-    a.docker.select_key(&format!("container:{DB}"));
+    a.docker.select_key("container:web-db-1");
     assert!(!draw(&mut a, 140, 32).contains("x:actions"));
     key(&mut a, KeyCode::Char('x'));
     assert!(a.actions.dialog.is_none());

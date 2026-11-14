@@ -102,6 +102,8 @@ pub struct App {
     pub help_scroll: u16,
     pub help_max: u16,
     pub page_size: usize,
+    /// What changed in Homebrew since Den first read it.
+    pub homebrew_changes: crate::snapshot::Tracking,
 }
 
 impl App {
@@ -150,6 +152,7 @@ impl App {
             help_scroll: 0,
             help_max: 0,
             page_size: 1,
+            homebrew_changes: crate::snapshot::Tracking::default(),
         };
         app.refresh();
         app
@@ -235,6 +238,10 @@ impl App {
                 let old_offset = self.list_offset;
                 let graph = Graph::build(&inventory);
                 let health = Health::build(&graph);
+                self.homebrew_changes.observe(
+                    crate::snapshot::homebrew(&inventory),
+                    std::time::SystemTime::now(),
+                );
                 self.inventory = inventory;
                 self.health = health;
                 self.inventory_epoch = self.inventory_epoch.saturating_add(1);
@@ -383,7 +390,14 @@ impl App {
             .iter()
             .enumerate()
             .filter_map(|(i, r)| {
-                (self.matches_scope(r) && (!self.tools_only() || self.is_tool(i))).then_some(i)
+                // The changes view shows every changed package, tools or not.
+                let changes = &self.homebrew_changes;
+                let shown = if changes.only {
+                    changes.keeps("Packages", &crate::snapshot::homebrew_key(r))
+                } else {
+                    !self.tools_only() || self.is_tool(i)
+                };
+                (self.matches_scope(r) && shown).then_some(i)
             })
             .collect();
         self.selected = previous
@@ -516,6 +530,11 @@ impl App {
             }
             KeyCode::Char('a') if self.is_homebrew() && self.focus == Focus::Inventory => {
                 self.show_all = !self.show_all;
+                self.homebrew_changes.only = false;
+                self.refresh();
+            }
+            KeyCode::Char('d') if self.is_homebrew() && self.focus == Focus::Inventory => {
+                self.homebrew_changes.only = !self.homebrew_changes.only;
                 self.refresh();
             }
             KeyCode::Char('r')

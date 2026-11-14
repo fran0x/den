@@ -59,9 +59,13 @@ fn aws(app: &App) -> ListView {
         .inventory
         .as_ref()
         .map_or(String::new(), |i| i.coverage.join("\n"));
+    let tracked = tracked(a);
+    let now = std::time::SystemTime::now();
     let text = a.selected_row().map_or_else(
         || {
-            if !a.query.is_empty() {
+            if let Some(empty) = &tracked.empty {
+                format!("{empty}\n\n{HEADING}Coverage\n{coverage}")
+            } else if !a.query.is_empty() {
                 "No matches.\n/:search".into()
             } else if let Some(i) = &a.inventory {
                 format!(
@@ -76,7 +80,13 @@ fn aws(app: &App) -> ListView {
                 message.clone()
             }
         },
-        |r| format!("{HEADING}{}\n\n{HEADING}Coverage\n{coverage}", r.detail),
+        |r| {
+            format!(
+                "{HEADING}{}{}\n\n{HEADING}Coverage\n{coverage}",
+                r.detail,
+                a.changes.panel("AWS", &r.key, now)
+            )
+        },
     );
     // The active profile is starred and highlighted: a narrow Status column can cut "active".
     let active = a
@@ -90,7 +100,7 @@ fn aws(app: &App) -> ListView {
         header: ("  Profile", "Auth", "Status"),
         // Until profiles load, the list carries the message; the status line stays quiet.
         status: if a.inventory.is_some() {
-            message
+            format!("{message}{}", tracked.status)
         } else {
             String::new()
         },
@@ -99,6 +109,7 @@ fn aws(app: &App) -> ListView {
             .iter()
             .map(|r| {
                 let name = mark(&r.name, active.as_ref() == Some(&r.key));
+                let name = format!("{}{name}", a.changes.mark("AWS", &r.key));
                 (name, r.auth.clone(), r.status.to_string())
             })
             .collect(),
@@ -111,6 +122,9 @@ fn aws(app: &App) -> ListView {
         query: a.query.clone(),
         searching: a.searching,
         actions: false,
+        filter: tracked.filter,
+        removed: tracked.removed,
+        changed: tracked.changed,
     }
 }
 
@@ -137,9 +151,13 @@ fn kube(app: &App) -> ListView {
         .inventory
         .as_ref()
         .map_or(String::new(), |i| i.coverage.join("\n"));
+    let tracked = tracked(k);
+    let now = std::time::SystemTime::now();
     let text = k.selected_row().map_or_else(
         || {
-            if !k.query.is_empty() {
+            if let Some(empty) = &tracked.empty {
+                format!("{empty}\n\n{HEADING}Coverage\n{coverage}")
+            } else if !k.query.is_empty() {
                 "No matches.\n/:search".into()
             } else if let Some(i) = &k.inventory {
                 let files = k.context.as_ref().map_or_else(String::new, |c| {
@@ -161,7 +179,13 @@ fn kube(app: &App) -> ListView {
                 message.clone()
             }
         },
-        |r| format!("{HEADING}{}\n\n{HEADING}Coverage\n{coverage}", r.detail),
+        |r| {
+            format!(
+                "{HEADING}{}{}\n\n{HEADING}Coverage\n{coverage}",
+                r.detail,
+                k.changes.panel("Kubernetes", &r.key, now)
+            )
+        },
     );
     let current = k
         .inventory
@@ -173,7 +197,7 @@ fn kube(app: &App) -> ListView {
         pane: " Kubernetes ",
         header: ("  Context", "Auth", "Status"),
         status: if k.inventory.is_some() {
-            message
+            format!("{message}{}", tracked.status)
         } else {
             String::new()
         },
@@ -182,6 +206,7 @@ fn kube(app: &App) -> ListView {
             .iter()
             .map(|r| {
                 let name = mark(&r.name, current.as_ref() == Some(&r.key));
+                let name = format!("{}{name}", k.changes.mark("Kubernetes", &r.key));
                 (name, r.auth.clone(), r.status.to_string())
             })
             .collect(),
@@ -194,6 +219,9 @@ fn kube(app: &App) -> ListView {
         query: k.query.clone(),
         searching: k.searching,
         actions: false,
+        filter: tracked.filter,
+        removed: tracked.removed,
+        changed: tracked.changed,
     }
 }
 

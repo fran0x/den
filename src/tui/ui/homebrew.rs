@@ -4,6 +4,12 @@ use crate::{areas::homebrew::explorer::Explorer, areas::homebrew::graph::Evidenc
 
 /// The Homebrew filter line: the active view is bracketed; counts follow search.
 pub(super) fn view_text(app: &App) -> String {
+    if let Some(changes) = app
+        .homebrew_changes
+        .filter("Packages", std::time::SystemTime::now())
+    {
+        return changes;
+    }
     let counts = app.homebrew_counts();
     let (tools, all) = if app.show_all {
         (
@@ -96,6 +102,14 @@ pub(super) fn information(frame: &mut Frame, app: &App, area: Rect) {
                 .map_or("Unknown", |m| m.intent_label())
         ),
     ];
+    let changed = app.homebrew_changes.panel(
+        "Packages",
+        &crate::snapshot::homebrew_key(resource),
+        std::time::SystemTime::now(),
+    );
+    if let Some(what) = changed.lines().last().filter(|_| !changed.is_empty()) {
+        summary.push(what.to_owned());
+    }
     if let Some(m) = &resource.homebrew
         && let Some(latest) = m.update()
     {
