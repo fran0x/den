@@ -5,6 +5,18 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **What changed:** after a refresh, new rows are marked `+` and changed ones `~`, with
+  what they were before in the panel, and the status line counts them. `d` lists only the
+  changed rows, then the removed ones, struck through. Covers Homebrew, Agents, AWS,
+  Kubernetes, Docker and Toolchains; a container starting or stopping is not a change.
+- **Snapshots:** `S` saves what Den has read, after asking, to
+  `~/.local/state/den/snapshot.json` (private to you, never written through a link).
+  The next run compares with it: `d` shows what changed since the snapshot, then since
+  Den started. A file Den can't use is reported and left alone. This is the only file
+  `den` writes.
+- **Docker:** containers and images are now identified by name and tag rather than ID,
+  so a recreated container counts as the same one.
+
 ## [0.4.0] - 2026-11-14
 
 - **Rust clean-up in `dew`:** in Toolchains › Rust, `x` on a toolchain offers

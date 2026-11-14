@@ -40,8 +40,15 @@ When something is wrong, the panel beside the row says why.
   rest comes from files.
 - Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
 - Never shows secrets: tokens, keys and credential values are dropped as they are read.
+- Writes nothing, except a snapshot when you press `S` and confirm.
 
-**Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `?` help · `q` quit.
+**What changed:** after a refresh, `+` marks new rows and `~` changed ones, and `d` lists
+only those plus what was removed. Den compares with how it first read each area, and with
+the snapshot you last saved with `S` (`~/.local/state/den/snapshot.json`), so the next run
+shows what changed since.
+
+**Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `d` changes · `S` snapshot ·
+`?` help · `q` quit.
 Try it without reading your machine: `den --demo`.
 
 ## dew: with changes

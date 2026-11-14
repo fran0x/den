@@ -16,6 +16,8 @@ everything Den knows about it.
 | `/` | Search the list |
 | `Esc` | Go back |
 | `r` | Refresh |
+| `d` | Only what changed; press again for the next comparison ([What changed](#what-changed)) |
+| `S` | Save a snapshot to compare with later (asks first) |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -147,6 +149,53 @@ installed show its newer version, like `↑ 22.12.0`; nothing else is checked fo
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
+## What changed
+
+Den remembers how it first read each area in this session. When a refresh (`r`, an
+action in `dew`, or Docker's own 5-second refresh) finds something different, the row
+gets a mark: `+` for a new row and `~` for a changed one, whose panel ends with **What
+changed** and what it was **Before**. The status line counts them, for example
+**3 changes since Den started**, and the footer offers `d:changes`.
+
+`d` shows only the changed rows, then the removed ones, struck through, like `− bacon`.
+Removed rows are listed for information; they can't be selected. Search applies to this
+view too. Press `d` again for the next comparison, and once more for every row:
+
+1. **Since the snapshot:** compared with the snapshot you saved with `S`, when there is
+   one.
+2. **Since Den started:** compared with the first reading in this session.
+3. **All rows**, as usual.
+
+What counts as a change is what the list shows: a version, a status, how a profile signs
+in. A container starting or stopping, and a newer Homebrew version becoming known, are
+not changes. In Homebrew the changes view covers all packages, dependencies included; `a`
+goes back to the usual view. Agents compares once both Codex and Claude Code have been
+read. Homebrew's Diagnostics are not compared.
+
+### Snapshots
+
+`S` saves what Den has read so far, to compare with on later runs. It asks first, on the
+status line, saying which areas it will save and where; `Enter` saves and any other key
+cancels. The file is `$XDG_STATE_HOME/den/snapshot.json`
+(`~/.local/state/den/snapshot.json` by default). It is the only file `den` writes.
+
+- **What is in it:** for each row in the lists, its name and what the list shows (version,
+  status). Some rows are named by a local path, such as an instruction file or a PATH
+  folder. Nothing Den withholds is ever in it.
+- **Areas you didn't open** keep what the file already had, so they don't look removed
+  next time. Saving again replaces the areas you read.
+- **Private and safe to interrupt:** the folder is yours only (0700) and the file too
+  (0600). It is written to a temporary file and then renamed, so it is never half
+  written, and never written through a link.
+- **Live data only:** Den uses it only when it reads this machine. `--demo`,
+  `--snapshot <file>` (which loads a saved inventory instead) and the fixture options
+  neither read nor save it.
+
+When Den can't use the file (it is not a Den snapshot, it was saved by a newer Den, it is
+larger than 4 MiB, or it is a link), the status line says **Saved snapshot not used** and
+why. Den leaves the file as it is; only `S` and `Enter` replace it. To forget a snapshot,
+delete the file.
+
 ## Making changes
 
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
@@ -202,7 +251,8 @@ In `den` there are no actions at all: `x` does nothing.
 ## What Den reads, and what it never does
 
 `den` only looks, and `dew` changes only what you choose (see
-[Making changes](#making-changes)). The only commands `den` runs are `brew info`,
+[Making changes](#making-changes)). The one file `den` writes is its own snapshot, after
+`S` and `Enter` (see [Snapshots](#snapshots)). The only commands `den` runs are `brew info`,
 `missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`, `image ls`,
 `volume ls` and `system df`, each bounded in time and output (Homebrew may refresh its own
 metadata when asked). Everything else comes from files. By area:
