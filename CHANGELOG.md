@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-15
+
 - **Agents › Skills:** each skill's panel says how it was **Installed**: with `npx skills`
   (source and date, from its lock file), by claude.ai sync, with `git clone`, or by hand
   when there is no record; and its **Author** when its `SKILL.md` names one
@@ -143,7 +145,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/fran0x/den/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/fran0x/den/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/fran0x/den/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/fran0x/den/compare/v0.4.0...v0.5.0
