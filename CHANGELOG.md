@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-15
+
 - **Keys in one place:** the bottom line, under a rule, lists every key that works where
   you are, in three groups: this view's │ Den's (`d`, `S`, `u`, `r`) │ moving around.
   `u:check online` moved there from the status line, and keys that were only in `?`
@@ -154,7 +156,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/fran0x/den/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/fran0x/den/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/fran0x/den/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/fran0x/den/compare/v0.5.0...v0.6.0
