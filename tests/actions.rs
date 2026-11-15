@@ -58,6 +58,13 @@ fn menu(a: &App) -> Vec<(String, Option<String>)> {
         other => panic!("no menu: {other:?}"),
     }
 }
+/// The selected action's place in the menu.
+fn selected(a: &App) -> usize {
+    match &a.actions.dialog {
+        Some(Dialog::Menu { selected, .. }) => *selected,
+        other => panic!("no menu: {other:?}"),
+    }
+}
 /// Moves the menu selection to the action with this command line.
 fn pick(a: &mut App, line: &str) {
     let at = menu(a).iter().position(|(l, _)| l == line).unwrap();
@@ -68,34 +75,40 @@ fn pick(a: &mut App, line: &str) {
 }
 
 #[test]
-fn the_menu_offers_what_fits_the_selection_uninstall_last() {
+fn the_menu_offers_what_fits_the_selection_package_first() {
     let mut a = app(true);
     select(&mut a, "ripgrep");
     key(&mut a, KeyCode::Char('x'));
-    // Uninstall comes last, so x then Enter can never remove a package.
+    // The package's own actions, then Homebrew's, each under its heading.
     assert_eq!(
         menu(&a),
         [
             ("brew upgrade --formula ripgrep".into(), None),
+            ("brew uninstall --formula ripgrep".into(), None),
             ("brew update".into(), None),
             ("brew autoremove".into(), None),
             ("brew cleanup".into(), None),
-            ("brew uninstall --formula ripgrep".into(), None),
         ]
     );
+    let screen = draw(&mut a, 120, 36);
+    assert!(
+        screen.contains("This package") && screen.contains("All of Homebrew"),
+        "{screen}"
+    );
+    assert_eq!(selected(&a), 0, "the upgrade is selected");
     key(&mut a, KeyCode::Esc);
     assert!(a.actions.dialog.is_none());
 
-    // Something needs pcre2, so uninstalling it is offered but blocked; no upgrade, so
-    // the harmless data update comes first.
+    // Something needs pcre2, so uninstalling it is offered but blocked. With no upgrade,
+    // the dialog opens on the harmless data update, never on uninstall, so x then Enter
+    // can never remove a package.
     let mut a = app(true);
     select(&mut a, "pcre2");
     key(&mut a, KeyCode::Char('x'));
     let items = menu(&a);
-    assert_eq!(items[0].0, "brew update");
-    let last = items.last().unwrap();
-    assert_eq!(last.0, "brew uninstall --formula pcre2");
-    assert!(last.1.as_deref().unwrap().contains("required by 1"));
+    assert_eq!(items[0].0, "brew uninstall --formula pcre2");
+    assert!(items[0].1.as_deref().unwrap().contains("required by 1"));
+    assert_eq!(items[selected(&a)].0, "brew update");
     assert!(!items.iter().any(|(l, _)| l.starts_with("brew upgrade")));
 
     // Casks get --cask, and a tapped package its full name, so no other tap's package
@@ -202,7 +215,9 @@ fn moving_the_selection_starts_that_dry_run() {
     key(&mut a, KeyCode::Char('x'));
     assert_eq!(a.actions.request.take(), Some(Request::Preview(upgrade())));
     key(&mut a, KeyCode::Down);
-    // brew update has no dry run: nothing to wait for.
+    // Uninstall and brew update have no dry run: nothing to wait for.
+    assert_eq!(a.actions.request, None);
+    key(&mut a, KeyCode::Down);
     assert_eq!(a.actions.request, None);
     key(&mut a, KeyCode::Down);
     assert_eq!(

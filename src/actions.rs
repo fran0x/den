@@ -239,6 +239,35 @@ pub enum Action {
     PipxUninstall(Program, Name),
 }
 impl Action {
+    /// True for an action about the whole area rather than the selected row: Homebrew's
+    /// data, autoremove and cleanup, and removing every unused untagged image.
+    pub fn area_wide(&self) -> bool {
+        match self {
+            Self::BrewUpdate | Self::BrewAutoremove | Self::BrewCleanup => true,
+            Self::DockerRemoveImages(images) => images.len() > 1,
+            _ => false,
+        }
+    }
+    /// The heading the actions dialog groups it under.
+    pub fn group(&self) -> &'static str {
+        match self {
+            Self::BrewUpdate | Self::BrewAutoremove | Self::BrewCleanup => "All of Homebrew",
+            Self::DockerRemoveImages(images) if images.len() > 1 => "All unused untagged images",
+            Self::DockerStopContainer(_) | Self::DockerRemoveContainer(_) => "This container",
+            Self::DockerRemoveImages(_) | Self::DockerPull(_) => "This image",
+            Self::DockerRemoveVolume(_) => "This volume",
+            Self::RustupUpdate(..) | Self::RustupUninstall(..) => "This toolchain",
+            Self::CargoInstall(..) | Self::CargoUninstall(..) => "This crate",
+            Self::BrewUpgrade(_)
+            | Self::BrewUninstall(_)
+            | Self::NpmUpdate(..)
+            | Self::NpmUninstall(..)
+            | Self::UvToolUpgrade(..)
+            | Self::UvToolUninstall(..)
+            | Self::PipxUpgrade(..)
+            | Self::PipxUninstall(..) => "This package",
+        }
+    }
     pub fn area(&self) -> Area {
         match self {
             Self::BrewUpdate
@@ -592,15 +621,24 @@ impl State {
     pub fn running(&self) -> bool {
         matches!(self.dialog, Some(Dialog::Running { .. }))
     }
-    /// Opens the actions with the first one selected and its dry run started.
+    /// Opens the actions: the selected row's first, then the area-wide ones. The first
+    /// action that does not uninstall a package is selected, so `x` then Enter never
+    /// removes one, and its dry run starts.
     pub fn open(&mut self, package: Option<String>, items: Vec<Item>) {
+        let (mut items, area): (Vec<_>, Vec<_>) =
+            items.into_iter().partition(|i| !i.action.area_wide());
+        items.extend(area);
+        let first = items
+            .iter()
+            .position(|i| !matches!(i.action, Action::BrewUninstall(_)))
+            .unwrap_or(0);
         self.dialog = Some(Dialog::Menu {
             package,
             items,
-            selected: 0,
+            selected: first,
             preview: Preview::None,
         });
-        self.select(0);
+        self.select(first);
     }
     /// Selects an action and starts its dry run, where Homebrew has one. Only dew runs
     /// previews: den never opens the menu.

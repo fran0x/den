@@ -15,10 +15,10 @@ everything Den knows about it.
 | `PgUp` `PgDn` | Scroll the panel |
 | `/` | Search the list |
 | `Esc` | Go back |
-| `r` | Refresh |
-| `d` | Only what changed; press again for the next comparison ([What changed](#what-changed)) |
-| `S` | Save a snapshot to compare with later (asks first) |
-| `u` | Check online for newer versions ([Newer versions online](#newer-versions-online)) |
+| `r` | Refresh this area |
+| `d` | Only what changed in this area; press again for the next comparison ([What changed](#what-changed)) |
+| `S` | Save a snapshot of all areas to compare with later (asks first) |
+| `u` | Check online for newer versions, in all areas ([Newer versions online](#newer-versions-online)) |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -26,9 +26,15 @@ Every area and section remembers where you were, so you can switch freely. A few
 add their own keys; they are listed below.
 
 The bottom line lists the keys that work where you are, in three groups separated by `│`:
-this view's own keys (such as `x:actions` in `dew`, or `[:reports` in Diagnostics), Den's
-keys (`d`, `S`, `u`, `r`, each shown only where it works), and moving around. On a
-narrow terminal, moving-around keys are shortened first, and `?:help` always stays.
+
+| Group | Keys | Applies to |
+| --- | --- | --- |
+| Here | this view's own (`x:actions` in `dew`, `[:reports` in Diagnostics, …), then `d:changes` and `r:refresh` | this area |
+| All areas | `S:snapshot`, `u:check online` (live data only) | every area at once |
+| Moving around | `Tab`, `Shift+Tab`, `/`, `PgUp`/`PgDn`, `?`, `q` | — |
+
+Each key shows only where it works. On a narrow terminal, moving-around keys are shortened
+first, then the all-areas keys; this view's keys and `?:help` always stay.
 
 ## Reading the screen
 
@@ -293,13 +299,14 @@ delete the file.
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
 actions allowed. The top bar shows a red **WRITE** the whole time. Then:
 
-1. In Homebrew, press `x` for the selected package's actions: upgrade it (when a newer
-   version is known), update Homebrew's package data, remove dependencies nothing needs,
-   clean up old versions and downloads, and, last, uninstall it.
+1. In Homebrew, press `x`. The dialog has two groups: **This package** (upgrade it, when
+   a newer version is known, and uninstall it) and **All of Homebrew** (update Homebrew's
+   package data, remove dependencies nothing needs, clean up old versions and downloads),
+   which are the same on every row.
 2. Choose with `↑` `↓`. Below the list, the selected action shows its exact command and,
    where Homebrew has one, a dry run of what will change.
-3. `Enter` runs it, once its dry run is shown. Uninstall is always last, so `x` then
-   `Enter` never removes a package.
+3. `Enter` runs it, once its dry run is shown. The dialog never opens on uninstall, so `x`
+   then `Enter` never removes a package.
 
 In Docker, `x` offers what Docker allows without forcing: stop a running container,
 remove a stopped one, or remove an image or volume no container uses (in Images, also

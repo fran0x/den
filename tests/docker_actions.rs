@@ -203,6 +203,14 @@ fn every_unused_untagged_image_can_go_at_once() {
     );
     // The untagged image a container uses is never part of it.
     assert!(!lines[1].contains("dddddddddddd"));
+    // The bulk removal is about all images, so it has its own heading.
+    key(&mut a, KeyCode::Char('x'));
+    let screen = draw(&mut a, 120, 30);
+    assert!(
+        screen.contains("This image") && screen.contains("All unused untagged images"),
+        "{screen}"
+    );
+    key(&mut a, KeyCode::Esc);
     // With only one, the row's own action is enough.
     let mut a = app(true);
     assert_eq!(actions_for(&mut a, Section::Images, "redis:7").len(), 1);

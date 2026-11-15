@@ -724,8 +724,8 @@ else:
     calls.unlink()
     output = run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
         (b"Loaded 8", b"x"),
-        # Uninstall is last; the item above it is cleanup.
-        (b"Actions", [b"\x1b[F", b"\x1b[A"]),
+        # Homebrew's own actions come after the package's; cleanup is last.
+        (b"Actions", b"\x1b[F"),
         # Enter runs the selected action once its dry run is shown.
         (b"Would remove: old-download", b"\r"),
         (b"Done", b"\r"),

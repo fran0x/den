@@ -143,7 +143,18 @@ fn menu(
         .max()
         .unwrap_or(0)
         + 2;
+    // Headings only when the dialog mixes this row's actions with area-wide ones.
+    let grouped =
+        items.iter().any(|i| i.action.area_wide()) && items.iter().any(|i| !i.action.area_wide());
+    let mut heading_shown = None;
     for (i, item) in items.iter().enumerate() {
+        if grouped && heading_shown != Some(item.action.group()) {
+            if heading_shown.is_some() {
+                body.push(Line::raw(""));
+            }
+            heading_shown = Some(item.action.group());
+            body.push(Line::styled(item.action.group(), heading()));
+        }
         let marker = if selected == i { "> " } else { "  " };
         let style = if item.blocked.is_some() {
             muted()

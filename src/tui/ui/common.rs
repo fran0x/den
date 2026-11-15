@@ -44,76 +44,85 @@ pub(super) fn set_write_mode(on: bool) {
     WRITE_MODE.with(|w| w.set(on));
 }
 
-// Den-wide keys for the footer, set at the start of each frame like the write mode, and
-// only those that work in the current view. `None` on the help screen.
+// The footer's keys beyond the view's own, set at the start of each frame like the write
+// mode, and only those that work here: this area's (d, r) and all areas' (S, u). `None`
+// on the help screen.
 thread_local! {
-    static DEN_KEYS: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    static FOOTER_KEYS: std::cell::RefCell<Option<(String, String)>> =
+        const { std::cell::RefCell::new(None) };
 }
 pub(super) fn set_den_keys(app: &App) {
     use crate::app::Module;
     let keys = (!app.help).then(|| {
         let homebrew = app.module == Module::Homebrew;
-        let mut keys = vec![];
+        let mut area = vec![];
         // In Homebrew, d works in the package list, not in Diagnostics.
         if !homebrew || (app.is_homebrew() && !app.inspecting()) {
-            keys.push("d:changes");
-        }
-        if app.snapshot_path.is_some() {
-            keys.push("S:snapshot");
-        }
-        if app.online.path.is_some() {
-            keys.push("u:check online");
+            area.push("d:changes");
         }
         // Homebrew is read again only from live data.
         if !homebrew || app.live {
-            keys.push("r:refresh");
+            area.push("r:refresh");
         }
-        keys.join(" ")
+        let mut all = vec![];
+        if app.snapshot_path.is_some() {
+            all.push("S:snapshot");
+        }
+        if app.online.path.is_some() {
+            all.push("u:check online");
+        }
+        (area.join(" "), all.join(" "))
     });
-    DEN_KEYS.with(|k| *k.borrow_mut() = keys);
+    FOOTER_KEYS.with(|k| *k.borrow_mut() = keys);
 }
 
-/// The footer: this view's keys │ Den-wide keys │ moving around, shortened in that
-/// order of importance when the terminal is narrow: navigation first, then Den's keys,
-/// and this view's keys last.
+/// The footer: this view's and this area's keys │ keys for all areas │ moving around.
+/// When the terminal is narrow, navigation is shortened first, then the all-areas keys;
+/// this view's keys and ?:help stay.
 fn footer(view: &str, width: usize) -> String {
-    let Some(den) = DEN_KEYS.with(|k| k.borrow().clone()) else {
+    let Some((area, all)) = FOOTER_KEYS.with(|k| k.borrow().clone()) else {
         return fit(&format!(" {view} │ q:quit"), width);
     };
-    let den_short = den.replace("u:check online", "u:online");
+    let here = [view, area.as_str()]
+        .iter()
+        .filter(|g| !g.is_empty())
+        .copied()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let all_short = all.replace("u:check online", "u:online");
     let candidates = [
         (
-            den.as_str(),
+            all.as_str(),
             "Tab:area Shift+Tab:section /:search PgUp/PgDn:panel ?:help q:quit",
         ),
         (
-            den.as_str(),
+            all.as_str(),
             "Tab:area Shift+Tab:section /:search ?:help q:quit",
         ),
         (
-            den_short.as_str(),
+            all_short.as_str(),
             "Tab:area Shift+Tab:section ?:help q:quit",
         ),
-        (den_short.as_str(), "Tab:area ?:help q:quit"),
-        (den_short.as_str(), "?:help q:quit"),
+        (all_short.as_str(), "Tab:area ?:help q:quit"),
+        (all_short.as_str(), "?:help q:quit"),
         ("", "?:help q:quit"),
     ];
-    let join = |den: &str, nav: &str, view: &str| {
-        [view, den, nav]
+    let join = |here: &str, all: &str, nav: &str| {
+        [here, all, nav]
             .iter()
             .filter(|g| !g.is_empty())
             .copied()
             .collect::<Vec<_>>()
             .join(" │ ")
     };
-    for (den, nav) in candidates {
-        let line = join(den, nav, view);
+    for (all, nav) in candidates {
+        let line = join(&here, all, nav);
         if line.chars().count() < width {
             return format!(" {line}");
         }
     }
     let room = width.saturating_sub(" │ ?:help q:quit".len() + 2);
-    format!(" {}", join("", "?:help q:quit", &fit(view, room)))
+    format!(" {}", join(&fit(&here, room), "", "?:help q:quit"))
 }
 
 /// Top bar, status line and footer around a body. `view` is "Area / Section" for the

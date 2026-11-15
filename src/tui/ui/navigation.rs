@@ -153,7 +153,8 @@ Diagnostics: unresolved links, missing dependencies, leaves, cleanup."
         "den changes nothing; dew does, after x and Enter."
     };
     format!(
-        "Keys: bottom line. Also j k, Home End, Esc back, Ctrl-C quit.\n\
+        "Keys: bottom line: this area │ all areas (S, u) │ moving around.\n\
+Also j k, Home End, Esc back, Ctrl-C quit.\n\
 Marks: + new · ~ changed · ↑ newer · End of life. d lists changes.\n\n\
 {context}\n\n\
 {UPDATES}\n\n\

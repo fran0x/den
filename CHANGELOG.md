@@ -5,6 +5,11 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Clearer scope:** the footer groups keys by what they apply to: this area (the view's
+  keys, `d`, `r`) │ all areas (`S`, `u`) │ moving around. The actions dialog separates
+  the row's actions from area-wide ones under headings, such as **This package** and
+  **All of Homebrew**, and never opens on uninstall.
+
 ## [0.7.2] - 2026-11-15
 
 - **Shorter help:** `?` is now a one-screen reference: short lines per area, where `u`

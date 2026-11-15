@@ -697,6 +697,8 @@ impl App {
                 });
             }
         }
+        // The package's own actions, then Homebrew's; `open` groups and orders them.
+        items.extend(uninstall);
         for action in [
             Action::BrewUpdate,
             Action::BrewAutoremove,
@@ -704,7 +706,6 @@ impl App {
         ] {
             items.push(Item::new(action));
         }
-        items.extend(uninstall);
         (title, items)
     }
 

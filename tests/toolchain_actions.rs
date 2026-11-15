@@ -361,10 +361,10 @@ fn a_command_homebrew_installed_gets_its_homebrew_actions() {
             .collect::<Vec<_>>(),
         [
             "brew upgrade --formula node",
+            "brew uninstall --formula node",
             "brew update",
             "brew autoremove",
             "brew cleanup",
-            "brew uninstall --formula node",
         ]
     );
     // x starts Homebrew's dry run for the upgrade, as in Homebrew.
