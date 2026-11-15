@@ -217,8 +217,18 @@ pub(crate) fn discover_bounded(
             },
         });
         inventory.partial |= limited;
+        // A sync folder is listed through its own root, never as a skill itself.
+        let sync_container = config
+            .roots
+            .iter()
+            .any(|r| r.scope == Scope::Synced && r.path.starts_with(root.path.join("synced")));
         for name in names {
             if name.to_string_lossy().starts_with('.') {
+                continue;
+            }
+            if (root.scope == Scope::User && sync_container && name == "synced")
+                || (root.scope == Scope::Synced && name == "manifest.json")
+            {
                 continue;
             }
             budget.check()?;

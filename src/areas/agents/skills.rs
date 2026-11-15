@@ -21,8 +21,12 @@ pub enum Scope {
     Admin,
     System,
     Legacy,
+    /// Claude Code's copy of the skills synced from a claude.ai account
+    /// (`~/.claude/skills/synced/<bucket>`).
+    Synced,
 }
 impl Scope {
+    /// The scopes Codex reads, for its coverage counts.
     pub const ALL: [Self; 5] = [
         Self::User,
         Self::Project,
@@ -37,6 +41,7 @@ impl Scope {
             Self::Admin => "Admin",
             Self::System => "Bundled",
             Self::Legacy => "Legacy",
+            Self::Synced => "claude.ai sync",
         }
     }
     /// One plain sentence on where the skill lives and what that means.
@@ -49,6 +54,9 @@ impl Scope {
                 "Codex's cached copy of a skill it ships with (~/.codex/skills/.system); not proof Codex loads it"
             }
             Self::Legacy => "An older location (~/.codex/skills); current Codex may not read it",
+            Self::Synced => {
+                "Synced from your claude.ai account (~/.claude/skills/synced); Claude Code replaces this copy when it syncs, so edits here do not last"
+            }
         }
     }
 }

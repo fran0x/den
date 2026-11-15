@@ -9,7 +9,7 @@ use crate::{
 
 pub(super) const HELP: &str = "Agents: Codex and Claude Code side by side\n\
 Every list has name, Tools (Both / Codex only / Claude only) and Status. Status uses one vocabulary for both tools: Ready, Off, Needs approval, Problem, Unknown (Instructions: Used, Not used). When the tools disagree it shows Codex x · Claude y.\n\
-Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
+Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. Skills synced from claude.ai (~/.claude/skills/synced) are listed one by one, as claude.ai sync. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
 Instructions pair AGENTS.md (Codex) and CLAUDE.md (Claude Code) by where they apply: Managed, User, then each project folder from the outermost down.\n\
 Settings match by name and show the value; Hooks and Plugins are Claude Code only.\n\
 Settings: s shows Codex source files. The panel names the file each setting or MCP server comes from.\n\
@@ -449,6 +449,9 @@ fn skill_text(app: &App, sources: &Sources, row: &Row) -> String {
             "  Where: {}",
             match claude.scope {
                 skills::Scope::Project => "Project · This project's .claude/skills folder",
+                skills::Scope::Synced => {
+                    "claude.ai sync · Synced from your claude.ai account; Claude Code replaces this copy when it syncs (at startup and about every 10 minutes), so edits here do not last"
+                }
                 _ => "User · Your Claude Code skills folder (~/.claude/skills)",
             }
         ));

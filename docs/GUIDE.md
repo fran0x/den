@@ -82,7 +82,7 @@ tools disagree, the status shows both, for example `Codex Ready · Claude Off`.
 
 | Section | What you see |
 | --- | --- |
-| **Skills** | Each skill folder: Ready, Off, Problem (invalid, unreadable or duplicate) or Unknown |
+| **Skills** | Each skill folder: Ready, Off, Problem (invalid, unreadable or duplicate) or Unknown. Skills Claude Code syncs from your claude.ai account (`~/.claude/skills/synced`) are listed one by one as **claude.ai sync** and checked against its manifest |
 | **Instructions** | `AGENTS.md` and `CLAUDE.md` files, in the order each tool reads them |
 | **Settings** | Each setting with its value, and the file it comes from |
 | **MCP** | Each MCP server: Ready, Off, Needs approval or Problem |

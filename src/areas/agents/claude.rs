@@ -151,6 +151,95 @@ pub struct Inventory {
 }
 pub type Collector = crate::worker::Worker<Inventory, io::Error>;
 
+/// The claude.ai sync folders in a skills folder: `synced/<id>`, each next to the
+/// `.bucket-<id>` marker Claude Code leaves. Without both, `synced` is an ordinary skill
+/// folder. Links are not followed.
+fn sync_buckets(skills: &Path, boundary: Option<&Path>) -> Vec<PathBuf> {
+    let synced = skills.join("synced");
+    if boundary.is_some_and(|b| !synced.starts_with(b))
+        || !std::fs::symlink_metadata(&synced).is_ok_and(|m| m.is_dir())
+    {
+        return vec![];
+    }
+    #[cfg(unix)]
+    let names = filesystem::Directory::open(&synced)
+        .and_then(|d| d.names(64))
+        .map(|(names, _)| names)
+        .unwrap_or_default();
+    #[cfg(not(unix))]
+    let names: Vec<std::ffi::OsString> = vec![];
+    let kind = |name: &str| std::fs::symlink_metadata(synced.join(name)).ok();
+    names
+        .iter()
+        .filter_map(|n| n.to_str()?.strip_prefix(".bucket-"))
+        .filter(|id| !id.is_empty() && !id.starts_with('.') && !id.contains(['/', '\\']))
+        .filter(|id| kind(&format!(".bucket-{id}")).is_some_and(|m| m.is_file()))
+        .filter(|id| kind(id).is_some_and(|m| m.is_dir()))
+        .take(8)
+        .map(|id| synced.join(id))
+        .collect()
+}
+
+/// Checks a sync folder against its `manifest.json` (only the skill names are read): a
+/// skill the manifest does not list gets a warning, and the returned coverage line says
+/// what the manifest lists that is not there.
+fn check_sync(bucket: &Path, inventory: &mut skills::Inventory) -> String {
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        name: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Manifest {
+        skills: Vec<Entry>,
+    }
+    #[cfg(unix)]
+    let text = filesystem::Directory::open(bucket)
+        .and_then(|d| d.child(std::ffi::OsStr::new("manifest.json")))
+        .and_then(|f| filesystem::text(f, FILE_LIMIT));
+    #[cfg(not(unix))]
+    let text: io::Result<String> = Err(io::Error::other("unsupported"));
+    let listed: Vec<String> = match text {
+        Err(_) => return "claude.ai sync: manifest.json missing or unreadable, so the synced skills are not checked against it.".into(),
+        Ok(text) => match serde_json::from_str::<Manifest>(&text) {
+            Ok(m) => m.skills.into_iter().take(1024).map(|e| e.name).collect(),
+            Err(_) => return "claude.ai sync: manifest.json is not in the expected format, so the synced skills are not checked against it.".into(),
+        },
+    };
+    let synced = |s: &&mut skills::Skill| {
+        s.scope == skills::Scope::Synced && s.path.parent() == Some(bucket)
+    };
+    for skill in inventory.skills.iter_mut().filter(synced) {
+        if !listed.contains(&skill.name) {
+            skill.finding(
+                skills::Severity::Warning,
+                "Not in claude.ai sync's manifest: Claude Code may remove it at its next sync",
+            );
+        }
+    }
+    let missing: Vec<String> = listed
+        .iter()
+        .filter(|n| {
+            !inventory
+                .skills
+                .iter()
+                .any(|s| s.scope == skills::Scope::Synced && s.path == bucket.join(n))
+        })
+        .map(|n| crate::inventory::safe_text(n))
+        .collect();
+    if missing.is_empty() {
+        format!(
+            "claude.ai sync: its manifest lists {}, all present.",
+            crate::inventory::count(listed.len(), "skill")
+        )
+    } else {
+        format!(
+            "claude.ai sync: its manifest lists {}; not here yet: {}.",
+            crate::inventory::count(listed.len(), "skill"),
+            missing.join(", ")
+        )
+    }
+}
+
 pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory> {
     if cancel.load(Ordering::Relaxed) {
         return Err(io::Error::other("collection cancelled"));
@@ -159,18 +248,28 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         path: context.project.join(".claude/skills"),
         scope: skills::Scope::Project,
     }];
+    let mut buckets = vec![];
     if let Some(home) = &context.claude_home {
         roots.push(skills::Root {
             path: home.join("skills"),
             scope: skills::Scope::User,
         });
+        buckets = sync_buckets(&home.join("skills"), context.boundary.as_deref());
+        roots.extend(buckets.iter().map(|b| skills::Root {
+            path: b.clone(),
+            scope: skills::Scope::Synced,
+        }));
     }
     let config = skills::Config {
         roots,
         project: context.project.clone(),
         coverage: vec![],
     };
-    let skills = skills::discover_bounded(&config, cancel, context.boundary.as_deref())?;
+    let mut skills = skills::discover_bounded(&config, cancel, context.boundary.as_deref())?;
+    let sync = buckets
+        .iter()
+        .map(|b| check_sync(b, &mut skills))
+        .collect::<Vec<_>>();
     let (instructions, absent) = instructions(context, cancel)?;
     let config = config::collect(context, cancel)?;
     let exists = |p: &Option<PathBuf>| p.as_ref().is_some_and(|p| p.exists());
@@ -188,11 +287,14 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         absent,
         config,
         coverage: vec![
-            "Skills: ~/.claude/skills and this project's .claude/skills. Plugin skills and nested .claude/skills folders are not listed.".into(),
+            "Skills: ~/.claude/skills, the claude.ai sync folder in it (~/.claude/skills/synced), and this project's .claude/skills. Plugin skills and nested .claude/skills folders are not listed.".into(),
             "Instructions: the managed file, ~/.claude/CLAUDE.md, and CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md in this project and its parent folders. CLAUDE.md files in subfolders, which Claude reads on demand, are not listed.".into(),
             "@imports are counted, not followed. Linked files are reported, not read.".into(),
             "Local files only: what a running Claude Code session loaded is not observed.".into(),
-        ],
+        ]
+        .into_iter()
+        .chain(sync)
+        .collect(),
     })
 }
 

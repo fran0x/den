@@ -5,6 +5,11 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Agents:** skills Claude Code syncs from your claude.ai account
+  (`~/.claude/skills/synced/<id>`) are listed one by one as **claude.ai sync** and checked
+  against the sync's manifest. Before, the `synced` folder itself showed as a skill
+  missing its `SKILL.md`.
+
 ## [0.6.0] - 2026-11-14
 
 - **Newer versions online:** `u` checks for newer versions and marks them `↑` with when
