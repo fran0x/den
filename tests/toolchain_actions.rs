@@ -404,3 +404,28 @@ fn a_command_homebrew_installed_gets_its_homebrew_actions() {
     assert!(a.actions.dialog.is_none());
     assert_eq!(a.actions.notice.as_deref(), Some("No actions for this row"));
 }
+
+#[test]
+fn x_twice_quickly_on_an_npm_package_waits_for_npms_dry_run() {
+    let mut a = app(true);
+    a.navigate(Destination::Packages);
+    a.toolchains.select_key("npm -g:@acme/cli");
+    key(&mut a, KeyCode::Char('x'));
+    let Some(Request::Preview(action)) = a.actions.request.take() else {
+        panic!("{:?}", a.actions.request);
+    };
+    assert!(action.command_line().ends_with("uninstall -g @acme/cli"));
+    // The second x arrives before npm's dry run finishes: nothing runs yet.
+    key(&mut a, KeyCode::Char('x'));
+    assert_eq!(a.actions.request, None);
+    assert!(a.actions.notice.is_none(), "{:?}", a.actions.notice);
+    a.actions.finish_preview(
+        &action,
+        Ok(CommandOutput {
+            code: Some(0),
+            stdout: b"removed 1 package".to_vec(),
+            stderr: vec![],
+        }),
+    );
+    assert_eq!(a.actions.request, Some(Request::Run(action)));
+}

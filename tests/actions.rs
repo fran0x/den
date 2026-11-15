@@ -167,9 +167,6 @@ fn x_shows_the_actions_and_the_dry_run_then_enter_runs_it() {
     // The title names the package; the dry run below says what will change.
     assert!(screen.contains("Actions · ripgrep"), "{screen}");
     assert!(screen.contains("Checking…"), "{screen}");
-    // Enter waits for the dry run.
-    key(&mut a, KeyCode::Enter);
-    assert_eq!(a.actions.request, None);
     ready(
         &mut a,
         &upgrade(),
@@ -280,16 +277,61 @@ fn the_same_key_again_runs_a_removal_or_an_upgrade() {
         )))
     );
 
-    // u opens the upgrade and its dry run; u runs nothing until the dry run is shown.
+    // u opens the upgrade and its dry run; u again after the dry run runs it.
+    let mut a = app(true);
+    select(&mut a, "ripgrep");
+    key(&mut a, KeyCode::Char('u'));
+    assert_eq!(a.actions.request.take(), Some(Request::Preview(upgrade())));
+    ready(&mut a, &upgrade(), "ripgrep 14.1.1 -> 99.0\n");
+    key(&mut a, KeyCode::Char('u'));
+    assert_eq!(a.actions.request.take(), Some(Request::Run(upgrade())));
+
+    // u u quickly, before the dry run finishes: it waits, says so, and runs as soon as
+    // the dry run succeeds.
     let mut a = app(true);
     select(&mut a, "ripgrep");
     key(&mut a, KeyCode::Char('u'));
     assert_eq!(a.actions.request.take(), Some(Request::Preview(upgrade())));
     key(&mut a, KeyCode::Char('u'));
     assert_eq!(a.actions.request, None, "the dry run is still running");
+    let screen = draw(&mut a, 120, 30);
+    assert!(
+        screen.contains("runs as soon as the dry run succeeds"),
+        "{screen}"
+    );
+    assert!(!screen.contains("Wait for"), "{screen}");
     ready(&mut a, &upgrade(), "ripgrep 14.1.1 -> 99.0\n");
-    key(&mut a, KeyCode::Char('u'));
     assert_eq!(a.actions.request.take(), Some(Request::Run(upgrade())));
+
+    // A failed dry run never runs it.
+    let mut a = app(true);
+    select(&mut a, "ripgrep");
+    key(&mut a, KeyCode::Char('u'));
+    a.actions.request.take();
+    key(&mut a, KeyCode::Char('u'));
+    a.actions.finish_preview(
+        &upgrade(),
+        Ok(CommandOutput {
+            code: Some(1),
+            stdout: vec![],
+            stderr: b"Error: no network".to_vec(),
+        }),
+    );
+    assert_eq!(a.actions.request, None);
+    assert_eq!(
+        a.actions.notice.as_deref(),
+        Some("Not run: its dry run failed")
+    );
+
+    // Esc takes it back before the dry run finishes.
+    let mut a = app(true);
+    select(&mut a, "ripgrep");
+    key(&mut a, KeyCode::Char('u'));
+    a.actions.request.take();
+    key(&mut a, KeyCode::Char('u'));
+    key(&mut a, KeyCode::Esc);
+    ready(&mut a, &upgrade(), "ripgrep 14.1.1 -> 99.0\n");
+    assert_eq!(a.actions.request, None);
 
     // Any other key closes it without running anything.
     let mut a = app(true);

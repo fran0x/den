@@ -618,6 +618,9 @@ pub enum Dialog {
         preview: Preview,
         /// The key that runs the action when pressed again, like Enter.
         confirm: Option<char>,
+        /// Confirmed while its dry run was still running: it runs as soon as the dry run
+        /// succeeds, and not at all if it fails.
+        armed: bool,
     },
     Running {
         action: Action,
@@ -680,6 +683,7 @@ impl State {
             selected: first,
             preview: Preview::None,
             confirm,
+            armed: false,
         });
         self.select(first);
     }
@@ -691,11 +695,14 @@ impl State {
             items,
             selected,
             preview,
+            armed,
             ..
         }) = &mut self.dialog
         else {
             return;
         };
+        // Choosing another action takes back a confirmation given early.
+        *armed = false;
         *selected = index.min(items.len().saturating_sub(1));
         *preview = match items.get(*selected) {
             Some(item)
@@ -721,6 +728,7 @@ impl State {
             items,
             selected,
             preview,
+            armed,
             ..
         }) = &mut self.dialog
             && items.get(*selected).is_some_and(|i| i.action == *action)
@@ -732,6 +740,14 @@ impl State {
                 Ok(output) => Preview::Failed(format!("{}\n{}", exit(output.code), tail(&output))),
                 Err(error) => Preview::Failed(failure(&error, action)),
             };
+            // Confirmed while it ran: run now if it worked; never after a failed dry run.
+            if std::mem::take(armed) {
+                if matches!(preview, Preview::Ready(_)) {
+                    self.run_selected();
+                } else {
+                    self.notice = Some("Not run: its dry run failed".into());
+                }
+            }
         }
     }
     /// Enter: runs the selected action, only in dew, unblocked, after its dry run.
@@ -750,13 +766,19 @@ impl State {
         };
         let refusal = if self.permit.is_none() {
             Some("Writes are off: den is read-only; dew makes changes".into())
-        } else if let Some(why) = &item.blocked {
-            Some(format!("Not available: {why}"))
-        } else if *preview == Preview::Waiting {
-            Some("Wait for the preview to finish".into())
         } else {
-            None
+            item.blocked
+                .as_ref()
+                .map(|why| format!("Not available: {why}"))
         };
+        // Confirmed before its dry run finished: it runs once the dry run succeeds.
+        if refusal.is_none() && *preview == Preview::Waiting {
+            if let Some(Dialog::Menu { armed, .. }) = &mut self.dialog {
+                *armed = true;
+            }
+            self.notice = None;
+            return;
+        }
         if let Some(refusal) = refusal {
             self.notice = Some(refusal);
             return;

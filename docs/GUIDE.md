@@ -311,8 +311,8 @@ actions allowed. The top bar shows a red **WRITE** the whole time. Select a row,
 
 The footer lists only the keys that apply to the selected row. Each dialog shows the exact
 command first, and a dry run where the tool has one (Homebrew, `rustup check`,
-`npm --dry-run`). The second press runs nothing until that dry run is shown, and refuses
-anything blocked. Any other key closes a dialog opened with `x` or `u`.
+`npm --dry-run`). A second press before the dry run finishes waits for it, then runs the
+action only if the dry run succeeded; `Esc` takes it back. Anything blocked is refused. Any other key closes a dialog opened with `x` or `u`.
 
 What each area offers:
 

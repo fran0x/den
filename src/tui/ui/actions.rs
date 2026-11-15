@@ -16,7 +16,15 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
             selected,
             preview,
             confirm,
-        } => menu(package.as_deref(), items, *selected, preview, *confirm),
+            armed,
+        } => menu(
+            package.as_deref(),
+            items,
+            *selected,
+            preview,
+            *confirm,
+            *armed,
+        ),
         Dialog::Running {
             action,
             started,
@@ -136,6 +144,7 @@ fn menu(
     selected: usize,
     preview: &Preview,
     confirm: Option<char>,
+    armed: bool,
 ) -> (String, Vec<Line<'static>>, String) {
     let title = package.map_or_else(|| "Actions".to_owned(), |p| format!("Actions · {p}"));
     let mut body = vec![];
@@ -189,6 +198,7 @@ fn menu(
         body.extend(text.lines().map(|l| Line::styled(l.to_owned(), style)));
     }
     let footer = match confirm {
+        _ if armed => "Checking… runs as soon as the dry run succeeds · Esc: cancel".to_owned(),
         // Opened with x or u: one action, run by the same key again.
         Some(_) if item.blocked.is_some() => "Esc: close".to_owned(),
         Some(_) if *preview == Preview::Waiting => "Checking… · Esc: close".to_owned(),
@@ -242,6 +252,7 @@ mod tests {
             selected: 0,
             preview: Preview::None,
             confirm: None,
+            armed: false,
         };
         assert_eq!(border(&menu), heading());
         assert_eq!(border(&done("Done")), theme().ok());

@@ -5,6 +5,10 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Fixed: a quick `u` `u` got stuck** on "Wait for the preview to finish". A second press
+  (or `Enter`) before the dry run finishes now waits for it and runs the action as soon as
+  the dry run succeeds, never after a failed one; `Esc` takes it back.
+
 ## [0.8.0] - 2026-11-15
 
 - **Action keys in `dew`:** `x` removes the selected row and `u` upgrades it; the same key

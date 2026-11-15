@@ -111,8 +111,9 @@ Den is read-only by default. Writes live only in `src/actions.rs`: a closed `Act
 whose command lines are built from names checked by `Package::new`, a preview (dry run)
 where the tool has one, and a run that needs a `Permit` (created only for the `dew` binary, in `cli`)
 after an explicit confirmation of the action its dialog shows: Enter, or the key that
-opened it (`x` for the removal, `u` for the upgrade) pressed again, refused while a dry run
-is pending or the action is blocked. A multi-step action (`DockerStopAndRemove`) runs its
+opened it (`x` for the removal, `u` for the upgrade) pressed again. Confirmed while its dry
+run is still running, it waits (`armed`) and runs only if the dry run succeeds; a blocked
+action is refused. A multi-step action (`DockerStopAndRemove`) runs its
 steps in order and stops at the first failure. Writes use `homebrew::run_write`:
 no shell, closed stdin, own process group, timeout, SIGTERM with a grace period before
 SIGKILL. Never add `--force`, `--ignore-dependencies`, `--zap`, sudo or free-form
