@@ -5,6 +5,15 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Keys in one place:** the bottom line, under a rule, lists every key that works where
+  you are, in three groups: this view's │ Den's (`d`, `S`, `u`, `r`) │ moving around.
+  `u:check online` moved there from the status line, and keys that were only in `?`
+  (`S`, `u`, `r`, `PgUp/PgDn`, `V` in MCP, Diagnostics' `Enter`, `Space`, `o` and `c`)
+  are listed too.
+- **Help is a reference now:** `?` no longer repeats the keys. It explains each area and
+  lists **where updates come from** for each kind of package, and what is never checked,
+  so a missing `↑` is not mistaken for up to date. The guide has the same table.
+
 ## [0.7.0] - 2026-11-15
 
 - **Agents › Skills:** each skill's panel says how it was **Installed**: with `npx skills`

@@ -25,6 +25,11 @@ everything Den knows about it.
 Every area and section remembers where you were, so you can switch freely. A few areas
 add their own keys; they are listed below.
 
+The bottom line lists the keys that work where you are, in three groups separated by `│`:
+this view's own keys (such as `x:actions` in `dew`, or `[:reports` in Diagnostics), Den's
+keys (`d`, `S`, `u`, `r`, each shown only where it works), and moving around. On a
+narrow terminal, moving-around keys are shortened first, and `?:help` always stays.
+
 ## Reading the screen
 
 - **Top bar:** the five areas, with the one you are in highlighted and followed by its
@@ -170,13 +175,9 @@ Docker images' tags point to a newer build, and how your Rust toolchains and the
 the status line, saying how many names it will send and to which sites; `Enter` checks
 and any other key cancels.
 
-- **Where it looks:** Homebrew formulas and casks at formulae.brew.sh; crates.io crates at
-  index.crates.io; npm and bun packages at registry.npmjs.org; uv tools and pipx packages
-  at pypi.org; images at Docker Hub (registry-1.docker.io, with a read-only token from
-  auth.docker.io) and ghcr.io. Nothing else is contacted. Image registries are asked
-  without a login: Docker's saved logins are never used, so private images show as not
-  found. Release lines come from endoflife.date. Skills `npx skills` installed from
-  GitHub are compared at api.github.com, without a login.
+- **Where it looks:** see [Where updates come from](#where-updates-come-from). Nothing
+  else is contacted, and nothing is asked with a login: Docker's saved logins are never
+  used, so private images show as not found.
 - **What it sends:** only package names. Your installed versions stay on this machine: Den
   compares them itself. The registries do learn which packages you use.
 - **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
@@ -192,6 +193,26 @@ and any other key cancels.
   sends four requests at a time, each limited to 10 seconds, over HTTPS only, and
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
 - **Live data only:** demo, `--inventory` and fixture modes never go online.
+
+### Where updates come from
+
+| What | Checked at, with `u` | Without `u` |
+| --- | --- | --- |
+| Homebrew formulas and casks | formulae.brew.sh, for homebrew/core and homebrew/cask | Homebrew's own data, as of the last `brew update` |
+| Codex, Claude Code | Homebrew, as above, when Homebrew installed them | Homebrew's data, and Codex's own update check (`~/.codex/version.json`) |
+| `cargo install` crates | index.crates.io, for crates.io crates | — |
+| npm and bun global packages | registry.npmjs.org | — |
+| uv tools, pipx packages | pypi.org | — |
+| Rust `stable` and `1.xx` toolchains | endoflife.date: the newest release, or the newest patch of the line | — |
+| `node`, `python3`, `ruby`, `go` on PATH | endoflife.date: the newest patch of the line, and **End of life** | Homebrew's data, when Homebrew installed them; their `↑` is Homebrew's version |
+| Docker images named with a namespace or registry | Docker Hub (registry-1.docker.io, token from auth.docker.io) and ghcr.io | — |
+| Skills installed with `npx skills` | api.github.com: whether the folder changed since it was installed | — |
+
+**Not checked:** other Homebrew taps, git and path crates, `go install` programs, uv
+Pythons, `java`, pinned, beta and nightly Rust toolchains, single-name Docker images such as
+`postgres`, other registries, other skills (claude.ai synced skills are kept current by
+Claude Code), AWS, Kubernetes, MCP servers and plugins. No `↑` there does not mean up to
+date.
 
 **Skills from GitHub:** for a skill `npx skills` installed, its lock file
 (`~/.agents/.skill-lock.json`) records the repository and folder it came from and a
@@ -225,7 +246,7 @@ Den remembers how it first read each area in this session. When a refresh (`r`, 
 action in `dew`, or Docker's own 5-second refresh) finds something different, the row
 gets a mark: `+` for a new row and `~` for a changed one, whose panel ends with **What
 changed** and what it was **Before**. The status line counts them, for example
-**3 changes since Den started**, and the footer offers `d:changes`.
+**3 changes since Den started**.
 
 `d` shows only the changed rows, then the removed ones, struck through, like `− bacon`.
 Removed rows are listed for information; they can't be selected. Search applies to this

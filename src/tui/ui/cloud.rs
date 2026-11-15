@@ -7,15 +7,13 @@ One row per profile, then each SSO session. Auth says how the profile gets crede
 The panel shows the region, account and role, the role chain and where the profile is defined.\n\
 The active profile, from AWS_PROFILE or else default, comes first, highlighted, starred (*) and marked active. If AWS_PROFILE names a profile no file defines, that is a Problem row.\n\
 Privacy: from the credentials file only profile and key names are kept; values are discarded as they are read. SSO start URLs, endpoints, external IDs and credential_process commands are withheld. SSO and CLI caches are never read. A credentials file other users can read is a Problem.\n\
-Nothing is called: no AWS API, SSO login or credential process, so whether credentials work is not checked.\n\
-/ searches; PgUp/PgDn scroll the panel; Shift+Tab switches to Kubernetes; r refreshes.";
+Nothing is called: no AWS API, SSO login or credential process, so whether credentials work is not checked.";
 
 pub(super) const KUBE_HELP: &str = "Cloud › Kubernetes: contexts from KUBECONFIG, or ~/.kube/config\n\
 One row per context. Auth says how its user signs in: Exec (with the program name), an auth provider, Client cert, Token, Basic auth or None set. The current context comes first, highlighted and starred (*). Status is Ready (current marks current-context, then the namespace) or Problem: a missing cluster or user, TLS verification off, plain http, a stored password, a removed auth provider, or a file other users can read.\n\
 With several KUBECONFIG files, for each name the first file wins, as in kubectl.\n\
 Privacy: tokens, passwords, certificate and key data are never kept, only whether they are set. Server hosts are withheld (scheme, kind of address and port are shown). Exec plugins show the program and env variable names; arguments and values are withheld.\n\
-Nothing is called: no cluster, kubectl or exec plugin, so whether access works is not checked.\n\
-/ searches; PgUp/PgDn scroll the panel; Shift+Tab switches to AWS; r refreshes.";
+Nothing is called: no cluster, kubectl or exec plugin, so whether access works is not checked.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
     match app.cloud {
@@ -124,7 +122,6 @@ fn aws(app: &App) -> ListView {
         actions: false,
         filter: tracked.filter,
         removed: tracked.removed,
-        changed: tracked.changed,
     }
 }
 
@@ -221,7 +218,6 @@ fn kube(app: &App) -> ListView {
         actions: false,
         filter: tracked.filter,
         removed: tracked.removed,
-        changed: tracked.changed,
     }
 }
 

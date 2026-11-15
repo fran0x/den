@@ -39,9 +39,9 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
         if app.presentation.menu_searching {
             "Enter:done Esc:done"
         } else if focus == InspectorFocus::Sections {
-            "Enter:open ]:content Tab:area Shift+Tab:section"
+            "Enter:open ]:content 5-8:report"
         } else {
-            "[:reports Tab:area Shift+Tab:section"
+            "[:reports Enter:open Space:finding o:report c:check now"
         },
     );
     let (menu, content) = if body.width >= 100 {
@@ -111,6 +111,20 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
     super::render_details(frame, app, content);
     app.focus = old_focus;
 }
+/// Where each kind of package's newer version comes from, and what is never checked.
+/// Keep in step with `online::Registry` and docs/GUIDE.md.
+const UPDATES: &str = "\
+Homebrew formulas, casks   formulae.brew.sh; without u, Homebrew's data (last brew update)\n\
+Codex, Claude Code         Homebrew, when it installed them; Codex also checks itself\n\
+cargo install crates       index.crates.io\n\
+npm and bun packages       registry.npmjs.org\n\
+uv tools, pipx packages    pypi.org\n\
+Rust stable and 1.xx       endoflife.date\n\
+node, python3, ruby, go    endoflife.date; Homebrew's ↑ when Homebrew installed them\n\
+Docker images              Docker Hub and ghcr.io, for names with a namespace or registry\n\
+Skills from npx skills     api.github.com: whether the folder changed since install\n\
+Not checked: other Homebrew taps, git and path crates, go install programs, uv Pythons, java, pinned, beta and nightly Rust, single-name images such as postgres, other skills, AWS, Kubernetes, MCP servers and plugins. No ↑ there does not mean up to date.\n\
+Only names are sent; installed versions stay here. Answers are kept with the time of the check, and only u checks again.";
 /// Everything dew can change, by area: `x` on a row offers the ones that apply to it.
 const DEW_ACTIONS: &str = "What dew can change (x on a row, Enter runs the selected action):\n\
 Homebrew     upgrade or uninstall a package; update Homebrew's data; remove dependencies nothing needs; clean up old versions\n\
@@ -132,8 +146,8 @@ pub(super) fn help(app: &App) -> String {
 Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed] and in their own colour.\n\
 Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update or, once you press u, from formulae.brew.sh.\n\
 The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
-In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Choose with ↑↓; Enter runs it after its dry run, and uninstall is always last. den has no actions.\n\
-Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Enter opens a group or jumps to a package (Esc comes back), Space shows the full finding, o Homebrew's original report, c runs the check now (read-only)."
+In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Enter runs the chosen one after its dry run, and uninstall is always last.\n\
+Diagnostics (Shift+Tab): reports on unresolved links, missing dependencies, leaves and what cleanup would remove. Enter opens a group or jumps to its package, Space shows the full finding, o shows Homebrew's own report, and c runs the check again (read-only)."
         }
     };
     let changes = if app.actions.allowed() {
@@ -143,22 +157,12 @@ Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Ente
     };
     format!(
         "Den\n\n\
-Tab        next area: Homebrew, Agents, Cloud, Docker, Toolchains\n\
-Shift+Tab  next section in this area\n\
-↑ ↓ j k    move through the list; Home and End jump to the first or last row\n\
-PgUp PgDn  scroll the panel\n\
-/          search; Enter or Esc finishes and keeps the search\n\
-Esc        go back\n\
-r          refresh\n\
-d          only what changed: since the saved snapshot, then since Den started, then every row\n\
-S          save a snapshot of what Den has read, to compare with later (asks first)\n\
-u          check online for newer versions of Homebrew, crates and npm, bun, uv and pipx packages, newer builds of Docker images, skills changed on GitHub since npx skills installed them, and the release lines of Rust and the runtimes on PATH (asks first; Esc stops)\n\
-q          quit (Ctrl-C works anywhere)\n\n\
-Every area and section remembers where you were.\n\n\
-What changed: + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory, and with the snapshot S saved, if any. S is the only thing den writes: Den's own file, $XDG_STATE_HOME/den/snapshot.json (~/.local/state/den/snapshot.json), private to you, holding only what the lists show. Running or stopped containers and newer Homebrew versions are not changes.\n\n\
+Keys: the bottom line lists the keys that work where you are, in three groups: this view's own │ Den's │ moving around. Also: ↑↓ or j k move, Home and End jump to the first or last row, Esc goes back, F2 and F3 are Tab and Shift+Tab, and Ctrl-C quits anywhere. Every area and section remembers where you were.\n\n\
+What changed (d): + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, and with the snapshot S saved, if any. Running or stopped containers and newer versions are not changes.\n\n\
+Where updates come from (u, after asking; Esc stops):\n\
+{UPDATES}\n\n\
 {context}\n\n\
 {changes}\n\n\
-F2 is Tab and F3 is Shift+Tab. Esc closes this help.\n\
-Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. Changes happen only in dew, each one chosen and confirmed with Enter."
+Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. den writes only its own files, each after you confirm: the snapshot (S) and the online answers (u), in ~/.local/state/den, private to you."
     )
 }

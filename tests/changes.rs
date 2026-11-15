@@ -56,8 +56,8 @@ fn nothing_is_marked_until_something_changes() {
     a.toolchains.finish(Ok(same));
     let screen = draw(&mut a);
     assert!(!screen.contains("since Den started"), "{screen}");
-    assert!(!screen.contains("d:changes"), "{screen}");
-    // d still works: it says there is nothing to show.
+    // d is always listed, and works: it says there is nothing to show.
+    assert!(screen.contains("d:changes"), "{screen}");
     key(&mut a, KeyCode::Char('d'));
     let screen = draw(&mut a);
     assert!(

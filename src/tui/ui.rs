@@ -28,6 +28,7 @@ use crate::{
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     set_write_mode(app.actions.allowed());
+    set_den_keys(app);
     screen(frame, app);
     let area = frame.area();
     if area.width < 30 || area.height < 10 {
@@ -78,9 +79,9 @@ fn screen(frame: &mut Frame, app: &mut App) {
                 "Read-only · nothing inspected is executed"
             },
             false,
-            "Esc:Back arrows:scroll",
+            "Esc:back ↑↓:scroll PgUp/PgDn:page Home/End:top/bottom",
         );
-        let block = pane(" Help · Esc:Back ", true);
+        let block = pane(" Help ", true);
         let inner = block.inner(reading_area(body));
         let text = navigation::help(app);
         let paragraph = Paragraph::new(text).wrap(Wrap { trim: false });
@@ -132,14 +133,13 @@ fn screen(frame: &mut Frame, app: &mut App) {
         &status,
         app.searching,
         &if app.is_homebrew() && !app.searching {
-            format!(
-                "a:tools/all {}",
-                list_actions(false, app.actions.allowed(), app.homebrew_changes.any())
-            )
+            format!("a:tools/all {}", list_actions(false, app.actions.allowed()))
+                .trim_end()
+                .to_owned()
         } else if app.searching {
             actions(true).into()
         } else {
-            "f:type Tab:area".into()
+            "f:type".into()
         },
     );
     let panes = panes(body);

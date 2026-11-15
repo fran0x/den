@@ -7,9 +7,8 @@ PATH: for each common command (node, python3, go, java, cargo, …) the copy the
 Rust: rustup toolchains (the default, folder overrides, targets and components), then cargo install crates with their version, source and programs.\n\
 Packages: global npm packages, uv tools and Pythons, pipx, bun and go install programs.\n\
 Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has.\n\
-u checks online, after asking: it sends the names of crates.io crates and npm, bun, uv and pipx packages to index.crates.io, registry.npmjs.org and pypi.org, and the names of Rust's stable and line toolchains and of node, python3, ruby and go to endoflife.date (versions stay here). It marks the newer ones ↑, and a release line whose support has ended End of life. The answers are kept with the time of the check; only u checks again. Esc stops a check.\n\
-In dew, x on a Rust toolchain offers rustup update or uninstall; on a cargo install crate, cargo install --locked (crates.io only) or uninstall; on a global npm, uv tool or pipx package, upgrade or uninstall; on a PATH command Homebrew installed, that package's Homebrew actions. Each tool runs as the copy that wins on PATH.\n\
-/ searches; PgUp/PgDn scroll the panel; Shift+Tab switches sections; r refreshes.";
+u marks newer versions ↑, and a release line whose support has ended End of life; where each one comes from is listed above.\n\
+In dew, x on a Rust toolchain offers rustup update or uninstall; on a cargo install crate, cargo install --locked (crates.io only) or uninstall; on a global npm, uv tool or pipx package, upgrade or uninstall; on a PATH command Homebrew installed, that package's Homebrew actions. Each tool runs as the copy that wins on PATH.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
     let t = &app.toolchains;
@@ -162,7 +161,6 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         actions: app.actions.allowed(),
         filter: tracked.filter,
         removed: tracked.removed,
-        changed: tracked.changed,
     };
     let t = &mut app.toolchains;
     list_view(frame, view, &mut t.page, &mut t.panel);

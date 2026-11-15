@@ -14,8 +14,7 @@ Instructions pair AGENTS.md (Codex) and CLAUDE.md (Claude Code) by where they ap
 Settings match by name and show the value; Hooks and Plugins are Claude Code only.\n\
 Settings: s shows Codex source files. The panel names the file each setting or MCP server comes from.\n\
 Instructions: t shows Codex's chain as if the project were trusted. MCP: V picks the next Codex source.\n\
-The information panel shows everything about the selection; PgUp/PgDn scroll it. r refreshes both tools.\n\n\
-The panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
+\nThe panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
 Only MCP servers, MCP approvals and project trust are read from ~/.claude.json. URLs, arguments and values are withheld. Hooks, helpers and servers are never run.\n\
 When Homebrew installed Codex or Claude Code, the status line names a newer version (↑) from Homebrew's data, Codex's own update check (~/.codex/version.json) or the last online check (u).\n\
 Nothing here shows what a running Codex or Claude Code session actually loaded.";
@@ -175,7 +174,6 @@ fn view(app: &App) -> View {
         Section::Settings if app.codex.sources => filter.push("Codex source files".into()),
         _ => {}
     }
-    let changed = changes.any();
     View {
         status: format!(
             "{}{}",
@@ -192,15 +190,13 @@ fn view(app: &App) -> View {
         removed,
         empty: nothing,
         text,
-        actions: format!(
-            "{}{}",
-            match section {
-                Section::Instructions => "t:if trusted ",
-                Section::Settings => "s:sources ",
-                Section::Skills | Section::Mcp | Section::Hooks | Section::Plugins => "",
-            },
-            list_actions(false, false, changed)
-        ),
+        actions: match section {
+            Section::Instructions => "t:if trusted",
+            Section::Settings => "s:sources",
+            Section::Mcp => "V:Codex source",
+            Section::Skills | Section::Hooks | Section::Plugins => "",
+        }
+        .into(),
     }
 }
 

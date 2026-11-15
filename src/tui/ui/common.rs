@@ -44,6 +44,78 @@ pub(super) fn set_write_mode(on: bool) {
     WRITE_MODE.with(|w| w.set(on));
 }
 
+// Den-wide keys for the footer, set at the start of each frame like the write mode, and
+// only those that work in the current view. `None` on the help screen.
+thread_local! {
+    static DEN_KEYS: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+pub(super) fn set_den_keys(app: &App) {
+    use crate::app::Module;
+    let keys = (!app.help).then(|| {
+        let homebrew = app.module == Module::Homebrew;
+        let mut keys = vec![];
+        // In Homebrew, d works in the package list, not in Diagnostics.
+        if !homebrew || (app.is_homebrew() && !app.inspecting()) {
+            keys.push("d:changes");
+        }
+        if app.snapshot_path.is_some() {
+            keys.push("S:snapshot");
+        }
+        if app.online.path.is_some() {
+            keys.push("u:check online");
+        }
+        // Homebrew is read again only from live data.
+        if !homebrew || app.live {
+            keys.push("r:refresh");
+        }
+        keys.join(" ")
+    });
+    DEN_KEYS.with(|k| *k.borrow_mut() = keys);
+}
+
+/// The footer: this view's keys │ Den-wide keys │ moving around, shortened in that
+/// order of importance when the terminal is narrow: navigation first, then Den's keys,
+/// and this view's keys last.
+fn footer(view: &str, width: usize) -> String {
+    let Some(den) = DEN_KEYS.with(|k| k.borrow().clone()) else {
+        return fit(&format!(" {view} │ q:quit"), width);
+    };
+    let den_short = den.replace("u:check online", "u:online");
+    let candidates = [
+        (
+            den.as_str(),
+            "Tab:area Shift+Tab:section /:search PgUp/PgDn:panel ?:help q:quit",
+        ),
+        (
+            den.as_str(),
+            "Tab:area Shift+Tab:section /:search ?:help q:quit",
+        ),
+        (
+            den_short.as_str(),
+            "Tab:area Shift+Tab:section ?:help q:quit",
+        ),
+        (den_short.as_str(), "Tab:area ?:help q:quit"),
+        (den_short.as_str(), "?:help q:quit"),
+        ("", "?:help q:quit"),
+    ];
+    let join = |den: &str, nav: &str, view: &str| {
+        [view, den, nav]
+            .iter()
+            .filter(|g| !g.is_empty())
+            .copied()
+            .collect::<Vec<_>>()
+            .join(" │ ")
+    };
+    for (den, nav) in candidates {
+        let line = join(den, nav, view);
+        if line.chars().count() < width {
+            return format!(" {line}");
+        }
+    }
+    let room = width.saturating_sub(" │ ?:help q:quit".len() + 2);
+    format!(" {}", join("", "?:help q:quit", &fit(view, room)))
+}
+
 /// Top bar, status line and footer around a body. `view` is "Area / Section" for the
 /// Homebrew, Agents, Cloud and Docker areas: the active area is highlighted and followed by its section.
 pub(super) fn chrome(
@@ -57,6 +129,7 @@ pub(super) fn chrome(
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Min(1),
+        Constraint::Length(1),
         Constraint::Length(1),
     ])
     .split(frame.area());
@@ -91,20 +164,17 @@ pub(super) fn chrome(
     }
     frame.render_widget(Paragraph::new(Line::from(title)), rows[0]);
     frame.render_widget(Paragraph::new(safe_text(status)).style(muted()), rows[1]);
+    // A rule separates the keys from the content above.
+    frame.render_widget(
+        Paragraph::new("─".repeat(rows[3].width as usize)).style(muted()),
+        rows[3],
+    );
     let footer = if searching {
-        format!(" Search · {actions}  Ctrl-U:clear  Ctrl-C:quit")
+        format!(" Search · {actions} │ Ctrl-U:clear Ctrl-C:quit")
     } else {
-        format!(" {actions}  /:search  ?:help  q:quit")
+        footer(actions, frame.area().width as usize)
     };
-    let footer = if frame.area().width < 65 && !searching {
-        format!(
-            "{} /:find ?:help q:quit",
-            fit(actions, frame.area().width.saturating_sub(21) as usize)
-        )
-    } else {
-        footer
-    };
-    frame.render_widget(Paragraph::new(hints(&footer)), rows[3]);
+    frame.render_widget(Paragraph::new(hints(&footer)), rows[4]);
     rows[2]
 }
 
@@ -414,13 +484,9 @@ pub(super) fn status_spans(text: &str, base: Style) -> Vec<Span<'static>> {
     spans
 }
 
-/// Short action hints describe the focused view, not every available binding.
+/// This view's keys while searching; otherwise a view adds its own (none here).
 pub(super) fn actions(searching: bool) -> &'static str {
-    if searching {
-        "Enter:done Esc:done"
-    } else {
-        "Tab:area Shift+Tab:section"
-    }
+    if searching { "Enter:done Esc:done" } else { "" }
 }
 
 /// What a list-and-panel section (Cloud, Toolchains) hands to `list_view`.
@@ -443,15 +509,12 @@ pub(super) struct ListView {
     pub(super) filter: String,
     /// Rows removed since Den started, listed after the rows in the changes view.
     pub(super) removed: Vec<String>,
-    /// Something changed: the footer shows `d:changes`.
-    pub(super) changed: bool,
 }
 
 /// The parts of a list view that come from its change tracking.
 pub(super) struct Tracked {
     pub(super) filter: String,
     pub(super) removed: Vec<String>,
-    pub(super) changed: bool,
     /// " · 3 changes since Den started", for the status line.
     pub(super) status: String,
     /// With `d` and no changed row selected, what the panel says instead.
@@ -479,22 +542,21 @@ pub(super) fn tracked<C, I: crate::listing::Listing>(
     Tracked {
         filter: t.filter(state.section_name(), now).unwrap_or_default(),
         removed,
-        changed: t.any(),
         status: t.status(),
         empty,
     }
 }
 
-/// The footer for a list area.
-pub(super) fn list_actions(searching: bool, offers_actions: bool, changed: bool) -> String {
+/// This view's keys for a list area; Den-wide keys and navigation come from `footer`.
+pub(super) fn list_actions(searching: bool, offers_actions: bool) -> String {
     if searching {
         return actions(true).into();
     }
-    format!(
-        "{}{}Tab:area Shift+Tab:section",
-        if offers_actions { "x:actions " } else { "" },
-        if changed { "d:changes " } else { "" }
-    )
+    if offers_actions {
+        "x:actions".into()
+    } else {
+        String::new()
+    }
 }
 
 /// The changes view's removed rows, dimmed and struck through, after the others. They
@@ -541,14 +603,13 @@ pub(super) fn list_view(
         actions: offers_actions,
         filter,
         removed,
-        changed,
     } = view;
     let body = chrome(
         frame,
         title,
         &status,
         searching,
-        &list_actions(searching, offers_actions, changed),
+        &list_actions(searching, offers_actions),
     );
     let selected = selected.min(rows.len().saturating_sub(1));
     let panes = panes(body);
@@ -701,7 +762,7 @@ pub(super) fn online_status(app: &App, lookups: &[crate::online::Lookup]) -> Str
         .map(crate::online::Checked::when)
         .max();
     let Some(last) = last else {
-        return " · u:check online".into();
+        return String::new();
     };
     let newer = lookups
         .iter()
