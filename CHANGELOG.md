@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-15
+
 - **Action keys in `dew`:** `x` removes the selected row and `u` upgrades it; the same key
   again (or `Enter`) runs it, once its dry run is shown. `a` opens the area's own actions
   (Homebrew's maintenance, Docker's unused untagged images), and `Enter` every action for
@@ -185,7 +187,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/fran0x/den/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/fran0x/den/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/fran0x/den/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/fran0x/den/compare/v0.7.1...v0.7.2
