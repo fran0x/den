@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-15
+
 - **What `S` and `u` cover:** both work on every area Den has read this session; an area is
   read when its tab first opens. Their question now lists the areas, with those not read
   yet in parentheses: `Homebrew Toolchains (Agents Docker)`.
@@ -174,7 +176,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/fran0x/den/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/fran0x/den/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/fran0x/den/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/fran0x/den/compare/v0.7.0...v0.7.1
