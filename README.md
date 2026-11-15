@@ -6,8 +6,11 @@
 
 **A terminal inspector for your developer machine.** Two commands:
 
-- **`den`** shows what is installed and how it is configured. It never changes anything.
-- **`dew`** is the same, plus a few clean-up actions you choose and confirm.
+- **`den`** shows what is installed and how it is configured. It is read-only: it never
+  changes your machine.
+- **`dew`** shows the same and can also change your machine: upgrade or uninstall
+  packages, remove Docker containers and images, update Rust toolchains. Each change shows
+  its exact command first and runs only after you confirm.
 
 ## Install
 
@@ -39,7 +42,8 @@ When something is wrong, the panel beside the row says why.
 - Runs only a fixed set of read commands (`brew info`, `docker container ls`, …); the
   rest comes from files.
 - Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
-- Goes online only when you press `u` and confirm, and then sends only package names.
+- Goes online only when you press `u` and confirm, and then sends only names (of packages,
+  tagged images and runtimes). Installed versions and paths stay on your machine.
 - Never shows secrets: tokens, keys and credential values are dropped as they are read.
 - Writes nothing, except its own snapshot and online results, each after you confirm.
 
