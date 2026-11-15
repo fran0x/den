@@ -5,10 +5,13 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-15
+
 - **Agents:** skills Claude Code syncs from your claude.ai account
   (`~/.claude/skills/synced/<id>`) are listed one by one as **claude.ai sync** and checked
   against the sync's manifest. Before, the `synced` folder itself showed as a skill
   missing its `SKILL.md`.
+- **README:** says plainly that `dew` changes your machine, and what `u` sends.
 
 ## [0.6.0] - 2026-11-14
 
@@ -126,7 +129,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/fran0x/den/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/fran0x/den/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/fran0x/den/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/fran0x/den/compare/v0.3.1...v0.4.0
