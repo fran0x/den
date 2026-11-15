@@ -556,7 +556,7 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z"),
             (b"u:check online", b"u"),
-            (b"sends 1 package name to index.crates.io", b"\r"),
+            (b"1 name to index.crates.io", b"\r"),
             (b"Checked 1 package online: 0 newer \xc2\xb7 1 failed", b"q"),
         ])
         results = state / "den" / "online.json"

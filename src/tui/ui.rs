@@ -40,7 +40,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         let question = if app.save_prompt {
             app.save_question()
         } else {
-            app.online.question()
+            app.online_question()
         };
         status_row(frame, area, fit(&question, area.width as usize));
     } else if let Some(notice) = &app.actions.notice {

@@ -1187,6 +1187,32 @@ impl App {
             ("Toolchains", &mut self.toolchains.changes),
         ]
     }
+    /// These areas in tab order, those not read yet this session in parentheses:
+    /// `Homebrew Toolchains (Agents Docker)`. An area is read when its tab first opens.
+    pub fn areas_read(&self, names: &[&str]) -> String {
+        let all = [
+            ("Homebrew", &self.homebrew_changes),
+            ("Agents", &self.agents.changes),
+            ("AWS", &self.aws.changes),
+            ("Kubernetes", &self.kube.changes),
+            ("Docker", &self.docker.changes),
+            ("Toolchains", &self.toolchains.changes),
+        ];
+        let (read, pending): (Vec<_>, Vec<_>) = all
+            .iter()
+            .filter(|(name, _)| names.contains(name))
+            .partition(|(_, t)| t.last().is_some());
+        let read: Vec<_> = read.iter().map(|(n, _)| *n).collect();
+        let pending: Vec<_> = pending.iter().map(|(n, _)| *n).collect();
+        let mut text = read.join(" ");
+        if !pending.is_empty() {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            text.push_str(&format!("({})", pending.join(" ")));
+        }
+        text
+    }
     /// Live data only: reads the saved snapshot to compare with, and lets `S` save one
     /// there. A file Den cannot use is reported, never changed.
     pub fn use_snapshot(&mut self, path: std::path::PathBuf) {
@@ -1310,17 +1336,29 @@ impl App {
             .collect()
     }
     /// The question `S` asks; the keys come first so a narrow terminal keeps them.
-    pub fn save_question(&mut self) -> String {
-        let areas = self.saveable();
+    pub fn save_question(&self) -> String {
         let path = self
             .snapshot_path
             .as_deref()
             .map(short_home)
             .unwrap_or_default();
+        let areas = self.areas_read(&[
+            "Homebrew",
+            "Agents",
+            "AWS",
+            "Kubernetes",
+            "Docker",
+            "Toolchains",
+        ]);
+        format!("Save a snapshot? Enter:save Esc:cancel · {areas} to {path}")
+    }
+    /// The question `u` asks: how many names go to which hosts, then the areas they come
+    /// from (Cloud has none), so a narrow terminal keeps what is sent.
+    pub fn online_question(&self) -> String {
+        let areas = self.areas_read(&["Homebrew", "Agents", "Docker", "Toolchains"]);
         format!(
-            "Save a snapshot? Enter:save Esc:cancel · {} ({}) to {path}",
-            crate::inventory::count(areas.len(), "area"),
-            areas.join(", ")
+            "Check online? Enter:check Esc:cancel · {} · {areas}",
+            self.online.sends()
         )
     }
     /// Saves each area that has been read; areas not read this time keep what the file

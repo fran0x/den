@@ -883,7 +883,8 @@ impl State {
         notice
     }
     /// The question on the status line while `u` waits for Enter.
-    pub fn question(&self) -> String {
+    /// "41 names to formulae.brew.sh, …", for `u`'s question.
+    pub fn sends(&self) -> String {
         let mut hosts: Vec<&str> = Registry::ALL
             .iter()
             .filter(|r| self.asking.iter().any(|p| p.registry == **r))
@@ -891,8 +892,8 @@ impl State {
             .collect();
         hosts.dedup();
         format!(
-            "Check online? Enter:check Esc:cancel · sends {} to {}; versions stay here",
-            crate::inventory::count(self.asking.len(), "package name"),
+            "{} to {}",
+            crate::inventory::count(self.asking.len(), "name"),
             hosts.join(", ")
         )
     }

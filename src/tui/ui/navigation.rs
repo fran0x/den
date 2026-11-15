@@ -155,6 +155,7 @@ Diagnostics: unresolved links, missing dependencies, leaves, cleanup."
     format!(
         "Keys: bottom line: this area │ all areas (S, u) │ moving around.\n\
 Also j k, Home End, Esc back, Ctrl-C quit.\n\
+S and u cover the areas read so far; (Docker) in their question means not read yet: open its tab to include it.\n\
 Marks: + new · ~ changed · ↑ newer · End of life. d lists changes.\n\n\
 {context}\n\n\
 {UPDATES}\n\n\

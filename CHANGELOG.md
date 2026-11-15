@@ -5,6 +5,10 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **What `S` and `u` cover:** both work on every area Den has read this session; an area is
+  read when its tab first opens. Their question now lists the areas, with those not read
+  yet in parentheses: `Homebrew Toolchains (Agents Docker)`.
+
 ## [0.7.3] - 2026-11-15
 
 - **Clearer scope:** the footer groups keys by what they apply to: this area (the view's

@@ -120,8 +120,8 @@ fn u_asks_first_and_names_what_it_sends() {
     let screen = draw(&mut a);
     assert!(
         screen.contains(
-            "Check online? Enter:check Esc:cancel · sends 8 package names to index.crates.io, \
-             registry.npmjs.org, pypi.org, endoflife.date; versions stay here"
+            "Check online? Enter:check Esc:cancel · 8 names to index.crates.io, \
+             registry.npmjs.org, pypi.org, endoflife.date · Toolchains (Homebrew Agents Docker)"
         ),
         "{screen}"
     );
@@ -339,7 +339,7 @@ fn homebrew_packages_from_the_main_taps_are_checked() {
     let mut a = homebrew_session(&t.file());
     assert!(draw(&mut a).contains("u:check online"));
     key(&mut a, KeyCode::Char('u'));
-    assert!(draw(&mut a).contains("sends 4 package names to formulae.brew.sh; versions stay here"));
+    assert!(draw(&mut a).contains("· 4 names to formulae.brew.sh"));
     key(&mut a, KeyCode::Enter);
     let asked: Vec<String> = a
         .online
@@ -482,10 +482,9 @@ fn docker_images_with_a_namespace_are_checked_for_a_newer_build() {
     let mut a = docker_session(&t);
     assert!(draw(&mut a).contains("u:check online"));
     key(&mut a, KeyCode::Char('u'));
-    assert!(
-        draw(&mut a)
-            .contains("sends 2 package names to registry-1.docker.io, ghcr.io; versions stay here")
-    );
+    assert!(draw(&mut a).contains(
+        "2 names to registry-1.docker.io, ghcr.io · Docker (Homebrew Agents Toolchains)"
+    ));
     key(&mut a, KeyCode::Enter);
     let asked: Vec<String> = a
         .online

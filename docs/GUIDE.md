@@ -17,8 +17,8 @@ everything Den knows about it.
 | `Esc` | Go back |
 | `r` | Refresh this area |
 | `d` | Only what changed in this area; press again for the next comparison ([What changed](#what-changed)) |
-| `S` | Save a snapshot of all areas to compare with later (asks first) |
-| `u` | Check online for newer versions, in all areas ([Newer versions online](#newer-versions-online)) |
+| `S` | Save a snapshot of every area read so far, to compare with later (asks first) |
+| `u` | Check online for newer versions in every area read so far ([Newer versions online](#newer-versions-online)) |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -33,7 +33,9 @@ The bottom line lists the keys that work where you are, in three groups separate
 | All areas | `S:snapshot`, `u:check online` (live data only) | every area at once |
 | Moving around | `Tab`, `Shift+Tab`, `/`, `PgUp`/`PgDn`, `?`, `q` | — |
 
-Each key shows only where it works. On a narrow terminal, moving-around keys are shortened
+An area is read the first time you open its tab (Homebrew at start), so `S` and `u` cover
+the areas read so far. Their question lists them, with those not read yet in parentheses:
+`Homebrew Toolchains (Agents Docker)`. Each key shows only where it works. On a narrow terminal, moving-around keys are shortened
 first, then the all-areas keys; this view's keys and `?:help` always stay.
 
 ## Reading the screen
