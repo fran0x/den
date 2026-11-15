@@ -8,16 +8,9 @@ use crate::{
 };
 
 pub(super) const HELP: &str = "Agents: Codex and Claude Code side by side\n\
-Every list has name, Tools (Both / Codex only / Claude only) and Status. Status uses one vocabulary for both tools: Ready, Off, Needs approval, Problem, Unknown (Instructions: Used, Not used). When the tools disagree it shows Codex x · Claude y.\n\
-Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. Skills synced from claude.ai (~/.claude/skills/synced) are listed one by one, as claude.ai sync. Installed says how a skill got here: with npx skills (its lock file, ~/.agents/.skill-lock.json), by claude.ai sync, with git clone, or by hand; Author is the one its SKILL.md names (metadata.author); Git names the repository that keeps its folder. A skill with no record may still have been copied from elsewhere. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
-Instructions pair AGENTS.md (Codex) and CLAUDE.md (Claude Code) by where they apply: Managed, User, then each project folder from the outermost down.\n\
-Settings match by name and show the value; Hooks and Plugins are Claude Code only.\n\
-Settings: s shows Codex source files. The panel names the file each setting or MCP server comes from.\n\
-Instructions: t shows Codex's chain as if the project were trusted. MCP: V picks the next Codex source.\n\
-\nThe panel adds each tool's own words: for skills, Codex's Eligible, Enabled/Disabled in config or Unknown · reason; for MCP, Codex's Locally eligible and Claude Code's Pending approval or Approved. Den does not model Claude rules that could turn a skill off.\n\
-Only MCP servers, MCP approvals and project trust are read from ~/.claude.json. URLs, arguments and values are withheld. Hooks, helpers and servers are never run.\n\
-When Homebrew installed Codex or Claude Code, the status line names a newer version (↑) from Homebrew's data, Codex's own update check (~/.codex/version.json) or the last online check (u).\n\
-Nothing here shows what a running Codex or Claude Code session actually loaded.";
+Status: Ready, Off, Needs approval, Problem, Unknown.\n\
+Skills: Installed, Author and Git say where each came from.\n\
+URLs, arguments and values withheld. Nothing is run.";
 
 /// What one frame shows, computed before drawing so the panel can scroll mutably.
 struct View {

@@ -5,6 +5,11 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Shorter help:** `?` is now a one-screen reference: short lines per area, where `u`
+  looks, and what `dew` changes. The details stay in the guide.
+- **README:** mentions where skills came from, what `u` sends to GitHub, every `dew` dry
+  run, and links the guide's table of where updates come from.
+
 ## [0.7.1] - 2026-11-15
 
 - **Keys in one place:** the bottom line, under a rule, lists every key that works where

@@ -2,11 +2,9 @@
 use super::*;
 use crate::areas::docker::Section;
 
-pub(super) const HELP: &str = "Docker: containers, images and volumes\n\
-Containers show their state and image (and Compose project); images and volumes say which containers use them, or Unused. The status line shows disk use and what docker system df could reclaim.\n\
-Den runs only: docker container ls --all, docker image ls --digests, docker volume ls and docker system df, each with a 10-second limit, while this area is open: when you open it and every 5 seconds after. Reading never starts, stops, pulls, inspects or removes anything.\n\
-u asks Docker Hub or ghcr.io whether a tag now points to a newer build (↑ newer build), without a login. Single names such as postgres could be images built here, so they are never sent. In dew, x offers what Docker allows without force: stop a running container, or remove a stopped container or an image or volume nothing uses; on an image marked ↑ newer build, docker image pull for its tag (docker may use its own saved login there). Enter runs the selected one.\n\
-Not shown: container commands, environment, labels (except the Compose project) and logs. From ~/.docker/config.json only the context, registry names and credential helper are kept; saved logins are discarded. DOCKER_HOST is noted, not shown.";
+pub(super) const HELP: &str = "Docker: containers, images, volumes\n\
+Read with docker ls and system df, every 5 s while open.\n\
+Logins, environment and logs are not shown.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
     let d = &app.docker;

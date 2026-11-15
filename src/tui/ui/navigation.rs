@@ -111,27 +111,26 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
     super::render_details(frame, app, content);
     app.focus = old_focus;
 }
-/// Where each kind of package's newer version comes from, and what is never checked.
-/// Keep in step with `online::Registry` and docs/GUIDE.md.
+/// Where `u` looks for each kind of package. Keep in step with `online::Registry` and
+/// docs/GUIDE.md.
 const UPDATES: &str = "\
-Homebrew formulas, casks   formulae.brew.sh; without u, Homebrew's data (last brew update)\n\
-Codex, Claude Code         Homebrew, when it installed them; Codex also checks itself\n\
-cargo install crates       index.crates.io\n\
-npm and bun packages       registry.npmjs.org\n\
-uv tools, pipx packages    pypi.org\n\
-Rust stable and 1.xx       endoflife.date\n\
-node, python3, ruby, go    endoflife.date; Homebrew's ↑ when Homebrew installed them\n\
-Docker images              Docker Hub and ghcr.io, for names with a namespace or registry\n\
-Skills from npx skills     api.github.com: whether the folder changed since install\n\
-Not checked: other Homebrew taps, git and path crates, go install programs, uv Pythons, java, pinned, beta and nightly Rust, single-name images such as postgres, other skills, AWS, Kubernetes, MCP servers and plugins. No ↑ there does not mean up to date.\n\
-Only names are sent; installed versions stay here. Answers are kept with the time of the check, and only u checks again.";
-/// Everything dew can change, by area: `x` on a row offers the ones that apply to it.
-const DEW_ACTIONS: &str = "What dew can change (x on a row, Enter runs the selected action):\n\
-Homebrew     upgrade or uninstall a package; update Homebrew's data; remove dependencies nothing needs; clean up old versions\n\
-Docker       stop a running container; remove a stopped container, or an image or volume nothing uses; pull the newer build of a tag the online check (u) found\n\
-Toolchains   Rust: update or uninstall a toolchain, upgrade or uninstall a cargo install crate. Packages: upgrade or uninstall a global npm package, uv tool or pipx package. PATH: Homebrew's actions for a command it installed\n\
-Agents, Cloud  nothing: read-only in dew too\n\
-Each action shows its exact command first, and a dry run where the tool has one. Nothing in use is removed, and there is never --force, prune, sudo or a shell. Results go to ~/.local/state/den/actions.log.";
+Updates (u)\n\
+Homebrew          formulae.brew.sh\n\
+cargo crates      index.crates.io\n\
+npm, bun          registry.npmjs.org\n\
+uv, pipx          pypi.org\n\
+Rust, runtimes    endoflife.date\n\
+Docker images     Docker Hub, ghcr.io (names with a namespace)\n\
+npx skills        api.github.com\n\
+Not checked       go install, java, uv Pythons, beta and nightly Rust, other registries\n\
+Only names are sent.";
+/// What dew can change, by area.
+const DEW_ACTIONS: &str = "\
+dew (x)\n\
+Homebrew          upgrade, uninstall, update data, autoremove, cleanup\n\
+Docker            stop, remove unused, pull a newer build\n\
+Toolchains        update, upgrade, uninstall\n\
+Exact command and dry run first. Never --force, prune, sudo or a shell.";
 pub(super) fn help(app: &App) -> String {
     let context = match app.module {
         Module::Agents => super::agents::HELP,
@@ -143,26 +142,22 @@ pub(super) fn help(app: &App) -> String {
         Module::Toolchains => super::toolchains::HELP,
         Module::Homebrew => {
             "Homebrew\n\
-Packages starts with your Tools: what you installed on purpose, plus casks nothing else needs (Homebrew keeps no request record for casks). a shows All packages, dependencies included; your tools stay bold. Casks are [bracketed] and in their own colour.\n\
-Each row says whether you asked for it or it came in as a dependency, and how many other packages need it (required by N). A yellow ↑ marks a newer version, from your last brew update or, once you press u, from formulae.brew.sh.\n\
-The panel shows what the package depends on and what it is required by. Incomplete records stay Unknown: Den never guesses, and no dependents does not mean safe to remove.\n\
-In dew, x opens actions: upgrade or uninstall this package, update Homebrew's data, autoremove, cleanup. Enter runs the chosen one after its dry run, and uninstall is always last.\n\
-Diagnostics (Shift+Tab): reports on unresolved links, missing dependencies, leaves and what cleanup would remove. Enter opens a group or jumps to its package, Space shows the full finding, o shows Homebrew's own report, and c runs the check again (read-only)."
+Tools: what you asked for, and casks nothing needs. a: all packages.\n\
+Unknown: incomplete record. Den never guesses.\n\
+Diagnostics: unresolved links, missing dependencies, leaves, cleanup."
         }
     };
     let changes = if app.actions.allowed() {
         DEW_ACTIONS
     } else {
-        "den changes nothing. dew is the same with actions on: x on a row shows what it can change there."
+        "den changes nothing; dew does, after x and Enter."
     };
     format!(
-        "Den\n\n\
-Keys: the bottom line lists the keys that work where you are, in three groups: this view's own │ Den's │ moving around. Also: ↑↓ or j k move, Home and End jump to the first or last row, Esc goes back, F2 and F3 are Tab and Shift+Tab, and Ctrl-C quits anywhere. Every area and section remembers where you were.\n\n\
-What changed (d): + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, and with the snapshot S saved, if any. Running or stopped containers and newer versions are not changes.\n\n\
-Where updates come from (u, after asking; Esc stops):\n\
-{UPDATES}\n\n\
+        "Keys: bottom line. Also j k, Home End, Esc back, Ctrl-C quit.\n\
+Marks: + new · ~ changed · ↑ newer · End of life. d lists changes.\n\n\
 {context}\n\n\
+{UPDATES}\n\n\
 {changes}\n\n\
-Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. den writes only its own files, each after you confirm: the snapshot (S) and the online answers (u), in ~/.local/state/den, private to you."
+Den runs nothing it finds and shows no secrets."
     )
 }

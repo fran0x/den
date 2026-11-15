@@ -2,13 +2,10 @@
 use super::*;
 use crate::areas::toolchains::{Class, Row, Section};
 
-pub(super) const HELP: &str = "Toolchains: language tools on this machine, read from files\n\
-PATH: for each common command (node, python3, go, java, cargo, …) the copy the shell runs, who provides it (Homebrew, rustup, uv, nvm, mise, the system, …), its version when the install path shows it, and the copies it hides. Problems: a relative PATH entry, a manager folder that is not on PATH, a system copy hiding a managed one, or a macOS stub with nothing behind it (java without a JDK, python3 without the Command Line Tools).\n\
-Rust: rustup toolchains (the default, folder overrides, targets and components), then cargo install crates with their version, source and programs.\n\
-Packages: global npm packages, uv tools and Pythons, pipx, bun and go install programs.\n\
-Nothing is run: versions come from install paths and package metadata, so programs installed straight into a system folder show no version. Registry and git URLs and local source paths are withheld. Commands Homebrew installed show its newer version (↑) from the Homebrew data Den already has.\n\
-u marks newer versions ↑, and a release line whose support has ended End of life; where each one comes from is listed above.\n\
-In dew, x on a Rust toolchain offers rustup update or uninstall; on a cargo install crate, cargo install --locked (crates.io only) or uninstall; on a global npm, uv tool or pipx package, upgrade or uninstall; on a PATH command Homebrew installed, that package's Homebrew actions. Each tool runs as the copy that wins on PATH.";
+pub(super) const HELP: &str = "Toolchains\n\
+PATH: which copy wins, and what it hides.\n\
+Rust: toolchains and cargo crates. Packages: npm, uv, pipx, bun, go.\n\
+Nothing is run; versions come from files.";
 
 pub(super) fn render(frame: &mut Frame, app: &mut App) {
     let t = &app.toolchains;

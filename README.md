@@ -30,7 +30,7 @@ area whose tool is missing says so.
 | Area | What you see |
 | --- | --- |
 | **Homebrew** | Packages you asked for, what depends on what, newer versions, leftovers |
-| **Agents** | Codex and Claude Code side by side: skills, instructions, settings, MCP, hooks, plugins |
+| **Agents** | Codex and Claude Code side by side: skills (and where each came from), instructions, settings, MCP, hooks, plugins |
 | **Cloud** | AWS profiles (active one first) and Kubernetes contexts |
 | **Docker** | Containers, images, volumes and reclaimable space |
 | **Toolchains** | Which `node`, `python3` or `cargo` wins on PATH; rustup, cargo, npm, uv, pipx, bun and go installs |
@@ -42,8 +42,8 @@ When something is wrong, the panel beside the row says why.
 - Runs only a fixed set of read commands (`brew info`, `docker container ls`, …); the
   rest comes from files.
 - Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
-- Goes online only when you press `u` and confirm, and then sends only names (of packages,
-  tagged images and runtimes). Installed versions and paths stay on your machine.
+- Goes online only when you press `u` and confirm, and then sends only names: packages,
+  tagged images, runtimes and skill repositories. Installed versions and paths stay here.
 - Never shows secrets: tokens, keys and credential values are dropped as they are read.
 - Writes nothing, except its own snapshot and online results, each after you confirm.
 
@@ -57,13 +57,13 @@ shows what changed since.
 **Newer versions online:** `u` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io,
 endoflife.date and GitHub what is newer than what you have: packages, builds of your Docker
 images, Rust toolchains, the runtimes on PATH, and skills `npx skills` installed from
-GitHub. Newer ones are marked `↑`, and a release line
-whose support has ended **End of life**. Den asks before it sends anything, sends only
-names, and keeps the answers with the time of the check.
+GitHub. Newer ones are marked `↑`, and a release line whose support has ended
+**End of life**. Den asks first and keeps the answers with the time of the check. The
+guide lists [where each update comes from](docs/GUIDE.md#where-updates-come-from), and
+what is never checked.
 
-**Keys:** `Tab` areas · `Shift+Tab` sections · `/` search · `d` changes · `S` snapshot ·
-`u` check online · `?` help · `q` quit.
-Try it without reading your machine: `den --demo`.
+**Keys:** the bottom line lists the keys that work where you are; `?` is a one-screen
+reference. Try it without reading your machine: `den --demo`.
 
 ## dew: with changes
 
@@ -80,7 +80,8 @@ to run the selected one.
 
 **What it promises:**
 
-- Shows the exact command first, and Homebrew's dry run where there is one.
+- Shows the exact command first, and a dry run where the tool has one (Homebrew,
+  `rustup check`, `npm --dry-run`).
 - Refuses what is in use: no uninstall while something needs the package, no removing a
   used image or volume, the default toolchain or one a folder override uses.
 - Never uses `--force`, `prune`, a shell or sudo. `Esc` stops a running action.

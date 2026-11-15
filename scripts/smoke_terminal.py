@@ -626,7 +626,7 @@ print('changed 1 package')
     run_pty([binary, "--codex-fixture", "fixtures/mcp-empty"], env=isolated_env, resize=True, steps=[
         (b" skill", b"\x1bOR\x1bOR\x1bOR"),
         (b"0 servers", b"?"),
-        (b"Den ", b"?q"),
+        (b"Keys: bottom line", b"?q"),
     ])
     run_pty([binary, "--demo", "--skills"], env=isolated_env, steps=[
         (b"Codex not collected in this mode", b"\x1bOR\x1bOR\x1bORr"),
