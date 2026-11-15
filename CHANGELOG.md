@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-15
+
 - **Fixed: a quick `u` `u` got stuck** on "Wait for the preview to finish". A second press
   (or `Enter`) before the dry run finishes now waits for it and runs the action as soon as
   the dry run succeeds, never after a failed one; `Esc` takes it back.
@@ -191,7 +193,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/fran0x/den/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/fran0x/den/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/fran0x/den/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/fran0x/den/compare/v0.7.2...v0.7.3
