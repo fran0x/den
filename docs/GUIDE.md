@@ -82,7 +82,7 @@ tools disagree, the status shows both, for example `Codex Ready · Claude Off`.
 
 | Section | What you see |
 | --- | --- |
-| **Skills** | Each skill folder: Ready, Off, Problem (invalid, unreadable or duplicate) or Unknown. Skills Claude Code syncs from your claude.ai account (`~/.claude/skills/synced`) are listed one by one as **claude.ai sync** and checked against its manifest |
+| **Skills** | Each skill folder: Ready, Off, Problem (invalid, unreadable or duplicate) or Unknown. Skills Claude Code syncs from your claude.ai account (`~/.claude/skills/synced`) are listed one by one as **claude.ai sync** and checked against its manifest. The panel's **Installed** line says how a skill got here: with `npx skills` (source and date, from its lock file `~/.agents/.skill-lock.json`), by claude.ai sync, with `git clone` (the folder is its own repository), or by hand when there is no record. **Author** is the one its SKILL.md names (`metadata.author`). **Git** names the repository that keeps its folder, such as a dotfiles repository, with its remote as host/owner/repo and never its credentials |
 | **Instructions** | `AGENTS.md` and `CLAUDE.md` files, in the order each tool reads them |
 | **Settings** | Each setting with its value, and the file it comes from |
 | **MCP** | Each MCP server: Ready, Off, Needs approval or Problem |
@@ -175,7 +175,8 @@ and any other key cancels.
   at pypi.org; images at Docker Hub (registry-1.docker.io, with a read-only token from
   auth.docker.io) and ghcr.io. Nothing else is contacted. Image registries are asked
   without a login: Docker's saved logins are never used, so private images show as not
-  found. Release lines come from endoflife.date.
+  found. Release lines come from endoflife.date. Skills `npx skills` installed from
+  GitHub are compared at api.github.com, without a login.
 - **What it sends:** only package names. Your installed versions stay on this machine: Den
   compares them itself. The registries do learn which packages you use.
 - **What you see:** a newer version shows as `↑ 15.2.0` before the status. For Homebrew,
@@ -191,6 +192,14 @@ and any other key cancels.
   sends four requests at a time, each limited to 10 seconds, over HTTPS only, and
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
 - **Live data only:** demo, `--inventory` and fixture modes never go online.
+
+**Skills from GitHub:** for a skill `npx skills` installed, its lock file
+(`~/.agents/.skill-lock.json`) records the repository and folder it came from and a
+fingerprint of that folder (git's tree SHA). `u` asks GitHub for the folder's fingerprint
+today; when it differs, the skill shows **↑ newer on GitHub**, and the panel says it
+changed upstream since it was installed. Skills have no version numbers, so Den can say
+that it changed, not what changed, and it compares with what was installed, not with any
+edits you made since. `npx skills update` brings the new version; Den does not run it.
 
 **Release lines:** Rust's `stable` toolchain is compared with the newest Rust release,
 and a toolchain that follows a line, such as `1.98`, with the newest patch of that line.
@@ -275,6 +284,12 @@ In Docker, `x` offers what Docker allows without forcing: stop a running contain
 remove a stopped one, or remove an image or volume no container uses (in Images, also
 every untagged image nothing uses, at once). Docker has no dry run, so the dialog says
 what will be removed (its name and, for images, its size) before `Enter` runs it.
+
+On an image marked **↑ newer build** by the online check (`u`), `x` also offers
+`docker image pull` for that tag, first in the list. Containers already running keep the
+build they started with until they are recreated; the old build then shows as an unused
+untagged image, which `x` can remove. Den's own check never logs in, but `docker` uses
+its own saved login for the registry, if you have one.
 
 In Toolchains › Rust, `x` on a toolchain offers `rustup update` (its dry run is
 `rustup check`) and uninstalling it; on a crate from `cargo install`, upgrading it with

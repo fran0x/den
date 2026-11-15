@@ -253,6 +253,8 @@ pub(crate) fn discover_bounded(
                 findings: vec![],
                 mcp: vec![],
                 optional: Validity::NotEvaluated,
+                author: None,
+                origin: Default::default(),
             };
             match filesystem::resolve(&path) {
                 Err(e) => skill.finding(

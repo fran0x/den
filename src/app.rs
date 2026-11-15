@@ -722,6 +722,24 @@ impl App {
             blocked: None,
             note: Some(note),
         };
+        // A tag whose registry now has a newer build, from the last online check (`u`).
+        if let Some(row) = row.filter(|_| self.docker.section == Section::Images)
+            && let Some(lookup) = &row.online
+            && self.online.newer(lookup).is_some()
+            && let Some(o) = DockerObject::image(&row.target, &row.name)
+        {
+            items.push(item(
+                Action::DockerPull(o),
+                format!(
+                    "Downloads the build {} now has for {}. Containers already running keep \
+                     the build they started with until they are recreated; that build then \
+                     shows as an unused untagged image. docker uses its own saved login for \
+                     the registry, if there is one.",
+                    lookup.package.registry().label(),
+                    row.name
+                ),
+            ));
+        }
         if let Some(row) = row {
             match self.docker.section {
                 Section::Containers => match row.state.as_str() {
@@ -1208,7 +1226,20 @@ impl App {
             .iter()
             .flat_map(|i| &i.images)
             .filter_map(|r| r.online.clone());
-        homebrew.chain(toolchains).chain(docker).collect()
+        let sources = self.agent_sources();
+        let codex = sources.codex_skills.into_iter().flat_map(|i| &i.skills);
+        let claude = sources.claude.into_iter().flat_map(|c| &c.skills.skills);
+        // Codex and Claude Code often list the same folder: one lookup each.
+        let mut seen = std::collections::HashSet::new();
+        let skills = codex
+            .chain(claude)
+            .filter_map(|s| s.origin.online.clone())
+            .filter(|l| seen.insert(l.package.key()));
+        homebrew
+            .chain(toolchains)
+            .chain(docker)
+            .chain(skills)
+            .collect()
     }
     /// A Homebrew package's newer version: from the last online check when it found the
     /// newest version, otherwise from Homebrew's own data (as of its last update).
@@ -1242,7 +1273,7 @@ impl App {
                 "Nothing to check online yet: open Toolchains first"
             } else {
                 "Nothing to check online: no Homebrew packages, crates.io crates, npm, bun, uv \
-                 or pipx packages or Docker images"
+                 or pipx packages, Docker images or skills from GitHub"
             }
         };
         self.actions.notice = Some(notice.into());

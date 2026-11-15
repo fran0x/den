@@ -220,6 +220,9 @@ pub enum Action {
     DockerRemoveImages(Vec<DockerObject>),
     /// A volume nothing uses; Docker refuses one in use.
     DockerRemoveVolume(DockerObject),
+    /// `docker image pull` for a tag whose registry now has a newer build; running
+    /// containers keep the build they started with.
+    DockerPull(DockerObject),
     /// `rustup update` for one toolchain; rustup itself is not updated.
     RustupUpdate(Program, Name),
     /// Not the default toolchain, and no folder override uses it.
@@ -246,7 +249,8 @@ impl Action {
             Self::DockerStopContainer(_)
             | Self::DockerRemoveContainer(_)
             | Self::DockerRemoveImages(_)
-            | Self::DockerRemoveVolume(_) => Area::Docker,
+            | Self::DockerRemoveVolume(_)
+            | Self::DockerPull(_) => Area::Docker,
             Self::RustupUpdate(..)
             | Self::RustupUninstall(..)
             | Self::CargoInstall(..)
@@ -307,6 +311,7 @@ impl Action {
                 v
             }
             Self::DockerRemoveVolume(o) => with(&["volume", "rm"], o),
+            Self::DockerPull(o) => with(&["image", "pull"], o),
             Self::RustupUpdate(_, t) => {
                 vec!["update".into(), "--no-self-update".into(), t.target.clone()]
             }
@@ -368,6 +373,7 @@ impl Action {
                 many => format!("Remove {} unused untagged images", many.len()),
             },
             Self::DockerRemoveVolume(o) => format!("Remove volume {}", o.label),
+            Self::DockerPull(o) => format!("Pull the newer build of {}", o.label),
             Self::RustupUpdate(_, t) => format!("Update {}", t.label),
             Self::RustupUninstall(_, t) => format!("Uninstall toolchain {}", t.label),
             Self::CargoInstall(_, c) => format!("Upgrade {}", c.label),
@@ -383,7 +389,7 @@ impl Action {
     fn timeout(&self) -> Duration {
         Duration::from_secs(match self {
             // These build or download a lot.
-            Self::BrewUpgrade(_) | Self::CargoInstall(..) => 30 * 60,
+            Self::BrewUpgrade(_) | Self::CargoInstall(..) | Self::DockerPull(_) => 30 * 60,
             _ if self.area() == Area::Docker => 2 * 60,
             _ => 10 * 60,
         })
@@ -1257,6 +1263,13 @@ mod tests {
                 Action::DockerRemoveVolume(volume),
                 "docker volume rm web_data".into(),
                 "Remove volume web_data",
+            ),
+            (
+                Action::DockerPull(
+                    DockerObject::image("grafana/loki:3.5", "grafana/loki:3.5").unwrap(),
+                ),
+                "docker image pull grafana/loki:3.5".into(),
+                "Pull the newer build of grafana/loki:3.5",
             ),
         ];
         for (action, line, title) in cases {

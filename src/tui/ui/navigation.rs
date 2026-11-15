@@ -111,6 +111,13 @@ pub(super) fn inspector(frame: &mut Frame, app: &mut App) {
     super::render_details(frame, app, content);
     app.focus = old_focus;
 }
+/// Everything dew can change, by area: `x` on a row offers the ones that apply to it.
+const DEW_ACTIONS: &str = "What dew can change (x on a row, Enter runs the selected action):\n\
+Homebrew     upgrade or uninstall a package; update Homebrew's data; remove dependencies nothing needs; clean up old versions\n\
+Docker       stop a running container; remove a stopped container, or an image or volume nothing uses; pull the newer build of a tag the online check (u) found\n\
+Toolchains   Rust: update or uninstall a toolchain, upgrade or uninstall a cargo install crate. Packages: upgrade or uninstall a global npm package, uv tool or pipx package. PATH: Homebrew's actions for a command it installed\n\
+Agents, Cloud  nothing: read-only in dew too\n\
+Each action shows its exact command first, and a dry run where the tool has one. Nothing in use is removed, and there is never --force, prune, sudo or a shell. Results go to ~/.local/state/den/actions.log.";
 pub(super) fn help(app: &App) -> String {
     let context = match app.module {
         Module::Agents => super::agents::HELP,
@@ -129,6 +136,11 @@ In dew, x opens actions: upgrade or uninstall this package, update Homebrew's da
 Diagnostics (Shift+Tab): [ or 5-8 picks a report, ] returns to its content, Enter opens a group or jumps to a package (Esc comes back), Space shows the full finding, o Homebrew's original report, c runs the check now (read-only)."
         }
     };
+    let changes = if app.actions.allowed() {
+        DEW_ACTIONS
+    } else {
+        "den changes nothing. dew is the same with actions on: x on a row shows what it can change there."
+    };
     format!(
         "Den\n\n\
 Tab        next area: Homebrew, Agents, Cloud, Docker, Toolchains\n\
@@ -140,11 +152,12 @@ Esc        go back\n\
 r          refresh\n\
 d          only what changed: since the saved snapshot, then since Den started, then every row\n\
 S          save a snapshot of what Den has read, to compare with later (asks first)\n\
-u          check online for newer versions of Homebrew, crates and npm, bun, uv and pipx packages, newer builds of Docker images, and the release lines of Rust and the runtimes on PATH (asks first; Esc stops)\n\
+u          check online for newer versions of Homebrew, crates and npm, bun, uv and pipx packages, newer builds of Docker images, skills changed on GitHub since npx skills installed them, and the release lines of Rust and the runtimes on PATH (asks first; Esc stops)\n\
 q          quit (Ctrl-C works anywhere)\n\n\
 Every area and section remembers where you were.\n\n\
 What changed: + marks a new row and ~ a changed one (the panel says what it was before); d lists only those, then the removed rows, struck through. Den compares each area with how it first read it this session, in memory, and with the snapshot S saved, if any. S is the only thing den writes: Den's own file, $XDG_STATE_HOME/den/snapshot.json (~/.local/state/den/snapshot.json), private to you, holding only what the lists show. Running or stopped containers and newer Homebrew versions are not changes.\n\n\
 {context}\n\n\
+{changes}\n\n\
 F2 is Tab and F3 is Shift+Tab. Esc closes this help.\n\
 Den only looks: it starts no commands, scripts or servers it finds, and withheld values stay withheld. Changes happen only in dew, each one chosen and confirmed with Enter."
     )

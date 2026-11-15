@@ -54,9 +54,10 @@ shows what changed since.
 
 ![den listing what changed in Homebrew since a snapshot three days ago](docs/images/changes.svg)
 
-**Newer versions online:** `u` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io and
-endoflife.date what is newer than what you have: packages, builds of your Docker images,
-Rust toolchains and the runtimes on PATH. Newer ones are marked `↑`, and a release line
+**Newer versions online:** `u` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io,
+endoflife.date and GitHub what is newer than what you have: packages, builds of your Docker
+images, Rust toolchains, the runtimes on PATH, and skills `npx skills` installed from
+GitHub. Newer ones are marked `↑`, and a release line
 whose support has ended **End of life**. Den asks before it sends anything, sends only
 names, and keeps the answers with the time of the check.
 
@@ -74,7 +75,7 @@ to run the selected one.
 | Area | Actions |
 | --- | --- |
 | **Homebrew** | Upgrade, uninstall, update Homebrew's data, remove unneeded dependencies, clean up |
-| **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses |
+| **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses; pull the newer build of a tag that `u` found |
 | **Toolchains** | Update or uninstall a Rust toolchain; upgrade or uninstall a crate, or a global npm, uv tool or pipx package; Homebrew's actions for a command it installed |
 
 **What it promises:**

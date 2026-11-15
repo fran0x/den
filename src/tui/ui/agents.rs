@@ -9,7 +9,7 @@ use crate::{
 
 pub(super) const HELP: &str = "Agents: Codex and Claude Code side by side\n\
 Every list has name, Tools (Both / Codex only / Claude only) and Status. Status uses one vocabulary for both tools: Ready, Off, Needs approval, Problem, Unknown (Instructions: Used, Not used). When the tools disagree it shows Codex x · Claude y.\n\
-Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. Skills synced from claude.ai (~/.claude/skills/synced) are listed one by one, as claude.ai sync. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
+Skills match by folder: Claude usually reaches ~/.agents/skills through symlinks. Skills synced from claude.ai (~/.claude/skills/synced) are listed one by one, as claude.ai sync. Installed says how a skill got here: with npx skills (its lock file, ~/.agents/.skill-lock.json), by claude.ai sync, with git clone, or by hand; Author is the one its SKILL.md names (metadata.author); Git names the repository that keeps its folder. A skill with no record may still have been copied from elsewhere. MCP servers match by name; \"Both, differ\" means the same name points to a different kind of server or program.\n\
 Instructions pair AGENTS.md (Codex) and CLAUDE.md (Claude Code) by where they apply: Managed, User, then each project folder from the outermost down.\n\
 Settings match by name and show the value; Hooks and Plugins are Claude Code only.\n\
 Settings: s shows Codex source files. The panel names the file each setting or MCP server comes from.\n\
@@ -128,7 +128,10 @@ fn view(app: &App) -> View {
     let cells: Vec<_> = rows
         .iter()
         .map(|row| {
-            let (x, y) = sources.cells(section, row);
+            let (x, mut y) = sources.cells(section, row);
+            if let Some(newer) = skill_newer(app, &sources, section, row) {
+                y = format!("{UPDATE} {newer} · {y}");
+            }
             let mark = changes.mark(section.label(), &row.key);
             (format!("{mark}{}", row.name), x, y)
         })
@@ -201,6 +204,21 @@ fn view(app: &App) -> View {
     }
 }
 
+/// For a skill installed from GitHub, "newer on GitHub" once the last check (`u`) found
+/// its folder changed there.
+fn skill_newer<'a>(
+    app: &'a App,
+    sources: &Sources,
+    section: Section,
+    row: &Row,
+) -> Option<&'a str> {
+    (section == Section::Skills)
+        .then(|| skill(sources, row))
+        .flatten()
+        .and_then(|s| s.origin.online.as_ref())
+        .and_then(|l| app.online.newer(l))
+}
+
 /// Collection problems first (they matter most), then the count and how rows split.
 fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String {
     if let Some(notice) = &app.presentation.notice {
@@ -222,7 +240,18 @@ fn status(app: &App, sources: &Sources, section: Section, all: &[Row]) -> String
         claude - both
     );
     let text = match section {
-        Section::Skills => format!("{} · {split}", crate::inventory::count(all.len(), "skill")),
+        Section::Skills => {
+            let lookups: Vec<_> = all
+                .iter()
+                .filter_map(|r| skill(sources, r))
+                .filter_map(|s| s.origin.online.clone())
+                .collect();
+            format!(
+                "{} · {split}{}",
+                crate::inventory::count(all.len(), "skill"),
+                online_status(app, &lookups)
+            )
+        }
         Section::Instructions => {
             format!("{} · {split}", crate::inventory::count(all.len(), "folder"))
         }
@@ -421,6 +450,47 @@ fn tool_line(
     }
 }
 
+/// How the skill got here and who wrote it, from the records on disk, then the git
+/// repository that keeps its folder.
+fn origin(app: &App, sources: &Sources, s: &skills::Skill) -> Vec<String> {
+    let clone = s
+        .origin
+        .repo
+        .as_ref()
+        .filter(|r| s.resolved.as_deref() == Some(r.folder.as_path()));
+    let installed = match (s.scope, &s.origin.installed, clone) {
+        (skills::Scope::Synced, ..) => "by Claude Code's claude.ai sync".to_owned(),
+        (_, Some(install), _) => format!("with npx skills, from {install} (skills lock file)"),
+        (skills::Scope::System, ..) => "with Codex, which ships it".to_owned(),
+        (_, None, Some(repo)) => match &repo.remote {
+            Some(remote) => format!("with git clone, from {remote}"),
+            None => "with git (its own repository, no origin remote)".to_owned(),
+        },
+        (_, None, None) => "by hand: no install record, so written here or copied".to_owned(),
+    };
+    let mut lines = vec![format!("Installed: {installed}")];
+    if let Some(lookup) = &s.origin.online {
+        let online = app.online.panel(lookup, std::time::SystemTime::now());
+        let online = online.trim_start();
+        lines.push(if online.is_empty() {
+            "  GitHub: not checked yet; u compares it with GitHub".into()
+        } else {
+            format!("  GitHub: {online}")
+        });
+    }
+    if let Some(author) = &s.author {
+        lines.push(format!("  Author: {author} (from its SKILL.md)"));
+    }
+    if let Some(repo) = s.origin.repo.as_ref().filter(|_| clone.is_none()) {
+        let folder = sources.short(&repo.folder);
+        lines.push(match &repo.remote {
+            Some(remote) => format!("  Git: kept in the repository {folder} ({remote})"),
+            None => format!("  Git: kept in the repository {folder}, with no origin remote"),
+        });
+    }
+    lines
+}
+
 fn skill_text(app: &App, sources: &Sources, row: &Row) -> String {
     let Some(s) = skill(sources, row) else {
         return String::new();
@@ -462,6 +532,7 @@ fn skill_text(app: &App, sources: &Sources, row: &Row) -> String {
     if !row.codex.is_empty() && !row.claude.is_empty() {
         lines.push("Same folder in both tools, so edits apply to both".into());
     }
+    lines.extend(origin(app, sources, s));
     let mut text = super::skills::skill_panel(s, &lines, "either tool");
     if app.skills.loaded {
         text.push_str(&format!(

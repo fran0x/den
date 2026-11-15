@@ -73,6 +73,14 @@ pub fn instructions(skill: &mut Skill, text: String) {
             "Required description must be a nonempty string (max 8192 bytes)",
         );
     }
+    skill.author = value
+        .get("metadata")
+        .and_then(|m| m.get("author"))
+        .or_else(|| value.get("author"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|a| !a.is_empty() && a.len() <= 100 && !a.chars().any(char::is_control))
+        .map(str::to_owned);
     if name.is_some() && desc.is_some() {
         skill.metadata = Validity::Valid;
     }

@@ -2,6 +2,7 @@
 mod collect;
 pub(crate) mod filesystem;
 mod metadata;
+pub mod origin;
 pub mod state;
 pub use collect::{Config, Root, discover};
 use std::{io, path::PathBuf};
@@ -118,6 +119,9 @@ pub struct Skill {
     pub findings: Vec<Finding>,
     pub mcp: Vec<McpDependency>,
     pub optional: Validity,
+    /// The author its SKILL.md names (`metadata.author`, or a top-level `author`).
+    pub author: Option<String>,
+    pub origin: origin::Origin,
 }
 impl Skill {
     /// Why Den cannot call this skill usable from its own files alone, shared by the

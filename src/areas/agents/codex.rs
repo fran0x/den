@@ -233,6 +233,11 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         });
     }
     let mut skills = skills::discover_bounded(&skills_config, cancel, context.boundary.as_deref())?;
+    skills::origin::annotate(
+        &mut skills,
+        context.home.as_deref(),
+        context.boundary.as_deref(),
+    );
     let unresolved = configuration.unresolved_skills(&skills);
     configuration.findings.push(format!(
         "Skill references: {unresolved} unresolved; no undiscovered skills are invented"

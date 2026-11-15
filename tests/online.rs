@@ -6,6 +6,7 @@
 //! the app as a finished check would give them.
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use den::{
+    actions::{Dialog, Permit, State},
     app::App,
     areas::toolchains,
     inventory::Inventory,
@@ -622,4 +623,58 @@ fn a_full_size_channel_manifest_is_read() {
         Some("1.97.1")
     );
     assert!(read.rust.iter().all(|r| !r.status.is_problem()));
+}
+
+#[test]
+fn dew_offers_to_pull_only_a_tag_with_a_newer_build() {
+    let t = Temp::new();
+    let mut a = docker_session(&t);
+    a.actions = State::new(Permit::granted(true));
+    let menu = |a: &mut App, key_name: &str| -> Vec<String> {
+        a.docker.select_key(key_name);
+        key(a, KeyCode::Char('x'));
+        let lines = match &a.actions.dialog {
+            Some(Dialog::Menu { items, .. }) => {
+                items.iter().map(|i| i.action.command_line()).collect()
+            }
+            _ => vec![],
+        };
+        key(a, KeyCode::Esc);
+        lines
+    };
+    // Before any online check, nothing says a newer build exists.
+    assert!(
+        !menu(&mut a, "image:grafana/loki:3.5")
+            .iter()
+            .any(|l| l.contains("pull"))
+    );
+    a.finish_online(
+        Ok(vec![
+            (
+                Package::new(Registry::DockerHub, "grafana/loki:3.5").unwrap(),
+                Answer::Latest(D_NEW.into()),
+            ),
+            (
+                Package::new(Registry::Ghcr, "astral-sh/uv:latest").unwrap(),
+                Answer::Latest(D_LOCAL.into()),
+            ),
+        ]),
+        SystemTime::now(),
+    );
+    let loki = menu(&mut a, "image:grafana/loki:3.5");
+    assert_eq!(
+        loki.first().map(String::as_str),
+        Some("docker image pull grafana/loki:3.5"),
+        "{loki:?}"
+    );
+    // The same build as the registry's, and a single name never checked: no pull.
+    for other in ["image:ghcr.io/astral-sh/uv:latest", "image:my-app:local"] {
+        assert!(
+            !menu(&mut a, other).iter().any(|l| l.contains("pull")),
+            "{other}"
+        );
+    }
+    // den offers no actions at all.
+    a.actions = State::new(Permit::granted(false));
+    assert!(menu(&mut a, "image:grafana/loki:3.5").is_empty());
 }

@@ -135,7 +135,10 @@ by digest (`online::docker`), only Docker Hub and ghcr.io names with a namespace
 registry (a single name may be a local build and is never sent), with an anonymous token
 and a manifest HEAD; Docker's credentials are never read for this. Release lines come from
 endoflife.date by product (`Registry::EndOfLife`); Rust's installed version comes from the
-toolchain's `multirust-channel-manifest.toml`, never from running `rustc`. Answers go to `$XDG_STATE_HOME/den/online.json` through the same
+toolchain's `multirust-channel-manifest.toml`, never from running `rustc`. Skills
+installed with `npx skills` from GitHub are compared by the folder's tree SHA
+(`online::skill`, `Registry::GitHub`): the lock file's `skillFolderHash` against the
+folder's entry in an anonymous api.github.com contents listing of its parent. Answers go to `$XDG_STATE_HOME/den/online.json` through the same
 private read and write as snapshots. A new registry or host needs SECURITY.md, README and
 guide updates, and known-answer tests of its URL and parsing; tests never contact one.
 Reads use the existing bounded Homebrew runner:

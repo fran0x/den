@@ -266,6 +266,11 @@ pub fn discover(context: &Context, cancel: &AtomicBool) -> io::Result<Inventory>
         coverage: vec![],
     };
     let mut skills = skills::discover_bounded(&config, cancel, context.boundary.as_deref())?;
+    skills::origin::annotate(
+        &mut skills,
+        context.home.as_deref(),
+        context.boundary.as_deref(),
+    );
     let sync = buckets
         .iter()
         .map(|b| check_sync(b, &mut skills))

@@ -36,9 +36,12 @@ pub enum Registry {
     /// Release lines of languages and runtimes (`python`, `nodejs`, `rust`…): the newest
     /// patch of each and when its support ends.
     EndOfLife,
+    /// A skill folder in a public GitHub repository, by `owner/repo/path/to/folder`: the
+    /// git tree SHA of that folder now, to compare with the one `npx skills` recorded.
+    GitHub,
 }
 impl Registry {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Homebrew,
         Self::HomebrewCask,
         Self::CratesIo,
@@ -47,6 +50,7 @@ impl Registry {
         Self::DockerHub,
         Self::Ghcr,
         Self::EndOfLife,
+        Self::GitHub,
     ];
     /// The only host Den contacts for this registry.
     pub fn host(self) -> &'static str {
@@ -58,6 +62,7 @@ impl Registry {
             Self::DockerHub => "registry-1.docker.io",
             Self::Ghcr => "ghcr.io",
             Self::EndOfLife => "endoflife.date",
+            Self::GitHub => "api.github.com",
         }
     }
     /// Where an image registry hands out the anonymous read token it asks for.
@@ -81,6 +86,7 @@ impl Registry {
             Self::DockerHub => "Docker Hub",
             Self::Ghcr => "ghcr.io",
             Self::EndOfLife => "endoflife.date",
+            Self::GitHub => "GitHub",
         }
     }
     /// How the results file names it; a formula and a cask may share a name.
@@ -149,6 +155,20 @@ impl Package {
                     && name
                         .chars()
                         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+            }
+            // GitHub: owner, repository, then the skill folder's path; each part letters,
+            // digits and `.` `_` `-`, never `.` or `..`.
+            Registry::GitHub => {
+                let parts: Vec<_> = name.split('/').collect();
+                name.len() <= 300
+                    && (3..=12).contains(&parts.len())
+                    && parts.iter().all(|p| {
+                        (1..=100).contains(&p.len())
+                            && *p != "."
+                            && *p != ".."
+                            && p.chars()
+                                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+                    })
             }
             // crates.io: ASCII letters, digits, `-` and `_`, starting with a letter.
             Registry::CratesIo => {
@@ -228,7 +248,17 @@ impl Package {
                 let (repo, tag) = self.image();
                 format!("https://{host}/v2/{repo}/manifests/{tag}")
             }
+            // The folder's parent, whose listing gives each entry's tree SHA.
+            Registry::GitHub => {
+                let (parent, _) = self.folder();
+                let (owner_repo, path) = split_repo(parent);
+                format!("https://{host}/repos/{owner_repo}/contents/{path}")
+            }
         }
+    }
+    /// A skill folder's parent path and its own name: `owner/repo/skills`, `find-skills`.
+    fn folder(&self) -> (&str, &str) {
+        self.name.rsplit_once('/').unwrap_or((&self.name, ""))
     }
     /// An image's repository and tag.
     fn image(&self) -> (&str, &str) {
@@ -245,6 +275,28 @@ impl Package {
             _ => format!("https://{host}/token?scope=repository:{repo}:pull"),
         })
     }
+}
+
+/// `owner/repo/rest` as `owner/repo` and `rest` (empty for the repository's root).
+fn split_repo(name: &str) -> (&str, &str) {
+    match name.match_indices('/').nth(1) {
+        Some((i, _)) => (&name[..i], &name[i + 1..]),
+        None => (name, ""),
+    }
+}
+
+/// The lookup for a skill `npx skills` installed from GitHub: its `owner/repo`, the
+/// path of its SKILL.md there, and the folder's tree SHA when it was installed. A skill
+/// at the repository's root is not looked up.
+pub fn skill(source: &str, skill_path: &str, folder_hash: &str) -> Option<Lookup> {
+    let folder = skill_path.strip_suffix("/SKILL.md")?;
+    let hex = folder_hash.len() == 40 && folder_hash.bytes().all(|b| b.is_ascii_hexdigit());
+    (hex && source.matches('/').count() == 1).then_some(())?;
+    Some(Lookup {
+        package: Package::new(Registry::GitHub, &format!("{source}/{folder}"))?,
+        installed: folder_hash.to_ascii_lowercase(),
+        newest: false,
+    })
 }
 
 /// The lookup for a tagged image pulled from Docker Hub or ghcr.io, given its local
@@ -471,8 +523,11 @@ pub fn latest(registry: Registry, body: &[u8]) -> Result<String, String> {
                 .info
                 .version
         }
-        // Answered by a header, in `image_digest`, or by release lines, in `releases`.
-        Registry::DockerHub | Registry::Ghcr | Registry::EndOfLife => return Err(bad()),
+        // Answered by a header, in `image_digest`, by release lines, in `releases`, or
+        // by a folder listing, in `folder_sha`.
+        Registry::DockerHub | Registry::Ghcr | Registry::EndOfLife | Registry::GitHub => {
+            return Err(bad());
+        }
     };
     if crate::updates::plausible(&version) {
         Ok(version)
@@ -617,6 +672,10 @@ pub fn ask(agent: &ureq::Agent, package: &Package) -> Answer {
     }
     let fetched = if package.registry.is_images() {
         image_digest(agent, package)
+    } else if package.registry == Registry::GitHub {
+        get(agent, &package.url())
+            .and_then(|body| body.map(|b| folder_sha(&b, package.folder().1)).transpose())
+            .map(Option::flatten)
     } else {
         get(agent, &package.url())
             .and_then(|body| body.map(|b| latest(package.registry, &b)).transpose())
@@ -625,6 +684,30 @@ pub fn ask(agent: &ureq::Agent, package: &Package) -> Answer {
         Ok(Some(version)) => Answer::Latest(version),
         Ok(None) => Answer::NotFound,
         Err(why) => Answer::Failed(why),
+    }
+}
+
+/// The tree SHA of the folder `name` in a GitHub contents listing; `None` when the
+/// folder is gone.
+pub fn folder_sha(body: &[u8], name: &str) -> Result<Option<String>, String> {
+    #[derive(Deserialize)]
+    struct Entry {
+        name: String,
+        #[serde(rename = "type")]
+        kind: String,
+        sha: String,
+    }
+    let entries: Vec<Entry> = serde_json::from_slice(body).map_err(|_| "unexpected answer")?;
+    let Some(entry) = entries
+        .into_iter()
+        .find(|e| e.name == name && e.kind == "dir")
+    else {
+        return Ok(None);
+    };
+    if entry.sha.len() == 40 && entry.sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(Some(entry.sha.to_ascii_lowercase()))
+    } else {
+        Err("unexpected answer".into())
     }
 }
 
@@ -822,6 +905,9 @@ impl State {
             Answer::Latest(d) if lookup.package.registry.is_images() => {
                 (*d != lookup.installed).then_some("newer build")
             }
+            Answer::Latest(d) if lookup.package.registry == Registry::GitHub => {
+                (*d != lookup.installed).then_some("newer on GitHub")
+            }
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => Some(v),
             Answer::Releases(found) => {
                 let candidate = if lookup.newest {
@@ -877,6 +963,16 @@ impl State {
             }
             Answer::Latest(_) if lookup.package.registry.is_images() => {
                 format!("Same build as on {registry}")
+            }
+            Answer::Latest(d) if lookup.package.registry == Registry::GitHub => {
+                if *d == lookup.installed {
+                    "Same as on GitHub: the folder has not changed since it was installed".into()
+                } else {
+                    format!(
+                        "↑ Changed on GitHub since it was installed ({}); npx skills update brings it here",
+                        short(d)
+                    )
+                }
             }
             Answer::Latest(v) if crate::updates::is_newer(&lookup.installed, v) => {
                 format!("↑ {v} available on {registry}")
@@ -1241,6 +1337,73 @@ mod tests {
             state.panel(&lookup, now),
             "\n\nSame build as on Docker Hub · checked online just now"
         );
+    }
+
+    #[test]
+    fn skill_folders_on_github_are_compared_by_tree_sha() {
+        let old = "76a98a285cb0434f3d39e1a873823556330e398b";
+        let new = "0123456789abcdef0123456789abcdef01234567";
+        let lookup =
+            skill("vercel-labs/skills", "skills/find-skills/SKILL.md", old).expect("lookup");
+        assert_eq!(
+            lookup.package.key(),
+            "GitHub:vercel-labs/skills/skills/find-skills"
+        );
+        assert_eq!(
+            lookup.package.url(),
+            "https://api.github.com/repos/vercel-labs/skills/contents/skills"
+        );
+        assert!(allowed(&lookup.package.url()));
+        // A folder at the repository's top level lists the root.
+        let top = skill("a/b", "find-skills/SKILL.md", old).unwrap();
+        assert_eq!(
+            top.package.url(),
+            "https://api.github.com/repos/a/b/contents/"
+        );
+        // Odd sources, paths or hashes are never looked up.
+        assert!(skill("a/b", "SKILL.md", old).is_none(), "repository root");
+        assert!(skill("a/b", "../x/SKILL.md", old).is_none());
+        assert!(skill("a/b", "x/SKILL.md", "abc").is_none());
+        assert!(skill("a", "x/SKILL.md", old).is_none());
+        assert!(skill("a/b/c", "x/SKILL.md", old).is_none());
+        assert!(skill("a/b", "x y/SKILL.md", old).is_none());
+
+        let listing = format!(
+            r#"[{{"name":"find-skills","type":"dir","sha":"{new}"}},{{"name":"README.md","type":"file","sha":"{old}"}}]"#
+        );
+        assert_eq!(
+            folder_sha(listing.as_bytes(), "find-skills")
+                .unwrap()
+                .as_deref(),
+            Some(new)
+        );
+        assert_eq!(
+            folder_sha(listing.as_bytes(), "README.md").unwrap(),
+            None,
+            "not a folder"
+        );
+        assert_eq!(folder_sha(listing.as_bytes(), "gone").unwrap(), None);
+        assert!(folder_sha(b"{\"message\":\"rate limit\"}", "x").is_err());
+
+        let mut state = State::default();
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        state.finish(
+            Ok(vec![(lookup.package.clone(), Answer::Latest(new.into()))]),
+            &[],
+            now,
+        );
+        assert_eq!(state.newer(&lookup), Some("newer on GitHub"));
+        assert!(
+            state
+                .panel(&lookup, now)
+                .contains("↑ Changed on GitHub since it was installed (0123456789ab)")
+        );
+        let current = Lookup {
+            installed: new.into(),
+            ..lookup
+        };
+        assert_eq!(state.newer(&current), None);
+        assert!(state.panel(&current, now).contains("Same as on GitHub"));
     }
 
     #[test]

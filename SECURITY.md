@@ -11,7 +11,9 @@ images (only those named with a namespace or registry, such as `grafana/loki:3.5
 HTTPS to formulae.brew.sh, index.crates.io, registry.npmjs.org, pypi.org, Docker Hub
 (registry-1.docker.io and auth.docker.io for an anonymous read token) and ghcr.io, and the
 names of the languages it compares (rust, python, nodejs, ruby, go) to endoflife.date, and
-to no other host: redirects are not followed, and a proxy set in `HTTPS_PROXY` is used.
+for skills `npx skills` installed from GitHub, the repository and folder its lock file
+records (such as `vercel-labs/skills/skills/find-skills`) to api.github.com without a
+login, and to no other host: redirects are not followed, and a proxy set in `HTTPS_PROXY` is used.
 Docker's saved logins are never used. Installed versions, paths and settings stay on the
 machine; the comparison happens locally. The registries learn which packages you use.
 The answers are kept in `$XDG_STATE_HOME/den/online.json`, private like the snapshot.

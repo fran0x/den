@@ -5,6 +5,20 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Agents › Skills:** each skill's panel says how it was **Installed**: with `npx skills`
+  (source and date, from its lock file), by claude.ai sync, with `git clone`, or by hand
+  when there is no record; and its **Author** when its `SKILL.md` names one
+  (`metadata.author`). A **Git** line names the
+  repository that keeps the folder, such as your dotfiles, with its remote as
+  host/owner/repo; credentials in the URL are never shown.
+- **Skills from GitHub online:** `u` also asks api.github.com whether a skill `npx skills`
+  installed has changed there since, by comparing the folder's fingerprint (git's tree
+  SHA) with the one in its lock file. A changed one shows **↑ newer on GitHub**.
+- **Docker pull in `dew`:** on an image marked **↑ newer build**, `x` offers
+  `docker image pull` for its tag. Running containers keep their build until recreated.
+- **Help:** in `dew`, `?` lists everything `dew` can change, by area; in `den` it says
+  how to get them. Toolchains help now mentions the endoflife.date checks.
+
 ## [0.6.1] - 2026-11-15
 
 - **Agents:** skills Claude Code syncs from your claude.ai account
