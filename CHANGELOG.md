@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-15
+
 - **Clearer scope:** the footer groups keys by what they apply to: this area (the view's
   keys, `d`, `r`) │ all areas (`S`, `u`) │ moving around. The actions dialog separates
   the row's actions from area-wide ones under headings, such as **This package** and
@@ -168,7 +170,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/fran0x/den/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/fran0x/den/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/fran0x/den/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/fran0x/den/compare/v0.6.1...v0.7.0
