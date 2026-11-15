@@ -1,7 +1,7 @@
-//! Online checks (`u`): the newest published version of the packages Den lists, from a
+//! Online checks (`U`): the newest published version of the packages Den lists, from a
 //! fixed set of public registries.
 //!
-//! Only after `u` and Enter, only HTTPS to the hosts in [`Registry::host`], with no
+//! Only after `U` and Enter, only HTTPS to the hosts in [`Registry::host`], with no
 //! redirects, and only a package's name leaves the machine: the installed version is
 //! compared here. Names are checked against each registry's rules before a URL is built.
 //! Answers are kept in Den's own private file with the time of the check, so a later run
@@ -851,14 +851,14 @@ pub fn load(path: &Path) -> Result<Option<File>, String> {
 // ---------------------------------------------------------------------------------------
 // In the app
 
-/// The online check's state: the answers so far, the question `u` asks, and the check
+/// The online check's state: the answers so far, the question `U` asks, and the check
 /// running.
 #[derive(Debug, Default)]
 pub struct State {
     /// Where answers are kept: set only for live data, never for demo or fixtures.
     pub path: Option<PathBuf>,
     pub checked: BTreeMap<String, Checked>,
-    /// `u` asked about these; Enter checks them, anything else cancels.
+    /// `U` asked about these; Enter checks them, anything else cancels.
     pub asking: Vec<Package>,
     /// Confirmed, for the event loop to start.
     pub request: Option<Vec<Package>>,
@@ -882,8 +882,8 @@ impl State {
         self.path = Some(path);
         notice
     }
-    /// The question on the status line while `u` waits for Enter.
-    /// "41 names to formulae.brew.sh, …", for `u`'s question.
+    /// The question on the status line while `U` waits for Enter.
+    /// "41 names to formulae.brew.sh, …", for `U`'s question.
     pub fn sends(&self) -> String {
         let mut hosts: Vec<&str> = Registry::ALL
             .iter()

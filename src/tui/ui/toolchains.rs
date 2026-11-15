@@ -155,7 +155,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         query: t.query.clone(),
         searching: t.searching,
         current: None,
-        actions: app.actions.allowed(),
+        keys: app.action_keys(),
         filter: tracked.filter,
         removed: tracked.removed,
     };
@@ -164,7 +164,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
 }
 
 /// A newer version: for a command Homebrew installed, from the Homebrew data Den already
-/// has (none in offline modes); for a package, from the last online check (`u`).
+/// has (none in offline modes); for a package, from the last online check (`U`).
 fn update(app: &App, row: &Row) -> Option<String> {
     if let Some(package) = &row.homebrew {
         return crate::updates::homebrew(&app.inventory, &package.name, package.cask)

@@ -211,21 +211,21 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: Tab switches areas and Shift+Tab sections, restoring selection at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         run_pty([binary, "--brew-snapshot", "fixtures/brew.json"], env=isolated_env, size=size, steps=[
-            (b"[Tools 3]", b"a"),
+            (b"[Tools 3]", b"t"),
             (b"[All 7]", b"\t"),
             ("Agents  › Skills".encode(), b"\t"),
             ("Cloud  › AWS".encode(), b"\t"),
             ("Docker  › Containers".encode(), b"\t"),
             ("Toolchains  › PATH".encode(), b"\t"),
             (b"required by 1", b"/zzz\r"),
-            (b"No matches", b"a"),
+            (b"No matches", b"t"),
             (b"No matching tools", b"q"),
         ])
     assert not calls.exists(), "Tools/All view must remain offline"
-    print("PASS: Tools default, a toggles All, required-by rows, empty matches and area context at three sizes")
+    print("PASS: Tools default, t toggles All, required-by rows, empty matches and area context at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
-            (b"Inventory", b"a/mid\r"),
+            (b"Inventory", b"t/mid\r"),
             (b"Recorded runtime", b"\x1b[C \x1b[Dq"),
         ])
         text = visible_text(output)
@@ -236,7 +236,7 @@ print(pathlib.Path('fixtures/brew.json').read_text())
     print("PASS: passive dependency trees in both directions with evidence/keg context at three sizes")
     for size in [(80, 24), (120, 32), (160, 45)]:
         output = run_pty([binary, "--brew-snapshot", "fixtures/brew-dependencies.json"], env=isolated_env, size=size, steps=[
-            (b"[Tools 7]", b"\r\x1b[Cgvz2a"),
+            (b"[Tools 7]", b"\r\x1b[Cgvz2t"),
             (b"[All 26]", b"q"),
         ])
         text = visible_text(output)
@@ -490,10 +490,9 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
         run_pty([str(Path(binary).with_name("dew"))], env=tool_env, steps=[
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z"),
-            # bacon is the only row: x, then Down to its uninstall, then Enter.
+            # bacon is the only row: x opens its uninstall, x again runs it.
             (b"1 crate", b"x"),
-            (b"Upgrade bacon", b"\x1b[B"),
-            (b"Removes bacon", b"\r"),
+            (b"Removes bacon", b"x"),
             (b"Done", b"\r"),
             # Read again: the crate is gone, and d lists it as removed.
             (b"Rust not set up here", b"d"),
@@ -555,7 +554,7 @@ print('    Removing ' + str(here / 'bacon'), file=sys.stderr)
         run_pty([binary], env=offline, steps=[
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z"),
-            (b"u:check online", b"u"),
+            (b"U:check online", b"U"),
             (b"1 name to index.crates.io", b"\r"),
             (b"Checked 1 package online: 0 newer \xc2\xb7 1 failed", b"q"),
         ])
@@ -596,9 +595,9 @@ print('changed 1 package')
         run_pty([str(Path(binary).with_name("dew"))], env=npm_env, steps=[
             (b"Homebrew unavailable", b"\t\t\t\t"),
             ("Toolchains  › PATH".encode(), b"\x1b[Z\x1b[Z"),
-            (b"1 package", b"x"),
-            # Enter waits for npm's dry run, then runs the update.
-            (b"3.4.2 => 3.5.0", b"\r"),
+            (b"1 package", b"u"),
+            # u opens the update with npm's dry run; u again runs it.
+            (b"3.4.2 => 3.5.0", b"u"),
             (b"changed 1 package", b"\r"),
             (b"3.5.0", b"q"),
         ])
@@ -718,13 +717,13 @@ else:
     output = run_pty([binary], env=write_env, steps=[
         (b"Loaded 8", b"Wx\ryq"),
     ])
-    assert b"Actions" not in output and b"x:actions" not in output and b"WRITE" not in output
+    assert b"Actions" not in output and b"x:remove" not in output and b"WRITE" not in output
     assert json.loads(calls.read_text()) == [["info", "--json=v2", "--installed"]]
     assert not state.exists(), "nothing ran, so nothing is logged"
     calls.unlink()
     output = run_pty([str(Path(binary).with_name("dew"))], env=write_env, steps=[
-        (b"Loaded 8", b"x"),
-        # Homebrew's own actions come after the package's; cleanup is last.
+        # a opens Homebrew's own actions; cleanup is last.
+        (b"Loaded 8", b"a"),
         (b"Actions", b"\x1b[F"),
         # Enter runs the selected action once its dry run is shown.
         (b"Would remove: old-download", b"\r"),

@@ -137,7 +137,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut App) {
         query: d.query.clone(),
         searching: d.searching,
         current: None,
-        actions: app.actions.allowed(),
+        keys: app.action_keys(),
         filter: tracked.filter,
         removed: tracked.removed,
     };

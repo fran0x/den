@@ -5,6 +5,15 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Action keys in `dew`:** `x` removes the selected row and `u` upgrades it; the same key
+  again (or `Enter`) runs it, once its dry run is shown. `a` opens the area's own actions
+  (Homebrew's maintenance, Docker's unused untagged images), and `Enter` every action for
+  the row. A running container can now be stopped and removed in one go
+  (`docker container stop`, then `docker container rm`; never `-f`).
+- **Keys follow one rule: lowercase acts here, uppercase on all areas.** Check online is
+  now `U` (was `u`), Homebrew's tools/all toggle is `t` (was `a`), and Agents › MCP picks
+  the next Codex source with `v` (was `V`).
+
 ## [0.7.4] - 2026-11-15
 
 - **What `S` and `u` cover:** both work on every area Den has read this session; an area is

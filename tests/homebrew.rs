@@ -205,14 +205,14 @@ fn search_and_tools_view_compose_without_changing_existing_controls() {
     app.query = "pcre2".into();
     app.refresh();
     assert!(app.visible.is_empty());
-    key(&mut app, KeyCode::Char('a')); // All
+    key(&mut app, KeyCode::Char('t')); // All
     assert_eq!(app.resource().unwrap().name, "pcre2");
     key(&mut app, KeyCode::Char('f')); // Homebrew has no type filter.
     assert_eq!(app.filter, None);
     assert_eq!(app.visible.len(), 1);
-    key(&mut app, KeyCode::Char('a')); // Tools
+    key(&mut app, KeyCode::Char('t')); // Tools
     assert!(app.visible.is_empty());
-    key(&mut app, KeyCode::Char('a')); // All
+    key(&mut app, KeyCode::Char('t')); // All
     assert_eq!(app.visible.len(), 1);
     key(&mut app, KeyCode::Char('/'));
     app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));

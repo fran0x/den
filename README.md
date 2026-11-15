@@ -42,7 +42,7 @@ When something is wrong, the panel beside the row says why.
 - Runs only a fixed set of read commands (`brew info`, `docker container ls`, …); the
   rest comes from files.
 - Never calls AWS, a cluster, an MCP server, a hook or anything it finds on PATH.
-- Goes online only when you press `u` and confirm, and then sends only names: packages,
+- Goes online only when you press `U` and confirm, and then sends only names: packages,
   tagged images, runtimes and skill repositories. Installed versions and paths stay here.
 - Never shows secrets: tokens, keys and credential values are dropped as they are read.
 - Writes nothing, except its own snapshot and online results, each after you confirm.
@@ -54,7 +54,7 @@ shows what changed since.
 
 ![den listing what changed in Homebrew since a snapshot three days ago](docs/images/changes.svg)
 
-**Newer versions online:** `u` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io,
+**Newer versions online:** `U` asks Homebrew, crates.io, npm, PyPI, Docker Hub, ghcr.io,
 endoflife.date and GitHub what is newer than what you have: packages, builds of your Docker
 images, Rust toolchains, the runtimes on PATH, and skills `npx skills` installed from
 GitHub. Newer ones are marked `↑`, and a release line whose support has ended
@@ -67,15 +67,16 @@ reference. Try it without reading your machine: `den --demo`.
 
 ## dew: with changes
 
-![dew showing ripgrep's actions and the upgrade's dry run](docs/images/dew.svg)
+![dew showing ripgrep's upgrade and its dry run](docs/images/dew.svg)
 
-`dew` shows WRITE in the top bar. Select a row, press `x` to see its actions, then `Enter`
-to run the selected one.
+`dew` shows WRITE in the top bar. Select a row, then press `x` to remove it or `u` to
+upgrade it, and the same key again to run it. `a` opens the area's own actions (Homebrew's
+maintenance, Docker's unused images), and `Enter` every action for the row.
 
 | Area | Actions |
 | --- | --- |
 | **Homebrew** | Upgrade, uninstall, update Homebrew's data, remove unneeded dependencies, clean up |
-| **Docker** | Stop a running container; remove a stopped container, or an image or volume nothing uses; pull the newer build of a tag that `u` found |
+| **Docker** | Stop a running container, or stop and remove it; remove a stopped container, or an image or volume nothing uses; pull the newer build of a tag that `U` found |
 | **Toolchains** | Update or uninstall a Rust toolchain; upgrade or uninstall a crate, or a global npm, uv tool or pipx package; Homebrew's actions for a command it installed |
 
 **What it promises:**

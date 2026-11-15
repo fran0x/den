@@ -9,7 +9,7 @@ pub struct State {
     pub requested: bool,
     pub running: bool,
     pub error: Option<String>,
-    /// Which of an MCP server's definitions the panel and `e` use (`V` cycles it).
+    /// Which of an MCP server's definitions the panel and `e` use (`v` cycles it).
     pub mcp_source: usize,
     /// Settings shows Codex source files instead of settings.
     pub sources: bool,

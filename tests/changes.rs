@@ -208,7 +208,7 @@ fn homebrew_shows_upgrades_and_removed_dependencies() {
     assert!(screen.contains("− pcre2"), "{screen}");
     assert!(screen.contains("Before: 2.47.0"), "{screen}");
     // a goes back to Tools / All.
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(!draw(&mut a).contains("Changes 2"));
 }
 

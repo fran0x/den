@@ -15,7 +15,7 @@ const MAX_ANCESTORS: usize = 32;
 pub struct Origin {
     /// The lock file's record: "GitHub vercel-labs/skills, on 2026-08-16".
     pub installed: Option<String>,
-    /// For a skill installed from GitHub: what `u` asks GitHub about it.
+    /// For a skill installed from GitHub: what `U` asks GitHub about it.
     pub online: Option<crate::online::Lookup>,
     /// The git repository holding the skill's folder.
     pub repo: Option<Repo>,

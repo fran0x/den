@@ -108,7 +108,7 @@ pub struct App {
     pub snapshot_path: Option<std::path::PathBuf>,
     /// `S` asked to save; Enter saves, anything else cancels.
     pub save_prompt: bool,
-    /// `u`: newer versions from the registries, and the check asked for or running.
+    /// `U`: newer versions from the registries, and the check asked for or running.
     pub online: crate::online::State,
 }
 
@@ -463,23 +463,55 @@ impl App {
                     self.ask_save();
                     return;
                 }
-                KeyCode::Char('u') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                KeyCode::Char('U') => {
                     self.ask_online();
                     return;
                 }
-                // In den there are no actions at all, not even commands to copy.
-                KeyCode::Char('x')
-                    if matches!(
-                        self.module,
-                        Module::Homebrew | Module::Docker | Module::Toolchains
-                    ) && self.actions.allowed() =>
+                // Actions, in dew only: x removes and u upgrades the row (the same key
+                // again runs it), a opens the area's own actions, Enter all of the row's.
+                KeyCode::Char('x') if self.row_actions_here() => {
+                    self.open_one(
+                        'x',
+                        crate::actions::Action::removes,
+                        "Nothing to remove here",
+                    );
+                    return;
+                }
+                KeyCode::Char('u')
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && self.row_actions_here() =>
                 {
-                    let (package, items) = match self.module {
-                        Module::Docker => self.docker_menu(),
-                        Module::Toolchains => self.toolchains_menu(),
-                        _ => self.action_menu(),
-                    };
-                    self.actions.open(package, items);
+                    self.open_one(
+                        'u',
+                        crate::actions::Action::upgrades,
+                        "Nothing to upgrade here: no newer version is known (U checks online)",
+                    );
+                    return;
+                }
+                KeyCode::Char('u') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.actions.notice = Some(if self.actions.allowed() {
+                        "U checks online; u upgrades a Homebrew, Docker or Toolchains row".into()
+                    } else {
+                        "U checks online; u upgrades in dew".into()
+                    });
+                    return;
+                }
+                KeyCode::Char('a') if self.actions.allowed() && self.area_actions_here() => {
+                    match self.area_menu() {
+                        Some((title, items)) => self.actions.open(Some(title), items, None),
+                        None => {
+                            self.actions.notice = Some("No actions for the whole area here".into())
+                        }
+                    }
+                    return;
+                }
+                KeyCode::Enter if self.row_actions_here() => {
+                    let (title, items) = self.row_menu();
+                    if items.is_empty() {
+                        self.actions.notice = Some("No actions for this row".into());
+                    } else {
+                        self.actions.open(title, items, None);
+                    }
                     return;
                 }
                 _ => {}
@@ -569,7 +601,7 @@ impl App {
                 };
                 self.refresh();
             }
-            KeyCode::Char('a') if self.is_homebrew() && self.focus == Focus::Inventory => {
+            KeyCode::Char('t') if self.is_homebrew() && self.focus == Focus::Inventory => {
                 self.show_all = !self.show_all;
                 self.homebrew_changes.view = crate::snapshot::View::All;
                 self.refresh();
@@ -594,6 +626,110 @@ impl App {
         }
     }
 
+    /// In dew, on a list whose rows have actions: Homebrew's packages (not
+    /// Diagnostics), Docker and Toolchains.
+    fn row_actions_here(&self) -> bool {
+        self.actions.allowed()
+            && match self.module {
+                Module::Homebrew => !self.inspecting(),
+                Module::Docker | Module::Toolchains => true,
+                _ => false,
+            }
+    }
+    /// Areas with actions for the whole area: Homebrew and Docker.
+    fn area_actions_here(&self) -> bool {
+        matches!(self.module, Module::Homebrew | Module::Docker)
+    }
+    /// Every action for the selected row, as Enter lists them.
+    pub fn row_menu(&self) -> (Option<String>, Vec<crate::actions::Item>) {
+        match self.module {
+            Module::Docker => self.docker_menu(),
+            Module::Toolchains => self.toolchains_menu(),
+            _ => self.action_menu(),
+        }
+    }
+    /// Opens the row's one action of a kind (its removal or upgrade); `key` pressed again
+    /// runs it. Says so when the row has none.
+    fn open_one(&mut self, key: char, kind: fn(&crate::actions::Action) -> bool, none: &str) {
+        let (title, items) = self.row_menu();
+        match items.into_iter().find(|i| kind(&i.action)) {
+            Some(item) => self.actions.open(title, vec![item], Some(key)),
+            None => self.actions.notice = Some(none.into()),
+        }
+    }
+    /// The whole area's actions, for `a`: Homebrew's maintenance, or removing every
+    /// unused untagged Docker image. `None` when there are none.
+    pub fn area_menu(&self) -> Option<(String, Vec<crate::actions::Item>)> {
+        use crate::actions::{Action, DockerObject, Item};
+        match self.module {
+            Module::Homebrew => Some((
+                "Homebrew".into(),
+                [
+                    Action::BrewUpdate,
+                    Action::BrewAutoremove,
+                    Action::BrewCleanup,
+                ]
+                .into_iter()
+                .map(Item::new)
+                .collect(),
+            )),
+            Module::Docker => {
+                let inventory = self.docker.inventory.as_ref()?;
+                let dangling: Vec<_> = inventory
+                    .images
+                    .iter()
+                    .filter(|r| r.status == "Unused · dangling")
+                    .filter_map(|r| DockerObject::id(&r.target, &r.name).map(|o| (o, r)))
+                    .collect();
+                if dangling.is_empty() {
+                    return None;
+                }
+                let list: Vec<_> = dangling
+                    .iter()
+                    .map(|(_, r)| format!("{} ({})", r.name, r.state))
+                    .collect();
+                Some((
+                    "Docker".into(),
+                    vec![Item {
+                        action: Action::DockerRemoveImages(
+                            dangling.into_iter().map(|(o, _)| o).collect(),
+                        ),
+                        blocked: None,
+                        note: Some(format!(
+                            "Removes every untagged image no container uses: {}.",
+                            list.join(", ")
+                        )),
+                    }],
+                ))
+            }
+            _ => None,
+        }
+    }
+    /// This row's action keys for the footer, in dew: only those that do something here.
+    pub fn action_keys(&self) -> String {
+        if !self.actions.allowed() {
+            return String::new();
+        }
+        let mut keys = vec![];
+        if self.row_actions_here() {
+            let (_, items) = self.row_menu();
+            if items.iter().any(|i| i.action.removes()) {
+                keys.push("x:remove".to_owned());
+            }
+            if items.iter().any(|i| i.action.upgrades()) {
+                keys.push("u:upgrade".to_owned());
+            }
+            if !items.is_empty() {
+                keys.push("Enter:actions".to_owned());
+            }
+        }
+        if self.area_actions_here()
+            && let Some((area, _)) = self.area_menu()
+        {
+            keys.push(format!("a:{area} actions"));
+        }
+        keys.join(" ")
+    }
     /// Keys while an action dialog is open.
     fn action_key(&mut self, key: KeyEvent) {
         use crate::actions::Dialog;
@@ -606,9 +742,26 @@ impl App {
                 }
             }
             Some(Dialog::Menu {
-                items, selected, ..
+                items,
+                selected,
+                confirm,
+                ..
             }) => {
                 let (selected, last) = (*selected, items.len().saturating_sub(1));
+                // Opened with x or u: the same key again runs it, like Enter; any other
+                // key closes it.
+                if let Some(c) = *confirm {
+                    match key.code {
+                        KeyCode::Char(k) if k == c => self.actions.run_selected(),
+                        KeyCode::Enter => self.actions.run_selected(),
+                        _ if ctrl_c => {
+                            self.actions.close();
+                            self.quit = true;
+                        }
+                        _ => self.actions.close(),
+                    }
+                    return;
+                }
                 match key.code {
                     KeyCode::Down | KeyCode::Char('j') => self.actions.select(selected + 1),
                     KeyCode::Up | KeyCode::Char('k') => {
@@ -697,15 +850,8 @@ impl App {
                 });
             }
         }
-        // The package's own actions, then Homebrew's; `open` groups and orders them.
+        // Homebrew-wide maintenance is under `a`, not on each package.
         items.extend(uninstall);
-        for action in [
-            Action::BrewUpdate,
-            Action::BrewAutoremove,
-            Action::BrewCleanup,
-        ] {
-            items.push(Item::new(action));
-        }
         (title, items)
     }
 
@@ -723,7 +869,7 @@ impl App {
             blocked: None,
             note: Some(note),
         };
-        // A tag whose registry now has a newer build, from the last online check (`u`).
+        // A tag whose registry now has a newer build, from the last online check (`U`).
         if let Some(row) = row.filter(|_| self.docker.section == Section::Images)
             && let Some(lookup) = &row.online
             && self.online.newer(lookup).is_some()
@@ -747,10 +893,18 @@ impl App {
                     "Running" | "Restarting" => {
                         if let Some(o) = DockerObject::id(&row.target, &row.name) {
                             items.push(item(
-                                Action::DockerStopContainer(o),
+                                Action::DockerStopContainer(o.clone()),
                                 format!(
                                     "Stops {}: Docker asks it to stop, then ends it after 10 \
                                      seconds. It can be started again.",
+                                    row.name
+                                ),
+                            ));
+                            items.push(item(
+                                Action::DockerStopAndRemove(o),
+                                format!(
+                                    "Stops {}, then removes the container once it has stopped. \
+                                     Its image and named volumes stay.",
                                     row.name
                                 ),
                             ));
@@ -797,29 +951,6 @@ impl App {
                     }
                 }
                 _ => {}
-            }
-        }
-        if self.docker.section == Section::Images
-            && let Some(inventory) = &self.docker.inventory
-        {
-            let dangling: Vec<_> = inventory
-                .images
-                .iter()
-                .filter(|r| r.status == "Unused · dangling")
-                .filter_map(|r| DockerObject::id(&r.target, &r.name).map(|o| (o, r)))
-                .collect();
-            if dangling.len() > 1 {
-                let list: Vec<_> = dangling
-                    .iter()
-                    .map(|(_, r)| format!("{} ({})", r.name, r.state))
-                    .collect();
-                items.push(item(
-                    Action::DockerRemoveImages(dangling.into_iter().map(|(o, _)| o).collect()),
-                    format!(
-                        "Removes every untagged image no container uses: {}.",
-                        list.join(", ")
-                    ),
-                ));
             }
         }
         (row.map(|r| r.name.clone()), items)
@@ -1128,7 +1259,7 @@ impl App {
                 self.diagnostics.scroll = 0;
             }
             // Existing relationship controls must not change hidden explorer state.
-            KeyCode::Char('s' | 'V' | 't') => {}
+            KeyCode::Char('s' | 'v' | 't') => {}
             _ => return false,
         }
         true
@@ -1232,7 +1363,7 @@ impl App {
         }
         self.snapshot_path = Some(path);
     }
-    /// What `u` looks up: Homebrew's formulas and casks from its main taps, each
+    /// What `U` looks up: Homebrew's formulas and casks from its main taps, each
     /// Toolchains row with a registry name and a version, and images pulled from Docker
     /// Hub or ghcr.io.
     pub fn online_lookups(&self) -> Vec<crate::online::Lookup> {
@@ -1278,7 +1409,7 @@ impl App {
             _ => crate::updates::from_homebrew(resource),
         }
     }
-    /// `u`: asks before looking anything up online.
+    /// `U`: asks before looking anything up online.
     fn ask_online(&mut self) {
         let notice = if self.online.path.is_none() {
             "Online checks use live data only, not demo or fixture modes"
@@ -1352,7 +1483,7 @@ impl App {
         ]);
         format!("Save a snapshot? Enter:save Esc:cancel · {areas} to {path}")
     }
-    /// The question `u` asks: how many names go to which hosts, then the areas they come
+    /// The question `U` asks: how many names go to which hosts, then the areas they come
     /// from (Cloud has none), so a narrow terminal keeps what is sent.
     pub fn online_question(&self) -> String {
         let areas = self.areas_read(&["Homebrew", "Agents", "Docker", "Toolchains"]);

@@ -30,7 +30,7 @@ pub const COMMANDS: [(&str, &[&str]); 4] = [
     ),
     (
         "images",
-        // `--digests`: the registry digest a pulled tag had, for online checks (`u`).
+        // `--digests`: the registry digest a pulled tag had, for online checks (`U`).
         &[
             "image",
             "ls",
@@ -106,7 +106,7 @@ pub struct Row {
     /// What a `dew` action names: the container ID, the image's `repo:tag` (its ID when
     /// untagged) or the volume name. Unchecked here: actions check it before use.
     pub target: String,
-    /// For an image pulled from Docker Hub or ghcr.io: what `u` looks up.
+    /// For an image pulled from Docker Hub or ghcr.io: what `U` looks up.
     pub online: Option<crate::online::Lookup>,
 }
 

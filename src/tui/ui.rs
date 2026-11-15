@@ -133,7 +133,7 @@ fn screen(frame: &mut Frame, app: &mut App) {
         &status,
         app.searching,
         &if app.is_homebrew() && !app.searching {
-            format!("a:tools/all {}", list_actions(false, app.actions.allowed()))
+            format!("t:tools/all {}", app.action_keys())
                 .trim_end()
                 .to_owned()
         } else if app.searching {

@@ -186,14 +186,14 @@ fn view(app: &App) -> View {
         actions: match section {
             Section::Instructions => "t:if trusted",
             Section::Settings => "s:sources",
-            Section::Mcp => "V:Codex source",
+            Section::Mcp => "v:Codex source",
             Section::Skills | Section::Hooks | Section::Plugins => "",
         }
         .into(),
     }
 }
 
-/// For a skill installed from GitHub, "newer on GitHub" once the last check (`u`) found
+/// For a skill installed from GitHub, "newer on GitHub" once the last check (`U`) found
 /// its folder changed there.
 fn skill_newer<'a>(
     app: &'a App,

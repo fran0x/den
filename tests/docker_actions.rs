@@ -73,9 +73,11 @@ fn actions_for(a: &mut App, section: Section, name: &str) -> Vec<String> {
         .key
         .clone();
     a.docker.select_key(&key_of);
-    key(a, KeyCode::Char('x'));
+    key(a, KeyCode::Enter);
+    // A row with no actions opens nothing: Den says so instead.
     let lines = match &a.actions.dialog {
         Some(Dialog::Menu { items, .. }) => items.iter().map(|i| i.action.command_line()).collect(),
+        None => vec![],
         other => panic!("no menu: {other:?}"),
     };
     key(a, KeyCode::Esc);
@@ -88,10 +90,14 @@ const DB: &str = "bbbbbbbbbbbb22222222222222222222222222222222222222222222222222
 #[test]
 fn each_row_offers_only_what_docker_allows_without_force() {
     let mut a = app(true);
-    // A running container can be stopped; a stopped one removed; a paused one neither.
+    // A running container can be stopped, or stopped and removed; a stopped one removed;
+    // a paused one neither.
     assert_eq!(
         actions_for(&mut a, Section::Containers, "web-nginx-1"),
-        [format!("docker container stop {NGINX}")]
+        [
+            format!("docker container stop {NGINX}"),
+            format!("docker container stop {NGINX} && docker container rm {NGINX}"),
+        ]
     );
     assert_eq!(
         actions_for(&mut a, Section::Containers, "web-db-1"),
@@ -121,9 +127,9 @@ fn x_selects_the_first_action_and_docker_refreshes_after() {
     let mut a = app(true);
     a.navigate(Destination::Containers);
     a.docker.select_key("container:web-db-1");
-    assert!(draw(&mut a, 140, 32).contains("x:actions"));
+    assert!(draw(&mut a, 140, 32).contains("Enter:actions"));
     // x selects the first action and says what goes; Enter runs it.
-    key(&mut a, KeyCode::Char('x'));
+    key(&mut a, KeyCode::Enter);
     let screen = draw(&mut a, 140, 32);
     assert!(
         screen.contains("Removes the container web-db-1"),
@@ -154,8 +160,8 @@ fn x_selects_the_first_action_and_docker_refreshes_after() {
 fn den_offers_no_docker_actions() {
     let mut a = app(false);
     a.docker.select_key("container:web-db-1");
-    assert!(!draw(&mut a, 140, 32).contains("x:actions"));
-    key(&mut a, KeyCode::Char('x'));
+    assert!(!draw(&mut a, 140, 32).contains("Enter:actions"));
+    key(&mut a, KeyCode::Enter);
     assert!(a.actions.dialog.is_none());
 }
 
@@ -193,25 +199,48 @@ impl Drop for Copy {
 fn every_unused_untagged_image_can_go_at_once() {
     let copy = Copy::new();
     let mut a = app_from(&copy.0, true);
-    let lines = actions_for(&mut a, Section::Images, "redis:7");
+    // The row's own action is only its own; removing every unused untagged image is one
+    // of Docker's own actions, under a.
+    assert_eq!(
+        actions_for(&mut a, Section::Images, "redis:7"),
+        ["docker image rm redis:7"]
+    );
+    assert!(draw(&mut a, 160, 30).contains("a:Docker actions"));
+    key(&mut a, KeyCode::Char('a'));
+    let lines: Vec<String> = match &a.actions.dialog {
+        Some(Dialog::Menu { items, .. }) => items.iter().map(|i| i.action.command_line()).collect(),
+        other => panic!("no menu: {other:?}"),
+    };
     assert_eq!(
         lines,
         [
-            "docker image rm redis:7".to_owned(),
-            "docker image rm sha256:888888888888888888888888888888888888888888888888888888888888888 sha256:777777777777aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            "docker image rm sha256:888888888888888888888888888888888888888888888888888888888888888 sha256:777777777777aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         ]
     );
     // The untagged image a container uses is never part of it.
-    assert!(!lines[1].contains("dddddddddddd"));
-    // The bulk removal is about all images, so it has its own heading.
-    key(&mut a, KeyCode::Char('x'));
-    let screen = draw(&mut a, 120, 30);
-    assert!(
-        screen.contains("This image") && screen.contains("All unused untagged images"),
-        "{screen}"
-    );
+    assert!(!lines[0].contains("dddddddddddd"));
     key(&mut a, KeyCode::Esc);
-    // With only one, the row's own action is enough.
+}
+
+#[test]
+fn x_twice_stops_and_removes_a_running_container() {
     let mut a = app(true);
-    assert_eq!(actions_for(&mut a, Section::Images, "redis:7").len(), 1);
+    a.navigate(Destination::Containers);
+    a.docker.select_key("container:web-nginx-1");
+    assert!(draw(&mut a, 160, 32).contains("x:remove"));
+    key(&mut a, KeyCode::Char('x'));
+    let screen = draw(&mut a, 160, 32);
+    assert!(screen.contains("Stop and remove web-nginx-1"), "{screen}");
+    assert!(screen.contains("x or Enter: run it"), "{screen}");
+    key(&mut a, KeyCode::Char('x'));
+    match a.actions.request.take() {
+        Some(den::actions::Request::Run(action)) => assert_eq!(
+            action.steps(),
+            [
+                vec!["container".to_owned(), "stop".into(), NGINX.into()],
+                vec!["container".to_owned(), "rm".into(), NGINX.into()],
+            ]
+        ),
+        other => panic!("not run: {other:?}"),
+    }
 }

@@ -259,7 +259,7 @@ pub struct Row {
     pub detail: String,
     /// Stable identity for selection across refreshes.
     pub key: String,
-    /// What `u` looks up online, with the version installed here.
+    /// What `U` looks up online, with the version installed here.
     pub online: Option<crate::online::Lookup>,
 }
 
@@ -1156,7 +1156,7 @@ fn package_row(name: &str, manager: &str, version: Option<String>, mut lines: Ve
     }
 }
 
-/// What `u` looks up for a package: only a name the registry accepts, with a plain
+/// What `U` looks up for a package: only a name the registry accepts, with a plain
 /// installed version to compare with.
 fn lookup(
     registry: crate::online::Registry,
@@ -1171,7 +1171,7 @@ fn lookup(
     })
 }
 
-/// What `u` looks up at endoflife.date for a runtime on PATH, by its version as the
+/// What `U` looks up at endoflife.date for a runtime on PATH, by its version as the
 /// install path shows it (`v24.1.0`, `26.13.0_2`, `3.12.7`). Java is left out: its
 /// vendor, which endoflife.date tracks separately, is not known.
 fn runtime_lookup(command: &str, version: Option<&str>) -> Option<crate::online::Lookup> {
@@ -1188,7 +1188,7 @@ fn runtime_lookup(command: &str, version: Option<&str>) -> Option<crate::online:
     lookup(crate::online::Registry::EndOfLife, product, Some(version))
 }
 
-/// What `u` looks up for a Rust toolchain: a channel follows the newest release
+/// What `U` looks up for a Rust toolchain: a channel follows the newest release
 /// (`stable`) or the newest patch of its line (`1.98`). Exact versions are pinned on
 /// purpose and beta and nightly move daily, so they are not looked up.
 fn toolchain_lookup(channel: &str, version: Option<&str>) -> Option<crate::online::Lookup> {

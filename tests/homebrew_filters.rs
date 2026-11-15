@@ -44,7 +44,7 @@ fn homebrew_starts_with_tools_and_counts_follow_search() {
     assert!(!a.show_all);
     assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
     assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 3 });
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(a.show_all);
     assert_eq!(a.visible.len(), 7);
     assert_eq!(a.homebrew_counts(), HomebrewCounts { all: 7, tools: 3 }); // Counts ignore the view.
@@ -92,7 +92,7 @@ fn tools_use_request_records_only_and_required_by_is_positive_recorded_evidence(
     a.explorer.evidence = Evidence::Current;
     a.refresh();
     assert_eq!(names(&a), ["manual", "consumer"]); // Panel evidence does not redefine Tools.
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     let required: Vec<_> = a
         .visible
         .iter()
@@ -137,18 +137,18 @@ fn tools_use_request_records_only_and_required_by_is_positive_recorded_evidence(
 }
 
 #[test]
-fn f_does_not_filter_types_and_a_stays_text_during_search() {
+fn f_does_not_filter_types_and_t_stays_text_during_search() {
     let mut a = app();
     key(&mut a, KeyCode::Char('f'));
     assert_eq!(a.filter, None);
     assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert_eq!(a.visible.len(), 7);
     key(&mut a, KeyCode::Char('/'));
-    for c in "pcrea".chars() {
+    for c in "pcret".chars() {
         key(&mut a, KeyCode::Char(c));
     }
-    assert_eq!(a.query, "pcrea");
+    assert_eq!(a.query, "pcret");
     assert!(a.show_all && a.visible.is_empty());
     a.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     for c in "pcre".chars() {
@@ -156,7 +156,7 @@ fn f_does_not_filter_types_and_a_stays_text_during_search() {
     }
     key(&mut a, KeyCode::Enter);
     assert_eq!(names(&a), ["pcre2"]);
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(!a.show_all && a.visible.is_empty()); // pcre2 is a dependency, not a tool.
 }
 
@@ -192,7 +192,7 @@ fn refresh_keeps_the_view_and_failure_retains_counts_and_selection() {
     a.begin_collection();
     a.finish_collection(Ok(inventory()));
     assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     key(&mut a, KeyCode::Char('j'));
     let selected = a.resource().unwrap().id.clone();
     let counts = a.homebrew_counts();
@@ -217,9 +217,9 @@ fn view_counts_and_row_evidence_are_visible_at_supported_sizes() {
         let mut a = app();
         let screen = draw(&mut a, w, h);
         assert!(screen.contains("[Tools 3] · All 7"), "{w}: {screen}");
-        assert!(screen.lines().last().unwrap().contains("a:tools/all"));
+        assert!(screen.lines().last().unwrap().contains("t:tools/all"));
         assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
-        key(&mut a, KeyCode::Char('a'));
+        key(&mut a, KeyCode::Char('t'));
         let screen = draw(&mut a, w, h);
         assert!(screen.contains("Tools 3 · [All 7]"));
         assert!(!screen.contains("Type:") && !screen.contains("f:type"));
@@ -254,7 +254,7 @@ fn view_counts_and_row_evidence_are_visible_at_supported_sizes() {
 #[test]
 fn tools_are_bold_and_casks_are_bracketed() {
     let mut a = app();
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     let mut t = Terminal::new(TestBackend::new(120, 32)).unwrap();
     t.draw(|f| ui::render(f, &mut a)).unwrap();
     let buffer = t.backend().buffer();
@@ -298,7 +298,7 @@ fn empty_tools_view_offers_all_packages() {
     a.query = "nothing-matches".into();
     a.refresh();
     assert!(draw(&mut a, 80, 24).contains("No matching tools."));
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(draw(&mut a, 80, 24).contains("No matches."));
 }
 
@@ -338,7 +338,7 @@ fn a_revision_bump_is_part_of_the_latest_version() {
     assert_eq!(m.update(), Some("1.1.2_1"));
     assert!(m.pinned());
     let mut a = App::new(inventory, "Homebrew snapshot");
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(draw(&mut a, 140, 32).contains("as of last brew update · pinned"));
 }
 
@@ -362,7 +362,7 @@ fn a_cask_another_package_needs_is_not_a_tool() {
         "Homebrew snapshot",
     );
     assert_eq!(names(&a), ["ripgrep", "widget", "requested-app"]);
-    key(&mut a, KeyCode::Char('a'));
+    key(&mut a, KeyCode::Char('t'));
     assert!(names(&a).contains(&"helper-app"));
     // Neither claims to be "Requested": Homebrew has no record either way.
     let screen = draw(&mut a, 160, 45);

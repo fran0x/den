@@ -18,7 +18,7 @@ everything Den knows about it.
 | `r` | Refresh this area |
 | `d` | Only what changed in this area; press again for the next comparison ([What changed](#what-changed)) |
 | `S` | Save a snapshot of every area read so far, to compare with later (asks first) |
-| `u` | Check online for newer versions in every area read so far ([Newer versions online](#newer-versions-online)) |
+| `U` | Check online for newer versions in every area read so far ([Newer versions online](#newer-versions-online)) |
 | `?` | Help for where you are |
 | `q` | Quit |
 
@@ -29,11 +29,11 @@ The bottom line lists the keys that work where you are, in three groups separate
 
 | Group | Keys | Applies to |
 | --- | --- | --- |
-| Here | this view's own (`x:actions` in `dew`, `[:reports` in Diagnostics, …), then `d:changes` and `r:refresh` | this area |
-| All areas | `S:snapshot`, `u:check online` (live data only) | every area at once |
+| Here | this view's own (`x:remove`, `u:upgrade`, `a:… actions` and `Enter:actions` in `dew`, `t:tools/all`, `[:reports` in Diagnostics, …), then `d:changes` and `r:refresh` | this area |
+| All areas | `S:snapshot`, `U:check online` (live data only) | every area read so far |
 | Moving around | `Tab`, `Shift+Tab`, `/`, `PgUp`/`PgDn`, `?`, `q` | — |
 
-An area is read the first time you open its tab (Homebrew at start), so `S` and `u` cover
+An area is read the first time you open its tab (Homebrew at start), so `S` and `U` cover
 the areas read so far. Their question lists them, with those not read yet in parentheses:
 `Homebrew Toolchains (Agents Docker)`. Each key shows only where it works. On a narrow terminal, moving-around keys are shortened
 first, then the all-areas keys; this view's keys and `?:help` always stay.
@@ -57,14 +57,14 @@ no `~/.aws`, …), its list says so and `r` tries again.
 
 **Packages** starts with your **Tools**: what you installed on purpose. Homebrew keeps no
 record of why a cask was installed, so a cask counts as a tool unless another installed
-package needs it; its panel says **No request record**. Press `a` to see **All** packages,
+package needs it; its panel says **No request record**. Press `t` to see **All** packages,
 dependencies included; your tools stay in bold. Casks appear in brackets and their own
 colour, like `[firefox]`.
 
 Each row says whether you asked for the package, whether it came in as a dependency, and
 how many other packages need it (**required by 3**). A newer version shows at the start of
 the row in yellow, like `↑ 15.0`. That comes from Homebrew's own data, and the status line
-says how old it is (**data from 2 h ago**). Den never runs `brew update` itself, but `u`
+says how old it is (**data from 2 h ago**). Den never runs `brew update` itself, but `U`
 asks formulae.brew.sh for the newest versions (see
 [Newer versions online](#newer-versions-online)); its answer then replaces Homebrew's.
 
@@ -84,7 +84,8 @@ links, missing dependencies, leaves and a cleanup preview.
 | `o` | Show Homebrew's original report |
 | `c` | Run the selected check now (live only, read-only) |
 
-In `dew`, `x` opens the actions for the selected package and for Homebrew; see
+In `dew`, `x` removes and `u` upgrades the selected package, and `a` opens Homebrew's own
+actions; see
 [Making changes](#making-changes).
 
 ## Agents
@@ -108,11 +109,11 @@ The panel shows each tool under its own heading, with the details that only that
 | --- | --- |
 | `s` | Settings: show Codex's source files |
 | `t` | Instructions: show what Codex would read if this project were trusted |
-| `V` | MCP: switch to the next Codex source |
+| `v` | MCP: switch to the next Codex source |
 
 When Homebrew installed Codex or Claude Code and a newer version is known, the status line
 starts with it, for example **↑ Codex 0.167.2 available**. The newer version comes from
-Homebrew's data, the last online check (`u`) or Codex's own update check
+Homebrew's data, the last online check (`U`) or Codex's own update check
 (`~/.codex/version.json`). A tool installed another way shows nothing, because Den can't
 tell its version.
 
@@ -150,7 +151,7 @@ shows disk use and how much `docker system df` says you could reclaim.
 The lists refresh every 5 seconds while Docker is open; `r` refreshes now. If Docker is not
 running, the status line says so and the last results stay.
 
-`u` checks whether an image's tag now points to a newer build on Docker Hub or ghcr.io,
+`U` checks whether an image's tag now points to a newer build on Docker Hub or ghcr.io,
 marked **↑ newer build** (see [Newer versions online](#newer-versions-online)). Only images
 with a namespace or registry in their name are checked, such as `grafana/loki` or
 `ghcr.io/astral-sh/uv`: a single name such as `postgres` could just as well be an image you
@@ -170,13 +171,13 @@ built, so it is not sent.
 Den reads all of this from files and runs none of these tools. Commands that Homebrew
 installed show its newer version, like `↑ 22.12.0`, from Homebrew's data or the last
 online check. Crates, packages, Rust toolchains and runtimes show theirs after an online
-check with `u` (see [Newer versions online](#newer-versions-online)).
+check with `U` (see [Newer versions online](#newer-versions-online)).
 It follows the usual variables, such as `CARGO_HOME`, `RUSTUP_HOME`,
 `NPM_CONFIG_PREFIX` and `JAVA_HOME`.
 
 ## Newer versions online
 
-Press `u` to ask the registries for the newest version of your Homebrew formulas and casks,
+Press `U` to ask the registries for the newest version of your Homebrew formulas and casks,
 your `cargo install` crates and your global npm, bun, uv and pipx packages, whether your
 Docker images' tags point to a newer build, and how your Rust toolchains and the `node`,
 `python3`, `ruby` and `go` on PATH compare with their release lines. Den asks first, on
@@ -196,7 +197,7 @@ and any other key cancels.
   package installed from a folder) or that the check failed. The status line counts them:
   **2 newer online, checked 3 min ago**.
 - **Kept for later:** the answers are saved with the time of the check, so the next run
-  shows them. Only `u` checks again. A newer version is not a change for `d`.
+  shows them. Only `U` checks again. A newer version is not a change for `d`.
 - **Safe to stop:** `Esc` stops a running check, and then nothing from it is kept. Den
   sends four requests at a time, each limited to 10 seconds, over HTTPS only, and
   follows no redirects. A proxy set in `HTTPS_PROXY` is used.
@@ -204,7 +205,7 @@ and any other key cancels.
 
 ### Where updates come from
 
-| What | Checked at, with `u` | Without `u` |
+| What | Checked at, with `U` | Without `U` |
 | --- | --- | --- |
 | Homebrew formulas and casks | formulae.brew.sh, for homebrew/core and homebrew/cask | Homebrew's own data, as of the last `brew update` |
 | Codex, Claude Code | Homebrew, as above, when Homebrew installed them | Homebrew's data, and Codex's own update check (`~/.codex/version.json`) |
@@ -224,7 +225,7 @@ date.
 
 **Skills from GitHub:** for a skill `npx skills` installed, its lock file
 (`~/.agents/.skill-lock.json`) records the repository and folder it came from and a
-fingerprint of that folder (git's tree SHA). `u` asks GitHub for the folder's fingerprint
+fingerprint of that folder (git's tree SHA). `U` asks GitHub for the folder's fingerprint
 today; when it differs, the skill shows **↑ newer on GitHub**, and the panel says it
 changed upstream since it was installed. Skills have no version numbers, so Den can say
 that it changed, not what changed, and it compares with what was installed, not with any
@@ -267,7 +268,7 @@ view too. Press `d` again for the next comparison, and once more for every row:
 
 What counts as a change is what the list shows: a version, a status, how a profile signs
 in. A container starting or stopping, and a newer Homebrew version becoming known, are
-not changes. In Homebrew the changes view covers all packages, dependencies included; `a`
+not changes. In Homebrew the changes view covers all packages, dependencies included; `t`
 goes back to the usual view. Agents compares once both Codex and Claude Code have been
 read. Homebrew's Diagnostics are not compared.
 
@@ -299,43 +300,45 @@ delete the file.
 ## Making changes
 
 `den` is always read-only. To make changes, run `dew` instead: the same Den, with write
-actions allowed. The top bar shows a red **WRITE** the whole time. Then:
+actions allowed. The top bar shows a red **WRITE** the whole time. Select a row, then:
 
-1. In Homebrew, press `x`. The dialog has two groups: **This package** (upgrade it, when
-   a newer version is known, and uninstall it) and **All of Homebrew** (update Homebrew's
-   package data, remove dependencies nothing needs, clean up old versions and downloads),
-   which are the same on every row.
-2. Choose with `↑` `↓`. Below the list, the selected action shows its exact command and,
-   where Homebrew has one, a dry run of what will change.
-3. `Enter` runs it, once its dry run is shown. The dialog never opens on uninstall, so `x`
-   then `Enter` never removes a package.
+| Key | Opens | Then |
+| --- | --- | --- |
+| `x` | the row's removal: uninstall a package, remove an image, volume or stopped container, or stop and remove a running one | `x` again or `Enter` runs it |
+| `u` | the row's upgrade (or, for an image, the pull of its newer build), with its dry run | `u` again or `Enter` runs it |
+| `a` | this area's own actions: in Homebrew, update its package data, remove dependencies nothing needs and clean up; in Docker, remove every unused untagged image | `↑` `↓` to choose, `Enter` runs it |
+| `Enter` | every action for the row | `↑` `↓` to choose, `Enter` runs it |
 
-In Docker, `x` offers what Docker allows without forcing: stop a running container,
-remove a stopped one, or remove an image or volume no container uses (in Images, also
-every untagged image nothing uses, at once). Docker has no dry run, so the dialog says
-what will be removed (its name and, for images, its size) before `Enter` runs it.
+The footer lists only the keys that apply to the selected row. Each dialog shows the exact
+command first, and a dry run where the tool has one (Homebrew, `rustup check`,
+`npm --dry-run`). The second press runs nothing until that dry run is shown, and refuses
+anything blocked. Any other key closes a dialog opened with `x` or `u`.
 
-On an image marked **↑ newer build** by the online check (`u`), `x` also offers
-`docker image pull` for that tag, first in the list. Containers already running keep the
-build they started with until they are recreated; the old build then shows as an unused
-untagged image, which `x` can remove. Den's own check never logs in, but `docker` uses
-its own saved login for the registry, if you have one.
+What each area offers:
 
-In Toolchains › Rust, `x` on a toolchain offers `rustup update` (its dry run is
-`rustup check`) and uninstalling it; on a crate from `cargo install`, upgrading it with
-`cargo install --locked` and uninstalling it. rustup and cargo run as the copy that wins
-on PATH, by its full path, shown in the command. Upgrading a crate builds it, which runs
-its build scripts, as it would by hand.
-
-In Toolchains › PATH, `x` on a command Homebrew installed (such as `node` or `python3`
-from Homebrew) offers the same actions as that package in Homebrew, with Homebrew's dry
-run. Afterwards both Homebrew and Toolchains are read again.
-
-In Toolchains › Packages, `x` on a global npm package, uv tool or pipx package offers
-upgrading and uninstalling it with that manager, again the copy that wins on PATH. npm's
-actions show npm's own dry run first; uv and pipx have none, so the dialog says what will
-change. npm and corepack come with Node, so Den leaves them to Node's own upgrade. uv
-Pythons, bun packages and go programs have no actions.
+- **Homebrew:** upgrade (when a newer version is known) and uninstall a package; `a` for
+  Homebrew's own maintenance.
+- **Docker:** stop a running container, or stop and remove it (`docker container stop`,
+  then `docker container rm`, never `-f`); remove a stopped container, or an image or
+  volume no container uses. Docker has no dry run, so the dialog says what will be removed
+  (its name and, for images, its size). On an image marked **↑ newer build** by the online
+  check (`U`), `u` pulls that tag. Containers already running keep the build they started
+  with until they are recreated; the old build then shows as an unused untagged image.
+  Den's own check never logs in, but `docker` uses its own saved login for the registry,
+  if you have one.
+- **Toolchains › Rust:** `rustup update` for a toolchain (its dry run is `rustup check`)
+  and uninstalling it; for a crate from `cargo install`, upgrading it with
+  `cargo install --locked` and uninstalling it. rustup and cargo run as the copy that wins
+  on PATH, by its full path, shown in the command. Upgrading a crate builds it, which runs
+  its build scripts, as it would by hand.
+- **Toolchains › PATH:** a command Homebrew installed (such as `node` or `python3` from
+  Homebrew) gets that package's upgrade and uninstall, with Homebrew's dry run. Afterwards
+  both Homebrew and Toolchains are read again.
+- **Toolchains › Packages:** upgrading and uninstalling a global npm package, uv tool or
+  pipx package with that manager, again the copy that wins on PATH. npm shows its own dry
+  run first; uv and pipx have none, so the dialog says what will change. npm and corepack
+  come with Node, so Den leaves them to Node's own upgrade. uv Pythons, bun packages and
+  go programs have no actions.
 
 While a dry run or an action runs, a spinner shows it is working, with the seconds so far.
 `Esc` or `Ctrl-C` stops a running action, giving the tool 10 seconds to clean up.
@@ -353,13 +356,13 @@ What Den will not do:
 - Use `--force`, `--ignore-dependencies` or `--zap`, a shell, or sudo. If a cask needs
   your password, the action fails quickly and you can run the command yourself.
 
-In `den` there are no actions at all: `x` does nothing.
+In `den` there are no actions at all: `x`, `u`, `a` and `Enter` do nothing.
 
 ## What Den reads, and what it never does
 
 `den` only looks, and `dew` changes only what you choose (see
 [Making changes](#making-changes)). `den` writes only its own files: the snapshot, after
-`S` and `Enter` (see [Snapshots](#snapshots)), and the online answers, after `u` and
+`S` and `Enter` (see [Snapshots](#snapshots)), and the online answers, after `U` and
 `Enter` (see [Newer versions online](#newer-versions-online)). Online checks are the only
 time Den contacts a website itself. The only commands `den` runs are `brew info`,
 `missing`, `leaves` and `autoremove --dry-run`, and `docker container ls`,

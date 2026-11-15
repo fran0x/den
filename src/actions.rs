@@ -223,6 +223,9 @@ pub enum Action {
     /// `docker image pull` for a tag whose registry now has a newer build; running
     /// containers keep the build they started with.
     DockerPull(DockerObject),
+    /// A running container: `docker container stop`, then `docker container rm` once it
+    /// has stopped. Never `rm -f`.
+    DockerStopAndRemove(DockerObject),
     /// `rustup update` for one toolchain; rustup itself is not updated.
     RustupUpdate(Program, Name),
     /// Not the default toolchain, and no folder override uses it.
@@ -239,34 +242,34 @@ pub enum Action {
     PipxUninstall(Program, Name),
 }
 impl Action {
-    /// True for an action about the whole area rather than the selected row: Homebrew's
-    /// data, autoremove and cleanup, and removing every unused untagged image.
-    pub fn area_wide(&self) -> bool {
-        match self {
-            Self::BrewUpdate | Self::BrewAutoremove | Self::BrewCleanup => true,
-            Self::DockerRemoveImages(images) => images.len() > 1,
-            _ => false,
-        }
+    /// Removes or stops what the row shows: what `x` opens on.
+    pub fn removes(&self) -> bool {
+        matches!(
+            self,
+            Self::BrewUninstall(_)
+                | Self::DockerRemoveContainer(_)
+                | Self::DockerRemoveImages(_)
+                | Self::DockerRemoveVolume(_)
+                | Self::DockerStopAndRemove(_)
+                | Self::RustupUninstall(..)
+                | Self::CargoUninstall(..)
+                | Self::NpmUninstall(..)
+                | Self::UvToolUninstall(..)
+                | Self::PipxUninstall(..)
+        )
     }
-    /// The heading the actions dialog groups it under.
-    pub fn group(&self) -> &'static str {
-        match self {
-            Self::BrewUpdate | Self::BrewAutoremove | Self::BrewCleanup => "All of Homebrew",
-            Self::DockerRemoveImages(images) if images.len() > 1 => "All unused untagged images",
-            Self::DockerStopContainer(_) | Self::DockerRemoveContainer(_) => "This container",
-            Self::DockerRemoveImages(_) | Self::DockerPull(_) => "This image",
-            Self::DockerRemoveVolume(_) => "This volume",
-            Self::RustupUpdate(..) | Self::RustupUninstall(..) => "This toolchain",
-            Self::CargoInstall(..) | Self::CargoUninstall(..) => "This crate",
+    /// Brings the row to a newer version or build: what `u` opens on.
+    pub fn upgrades(&self) -> bool {
+        matches!(
+            self,
             Self::BrewUpgrade(_)
-            | Self::BrewUninstall(_)
-            | Self::NpmUpdate(..)
-            | Self::NpmUninstall(..)
-            | Self::UvToolUpgrade(..)
-            | Self::UvToolUninstall(..)
-            | Self::PipxUpgrade(..)
-            | Self::PipxUninstall(..) => "This package",
-        }
+                | Self::DockerPull(_)
+                | Self::RustupUpdate(..)
+                | Self::CargoInstall(..)
+                | Self::NpmUpdate(..)
+                | Self::UvToolUpgrade(..)
+                | Self::PipxUpgrade(..)
+        )
     }
     pub fn area(&self) -> Area {
         match self {
@@ -279,7 +282,8 @@ impl Action {
             | Self::DockerRemoveContainer(_)
             | Self::DockerRemoveImages(_)
             | Self::DockerRemoveVolume(_)
-            | Self::DockerPull(_) => Area::Docker,
+            | Self::DockerPull(_)
+            | Self::DockerStopAndRemove(_) => Area::Docker,
             Self::RustupUpdate(..)
             | Self::RustupUninstall(..)
             | Self::CargoInstall(..)
@@ -319,7 +323,23 @@ impl Action {
     pub fn program(&self) -> String {
         safe_text(&Path::new(self.executable()).display().to_string())
     }
+    /// Every word of every command this action runs, for checks.
     pub fn args(&self) -> Vec<String> {
+        self.steps().concat()
+    }
+    /// The commands this action runs, in order; the next runs only if the last worked.
+    pub fn steps(&self) -> Vec<Vec<String>> {
+        if let Self::DockerStopAndRemove(o) = self {
+            let with = |w: &[&str]| {
+                let mut v: Vec<String> = w.iter().map(|s| (*s).to_owned()).collect();
+                v.push(o.target.clone());
+                v
+            };
+            return vec![with(&["container", "stop"]), with(&["container", "rm"])];
+        }
+        vec![self.command_args()]
+    }
+    fn command_args(&self) -> Vec<String> {
         let words = |w: &[&str]| w.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
         let with = |w: &[&str], o: &DockerObject| {
             let mut v = words(w);
@@ -341,6 +361,7 @@ impl Action {
             }
             Self::DockerRemoveVolume(o) => with(&["volume", "rm"], o),
             Self::DockerPull(o) => with(&["image", "pull"], o),
+            Self::DockerStopAndRemove(_) => unreachable!("two steps, built in `steps`"),
             Self::RustupUpdate(_, t) => {
                 vec!["update".into(), "--no-self-update".into(), t.target.clone()]
             }
@@ -369,7 +390,7 @@ impl Action {
             Self::RustupUpdate(..) => Some(words(&["check", "--no-self-update"])),
             // npm's own dry run: the same command, `--dry-run` before the name.
             Self::NpmUpdate(..) | Self::NpmUninstall(..) => {
-                let mut args = self.args();
+                let mut args = self.command_args();
                 args.insert(2, "--dry-run".into());
                 Some(args)
             }
@@ -383,7 +404,11 @@ impl Action {
     }
     /// The command as you would type it, for the dialog, the clipboard and the log.
     pub fn command_line(&self) -> String {
-        line(&self.program(), &self.args())
+        self.steps()
+            .iter()
+            .map(|args| line(&self.program(), args))
+            .collect::<Vec<_>>()
+            .join(" && ")
     }
     pub fn preview_line(&self) -> Option<String> {
         self.preview_args().map(|a| line(&self.program(), &a))
@@ -403,6 +428,7 @@ impl Action {
             },
             Self::DockerRemoveVolume(o) => format!("Remove volume {}", o.label),
             Self::DockerPull(o) => format!("Pull the newer build of {}", o.label),
+            Self::DockerStopAndRemove(o) => format!("Stop and remove {}", o.label),
             Self::RustupUpdate(_, t) => format!("Update {}", t.label),
             Self::RustupUninstall(_, t) => format!("Uninstall toolchain {}", t.label),
             Self::CargoInstall(_, c) => format!("Upgrade {}", c.label),
@@ -419,6 +445,8 @@ impl Action {
         Duration::from_secs(match self {
             // These build or download a lot.
             Self::BrewUpgrade(_) | Self::CargoInstall(..) | Self::DockerPull(_) => 30 * 60,
+            // Stopping waits up to 10 s, then the removal.
+            Self::DockerStopAndRemove(_) => 3 * 60,
             _ if self.area() == Area::Docker => 2 * 60,
             _ => 10 * 60,
         })
@@ -523,12 +551,27 @@ fn preview(action: &Action, cancel: &AtomicBool) -> Result<CommandOutput, Collec
 fn execute(action: &Action, cancel: &AtomicBool) -> Result<CommandOutput, CollectionError> {
     #[cfg(unix)]
     {
-        crate::areas::homebrew::run_write(
-            &mut command(action, &action.args()),
-            cancel,
-            action.timeout(),
-            GRACE,
-        )
+        // Each step runs only if the one before it worked; their output is kept together.
+        let mut all = CommandOutput {
+            code: Some(0),
+            stdout: vec![],
+            stderr: vec![],
+        };
+        for args in action.steps() {
+            let output = crate::areas::homebrew::run_write(
+                &mut command(action, &args),
+                cancel,
+                action.timeout(),
+                GRACE,
+            )?;
+            all.stdout.extend(output.stdout);
+            all.stderr.extend(output.stderr);
+            all.code = output.code;
+            if output.code != Some(0) {
+                break;
+            }
+        }
+        Ok(all)
     }
     #[cfg(not(unix))]
     {
@@ -573,6 +616,8 @@ pub enum Dialog {
         items: Vec<Item>,
         selected: usize,
         preview: Preview,
+        /// The key that runs the action when pressed again, like Enter.
+        confirm: Option<char>,
     },
     Running {
         action: Action,
@@ -621,13 +666,10 @@ impl State {
     pub fn running(&self) -> bool {
         matches!(self.dialog, Some(Dialog::Running { .. }))
     }
-    /// Opens the actions: the selected row's first, then the area-wide ones. The first
-    /// action that does not uninstall a package is selected, so `x` then Enter never
-    /// removes one, and its dry run starts.
-    pub fn open(&mut self, package: Option<String>, items: Vec<Item>) {
-        let (mut items, area): (Vec<_>, Vec<_>) =
-            items.into_iter().partition(|i| !i.action.area_wide());
-        items.extend(area);
+    /// Opens a list of actions, with the first that does not uninstall a package
+    /// selected and its dry run started. `confirm` is the key that runs it a second time
+    /// (`x` for a removal, `u` for an upgrade), or `None` for a list to choose from.
+    pub fn open(&mut self, package: Option<String>, items: Vec<Item>, confirm: Option<char>) {
         let first = items
             .iter()
             .position(|i| !matches!(i.action, Action::BrewUninstall(_)))
@@ -637,6 +679,7 @@ impl State {
             items,
             selected: first,
             preview: Preview::None,
+            confirm,
         });
         self.select(first);
     }
@@ -1216,7 +1259,7 @@ mod tests {
         let rustup = Program::found(Path::new("/r/rustup"), "rustup").unwrap();
         let update = Action::RustupUpdate(rustup, Name::toolchain("stable", "stable").unwrap());
         let mut s = State::new(Permit::granted(true));
-        s.open(None, vec![Item::new(update.clone())]);
+        s.open(None, vec![Item::new(update.clone())], None);
         let output = |code| CommandOutput {
             code: Some(code),
             stdout: b"stable - Update available : 1.97.1 -> 1.98.0\n".to_vec(),
@@ -1368,7 +1411,11 @@ mod tests {
         let id = "bbbbbbbbbbbb2222222222222222222222222222222222222222222222222222";
         let remove = Action::DockerRemoveContainer(DockerObject::id(id, "web-db-1").unwrap());
         let mut s = State::new(Permit::granted(true));
-        s.open(None, vec![item(remove.clone()), item(Action::BrewUpdate)]);
+        s.open(
+            None,
+            vec![item(remove.clone()), item(Action::BrewUpdate)],
+            None,
+        );
         assert!(matches!(s.dialog, Some(Dialog::Menu { selected: 0, .. })));
         s.run_selected();
         assert_eq!(s.request, Some(Request::Run(remove)));
@@ -1384,7 +1431,7 @@ mod tests {
         let items = || vec![item(upgrade.clone()), item(Action::BrewUpdate)];
         // Without a permit (den): no preview runs, and Enter refuses.
         let mut s = State::new(None);
-        s.open(None, items());
+        s.open(None, items(), None);
         assert_eq!(s.request, None);
         s.run_selected();
         assert_eq!(s.request, None);
@@ -1392,7 +1439,7 @@ mod tests {
 
         // With a permit (dew): opening starts the first action's dry run.
         let mut s = State::new(Permit::granted(true));
-        s.open(None, items());
+        s.open(None, items(), None);
         assert_eq!(s.request.take(), Some(Request::Preview(upgrade.clone())));
         s.run_selected();
         assert_eq!(s.request, None, "not before the preview finishes");
@@ -1421,7 +1468,7 @@ mod tests {
 
         // An action without a dry run runs straight away.
         let mut s = State::new(Permit::granted(true));
-        s.open(None, items());
+        s.open(None, items(), None);
         s.select(1);
         assert_eq!(s.request, None);
         s.run_selected();
@@ -1438,6 +1485,7 @@ mod tests {
                 blocked: Some("required by 12 installed packages".into()),
                 note: None,
             }],
+            None,
         );
         assert_eq!(s.request, None);
         s.select(0);
@@ -1452,7 +1500,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let log = dir.join("state/den/actions.log");
         let mut s = State::new(Permit::granted(true));
-        s.open(None, vec![item(Action::BrewUpdate)]);
+        s.open(None, vec![item(Action::BrewUpdate)], None);
         s.run_selected();
         s.finish(
             Ok(CommandOutput {

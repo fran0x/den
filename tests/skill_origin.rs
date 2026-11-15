@@ -252,7 +252,7 @@ fn u_asks_github_whether_an_installed_skill_changed_there() {
     a.agents_select(&key);
     assert!(draw(&mut a).contains("GitHub: not checked yet; u compares it with GitHub"));
 
-    a.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::NONE));
+    a.handle_key(KeyEvent::new(KeyCode::Char('U'), KeyModifiers::NONE));
     assert!(
         draw(&mut a).contains("to api.github.com"),
         "names the host first"

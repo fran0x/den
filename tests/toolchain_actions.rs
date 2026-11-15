@@ -71,7 +71,7 @@ fn with_rustup(a: &mut App) -> PathBuf {
 /// x on the row with this key: each action's command line and why it is blocked.
 fn menu(a: &mut App, row: &str) -> Vec<(String, Option<String>)> {
     a.toolchains.select_key(row);
-    key(a, KeyCode::Char('x'));
+    key(a, KeyCode::Enter);
     let items = match &a.actions.dialog {
         Some(Dialog::Menu { items, .. }) => items
             .iter()
@@ -170,8 +170,8 @@ fn crates_from_crates_io_can_be_upgraded_others_only_uninstalled() {
 fn x_then_enter_runs_the_first_action_and_toolchains_is_read_again() {
     let mut a = app(true);
     a.toolchains.select_key("crate:bacon");
-    assert!(draw(&mut a).contains("x:actions"));
-    key(&mut a, KeyCode::Char('x'));
+    assert!(draw(&mut a).contains("Enter:actions"));
+    key(&mut a, KeyCode::Enter);
     let screen = draw(&mut a);
     assert!(screen.contains("runs the crate's"), "{screen}");
     key(&mut a, KeyCode::Enter);
@@ -201,7 +201,7 @@ fn x_then_enter_runs_the_first_action_and_toolchains_is_read_again() {
 fn an_uninstalled_crate_shows_as_removed_after_the_refresh() {
     let mut a = app(true);
     a.toolchains.select_key("crate:bacon");
-    key(&mut a, KeyCode::Char('x'));
+    key(&mut a, KeyCode::Enter);
     key(&mut a, KeyCode::End);
     key(&mut a, KeyCode::Enter);
     let Some(Request::Run(action)) = a.actions.request.take() else {
@@ -240,8 +240,8 @@ fn an_uninstalled_crate_shows_as_removed_after_the_refresh() {
 fn den_offers_no_toolchain_actions() {
     let mut a = app(false);
     a.toolchains.select_key("crate:bacon");
-    assert!(!draw(&mut a).contains("x:actions"));
-    key(&mut a, KeyCode::Char('x'));
+    assert!(!draw(&mut a).contains("Enter:actions"));
+    key(&mut a, KeyCode::Enter);
     assert!(a.actions.dialog.is_none());
 }
 
@@ -301,7 +301,12 @@ fn global_packages_offer_upgrade_and_uninstall_with_their_own_manager() {
         "bun:prettier",
         "go install:gopls",
     ] {
-        assert!(menu(&mut a, key).is_empty(), "{key}");
+        a.toolchains.select_key(key);
+        assert!(!draw(&mut a).contains("Enter:actions"), "{key}");
+        a.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(a.actions.dialog.is_none(), "{key}");
+        assert_eq!(a.actions.notice.as_deref(), Some("No actions for this row"));
+        a.actions.notice = None;
     }
 }
 
@@ -310,7 +315,7 @@ fn npm_actions_show_npms_own_dry_run() {
     let mut a = app(true);
     a.navigate(Destination::Packages);
     a.toolchains.select_key("npm -g:@acme/cli");
-    key(&mut a, KeyCode::Char('x'));
+    key(&mut a, KeyCode::Enter);
     let Some(Request::Preview(action)) = a.actions.request.clone() else {
         panic!("{:?}", a.actions.request);
     };
@@ -362,14 +367,11 @@ fn a_command_homebrew_installed_gets_its_homebrew_actions() {
         [
             "brew upgrade --formula node",
             "brew uninstall --formula node",
-            "brew update",
-            "brew autoremove",
-            "brew cleanup",
         ]
     );
-    // x starts Homebrew's dry run for the upgrade, as in Homebrew.
+    // Enter starts Homebrew's dry run for the upgrade, as in Homebrew.
     a.toolchains.select_key("command:node");
-    key(&mut a, KeyCode::Char('x'));
+    key(&mut a, KeyCode::Enter);
     let Some(Request::Preview(action)) = a.actions.request.take() else {
         panic!("{:?}", a.actions.request);
     };
@@ -397,5 +399,8 @@ fn a_command_homebrew_installed_gets_its_homebrew_actions() {
     let _ = std::fs::remove_dir_all(&log);
     // A command Homebrew did not install has no actions.
     a.actions.close();
-    assert!(menu(&mut a, "command:cargo").is_empty());
+    a.toolchains.select_key("command:cargo");
+    key(&mut a, KeyCode::Enter);
+    assert!(a.actions.dialog.is_none());
+    assert_eq!(a.actions.notice.as_deref(), Some("No actions for this row"));
 }

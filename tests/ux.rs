@@ -218,7 +218,7 @@ fn every_agents_section_panel_page_and_source_keeps_secrets_redacted() {
                             key(&mut a, KeyCode::PageDown);
                         }
                     }
-                    key(&mut a, KeyCode::Char('V'));
+                    key(&mut a, KeyCode::Char('v'));
                     key(&mut a, KeyCode::Down);
                 }
                 key(&mut a, KeyCode::Home);
@@ -273,7 +273,7 @@ fn action_hints_follow_focus_and_help_remains_visible_at_small_sizes() {
     let mut a = brew();
     // Packages have no inspector, so the footer lists their keys instead of Enter.
     let footer = draw(&mut a, 80, 24).lines().last().unwrap().to_owned();
-    assert!(footer.contains("a:tools/all") && !footer.contains("f:type"));
+    assert!(footer.contains("t:tools/all") && !footer.contains("f:type"));
     assert!(!footer.contains("Enter:inspect"));
     key(&mut a, KeyCode::Right);
     assert_eq!(draw(&mut a, 80, 24).lines().last().unwrap(), footer);

@@ -69,7 +69,7 @@ pub(super) fn set_den_keys(app: &App) {
             all.push("S:snapshot");
         }
         if app.online.path.is_some() {
-            all.push("u:check online");
+            all.push("U:check online");
         }
         (area.join(" "), all.join(" "))
     });
@@ -89,7 +89,7 @@ fn footer(view: &str, width: usize) -> String {
         .copied()
         .collect::<Vec<_>>()
         .join(" ");
-    let all_short = all.replace("u:check online", "u:online");
+    let all_short = all.replace("U:check online", "U:online");
     let candidates = [
         (
             all.as_str(),
@@ -512,8 +512,8 @@ pub(super) struct ListView {
     pub(super) searching: bool,
     /// The row in use (the active profile, the current context), shown highlighted.
     pub(super) current: Option<usize>,
-    /// dew offers actions here: the footer shows `x:actions`.
-    pub(super) actions: bool,
+    /// This row's action keys in dew (`App::action_keys`), for the footer.
+    pub(super) keys: String,
     /// The filter line, such as "Changes 3 · since Den started 5 min ago".
     pub(super) filter: String,
     /// Rows removed since Den started, listed after the rows in the changes view.
@@ -557,14 +557,11 @@ pub(super) fn tracked<C, I: crate::listing::Listing>(
 }
 
 /// This view's keys for a list area; Den-wide keys and navigation come from `footer`.
-pub(super) fn list_actions(searching: bool, offers_actions: bool) -> String {
+pub(super) fn list_actions(searching: bool, keys: &str) -> String {
     if searching {
-        return actions(true).into();
-    }
-    if offers_actions {
-        "x:actions".into()
+        actions(true).into()
     } else {
-        String::new()
+        keys.to_owned()
     }
 }
 
@@ -609,7 +606,7 @@ pub(super) fn list_view(
         query,
         searching,
         current,
-        actions: offers_actions,
+        keys,
         filter,
         removed,
     } = view;
@@ -618,7 +615,7 @@ pub(super) fn list_view(
         title,
         &status,
         searching,
-        &list_actions(searching, offers_actions),
+        &list_actions(searching, &keys),
     );
     let selected = selected.min(rows.len().saturating_sub(1));
     let panes = panes(body);

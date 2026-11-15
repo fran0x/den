@@ -5,7 +5,7 @@ settings, PATH and package metadata. Its promise is that it never runs what it f
 contacts no service unless you ask it to check online, and never shows a secret. A break
 in that promise is a security bug.
 
-**Online checks** run only when you press `u` and then Enter. Den sends the names of your
+**Online checks** run only when you press `U` and then Enter. Den sends the names of your
 Homebrew formulas and casks, crates.io crates, npm, bun, uv and pipx packages and Docker
 images (only those named with a namespace or registry, such as `grafana/loki:3.5`) over
 HTTPS to formulae.brew.sh, index.crates.io, registry.npmjs.org, pypi.org, Docker Hub
@@ -19,8 +19,8 @@ machine; the comparison happens locally. The registries learn which packages you
 The answers are kept in `$XDG_STATE_HOME/den/online.json`, private like the snapshot.
 
 `den` is always read-only. Changes need the `dew` command (the top bar then shows WRITE),
-and even there each action runs only when you choose it and press Enter, after its dry run
-where the tool has one. Actions are a fixed list of Homebrew, Docker, rustup, cargo, npm,
+and even there each action runs only when you choose it and confirm it (Enter, or the same
+`x` or `u` again), after its dry run where the tool has one. Actions are a fixed list of Homebrew, Docker, rustup, cargo, npm,
 uv and pipx commands built from checked names and IDs, run without a shell, sudo or a
 terminal for input, and never with force. Toolchain programs run as the copy Den shows
 winning on PATH, by its full path.
@@ -49,12 +49,13 @@ with an advisory crediting you, unless you prefer otherwise.
   beyond the parser, where the docs say it is withheld.
 - Den running a program, helper, hook, plugin or MCP server, other than the fixed Homebrew
   and Docker listing commands and, in `dew`, the action you chose.
-- Den contacting a network service without `u` and Enter, contacting a host other than the
+- Den contacting a network service without `U` and Enter, contacting a host other than the
   registries above, or sending anything but package names.
-- A write action running in `den`, or in `dew` without being chosen and confirmed with
-  Enter; or running anything other than the command its dialog showed.
+- A write action running in `den`, or in `dew` without being chosen and confirmed (Enter,
+  or `x` or `u` pressed again in its dialog); or running anything other than the command
+  its dialog showed.
 - Den writing any file other than its snapshot (after `S` and Enter), its online results
-  (after `u` and Enter) and, in `dew`, its action log; writing any of them through a link;
+  (after `U` and Enter) and, in `dew`, its action log; writing any of them through a link;
   or putting withheld values in them.
 - Reading outside the files and folders documented for each area, following a link the
   docs say is rejected, or escaping a fixture root.

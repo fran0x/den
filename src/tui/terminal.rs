@@ -169,7 +169,7 @@ pub fn run(app: &mut App) -> io::Result<()> {
                 app.toolchains.finish(result);
                 toolchains = None;
             }
-            // Online checks run only after `u` and Enter.
+            // Online checks run only after `U` and Enter.
             if online.is_none()
                 && let Some(packages) = app.online.request.take()
             {

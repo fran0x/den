@@ -52,9 +52,9 @@ fn keys_are_grouped_by_scope() {
     let mut a = docker(true);
     assert_eq!(
         footer(&mut a, 140),
-        " x:actions d:changes r:refresh │ Tab:area Shift+Tab:section /:search PgUp/PgDn:panel ?:help q:quit"
+        " a:Docker actions d:changes r:refresh │ Tab:area Shift+Tab:section /:search PgUp/PgDn:panel ?:help q:quit"
     );
-    // den has no actions, so the view's group is empty.
+    // The selected image is in use, so only Docker's own actions apply; den has none.
     let mut a = docker(false);
     assert!(footer(&mut a, 140).starts_with(" d:changes r:refresh │ Tab:area"));
     // With live data, the keys for all areas get their own group.
@@ -68,7 +68,9 @@ fn snapshot_and_online_keys_show_with_live_data_only() {
     a.snapshot_path = Some(dir.join("snapshot.json"));
     let line = footer(&mut a, 160);
     assert!(
-        line.starts_with(" x:actions d:changes r:refresh │ S:snapshot u:check online │ Tab:area"),
+        line.starts_with(
+            " a:Docker actions d:changes r:refresh │ S:snapshot U:check online │ Tab:area"
+        ),
         "{line}"
     );
     // The status line no longer carries u.
@@ -81,7 +83,7 @@ fn narrow_terminals_keep_this_views_keys_and_help() {
     for width in [60, 80, 100] {
         let line = footer(&mut a, width);
         assert!(
-            line.starts_with(" x:actions d:changes r:refresh │"),
+            line.starts_with(" a:Docker actions d:changes r:refresh │"),
             "{width}: {line}"
         );
         assert!(line.ends_with("?:help q:quit"), "{width}: {line}");

@@ -134,7 +134,7 @@ fn changes_screen() -> App {
     app
 }
 
-/// dew: the actions for ripgrep, with the upgrade's dry run shown.
+/// dew: u on ripgrep, with the upgrade's dry run shown.
 fn dew_screen() -> App {
     let mut app = App::new(brew(), "Homebrew");
     app.actions = State::new(Permit::granted(true));
@@ -143,7 +143,7 @@ fn dew_screen() -> App {
         key(&mut app, KeyCode::Char(c));
     }
     key(&mut app, KeyCode::Enter);
-    key(&mut app, KeyCode::Char('x'));
+    key(&mut app, KeyCode::Char('u'));
     app.actions.finish_preview(
         &Action::BrewUpgrade(Package::new("ripgrep", false).unwrap()),
         Ok(CommandOutput {

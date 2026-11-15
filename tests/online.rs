@@ -115,8 +115,8 @@ fn answers() -> Vec<(Package, Answer)> {
 fn u_asks_first_and_names_what_it_sends() {
     let t = Temp::new();
     let mut a = session(Some(&t.file()));
-    assert!(draw(&mut a).contains("u:check online"));
-    key(&mut a, KeyCode::Char('u'));
+    assert!(draw(&mut a).contains("U:check online"));
+    key(&mut a, KeyCode::Char('U'));
     let screen = draw(&mut a);
     assert!(
         screen.contains(
@@ -131,7 +131,7 @@ fn u_asks_first_and_names_what_it_sends() {
     assert!(a.online.request.is_none());
     assert!(!t.file().exists());
 
-    key(&mut a, KeyCode::Char('u'));
+    key(&mut a, KeyCode::Char('U'));
     key(&mut a, KeyCode::Enter);
     let asked: Vec<String> = a
         .online
@@ -166,7 +166,7 @@ fn u_asks_first_and_names_what_it_sends() {
 fn newer_versions_are_marked_and_kept_for_the_next_run() {
     let t = Temp::new();
     let mut a = session(Some(&t.file()));
-    key(&mut a, KeyCode::Char('u'));
+    key(&mut a, KeyCode::Char('U'));
     key(&mut a, KeyCode::Enter);
     a.online.request = None;
     a.finish_online(Ok(answers()), SystemTime::now());
@@ -233,8 +233,8 @@ fn rust_crates_show_their_newer_version() {
 #[test]
 fn only_live_data_is_checked() {
     let mut a = session(None);
-    assert!(!draw(&mut a).contains("u:check online"));
-    key(&mut a, KeyCode::Char('u'));
+    assert!(!draw(&mut a).contains("U:check online"));
+    key(&mut a, KeyCode::Char('U'));
     assert!(draw(&mut a).contains("Online checks use live data only"));
     assert!(a.online.asking.is_empty());
 }
@@ -250,7 +250,7 @@ fn nothing_to_check_before_toolchains_is_read() {
         "online test",
     );
     a.online.use_file(t.file());
-    key(&mut a, KeyCode::Char('u'));
+    key(&mut a, KeyCode::Char('U'));
     assert!(draw(&mut a).contains("Nothing to check online yet: open Toolchains first"));
 }
 
@@ -337,8 +337,8 @@ fn search(a: &mut App, text: &str) {
 fn homebrew_packages_from_the_main_taps_are_checked() {
     let t = Temp::new();
     let mut a = homebrew_session(&t.file());
-    assert!(draw(&mut a).contains("u:check online"));
-    key(&mut a, KeyCode::Char('u'));
+    assert!(draw(&mut a).contains("U:check online"));
+    key(&mut a, KeyCode::Char('U'));
     assert!(draw(&mut a).contains("· 4 names to formulae.brew.sh"));
     key(&mut a, KeyCode::Enter);
     let asked: Vec<String> = a
@@ -480,8 +480,8 @@ fn docker_session(t: &Temp) -> App {
 fn docker_images_with_a_namespace_are_checked_for_a_newer_build() {
     let t = Temp::new();
     let mut a = docker_session(&t);
-    assert!(draw(&mut a).contains("u:check online"));
-    key(&mut a, KeyCode::Char('u'));
+    assert!(draw(&mut a).contains("U:check online"));
+    key(&mut a, KeyCode::Char('U'));
     assert!(draw(&mut a).contains(
         "2 names to registry-1.docker.io, ghcr.io · Docker (Homebrew Agents Toolchains)"
     ));
@@ -631,7 +631,7 @@ fn dew_offers_to_pull_only_a_tag_with_a_newer_build() {
     a.actions = State::new(Permit::granted(true));
     let menu = |a: &mut App, key_name: &str| -> Vec<String> {
         a.docker.select_key(key_name);
-        key(a, KeyCode::Char('x'));
+        key(a, KeyCode::Enter);
         let lines = match &a.actions.dialog {
             Some(Dialog::Menu { items, .. }) => {
                 items.iter().map(|i| i.action.command_line()).collect()

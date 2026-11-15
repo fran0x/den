@@ -333,7 +333,7 @@ fn empty_inventory_hints_offer_back_without_resetting_filters() {
         a.navigate(destination);
         let initial = a.show_all;
         if destination == Destination::Homebrew {
-            key(&mut a, KeyCode::Char('a'));
+            key(&mut a, KeyCode::Char('t'));
         }
         let show_all = a.show_all;
         assert_eq!(show_all != initial, destination == Destination::Homebrew);

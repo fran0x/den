@@ -15,7 +15,8 @@ pub(super) fn render(frame: &mut Frame, app: &App) {
             items,
             selected,
             preview,
-        } => menu(package.as_deref(), items, *selected, preview),
+            confirm,
+        } => menu(package.as_deref(), items, *selected, preview, *confirm),
         Dialog::Running {
             action,
             started,
@@ -134,6 +135,7 @@ fn menu(
     items: &[crate::actions::Item],
     selected: usize,
     preview: &Preview,
+    confirm: Option<char>,
 ) -> (String, Vec<Line<'static>>, String) {
     let title = package.map_or_else(|| "Actions".to_owned(), |p| format!("Actions · {p}"));
     let mut body = vec![];
@@ -143,18 +145,7 @@ fn menu(
         .max()
         .unwrap_or(0)
         + 2;
-    // Headings only when the dialog mixes this row's actions with area-wide ones.
-    let grouped =
-        items.iter().any(|i| i.action.area_wide()) && items.iter().any(|i| !i.action.area_wide());
-    let mut heading_shown = None;
     for (i, item) in items.iter().enumerate() {
-        if grouped && heading_shown != Some(item.action.group()) {
-            if heading_shown.is_some() {
-                body.push(Line::raw(""));
-            }
-            heading_shown = Some(item.action.group());
-            body.push(Line::styled(item.action.group(), heading()));
-        }
         let marker = if selected == i { "> " } else { "  " };
         let style = if item.blocked.is_some() {
             muted()
@@ -197,14 +188,16 @@ fn menu(
         };
         body.extend(text.lines().map(|l| Line::styled(l.to_owned(), style)));
     }
-    let footer = if item.blocked.is_some() {
-        "↑↓: choose · Esc: close"
-    } else if *preview == Preview::Waiting {
-        "Checking… · ↑↓: choose · Esc: close"
-    } else {
-        "Enter: run it · ↑↓: choose · Esc: close"
+    let footer = match confirm {
+        // Opened with x or u: one action, run by the same key again.
+        Some(_) if item.blocked.is_some() => "Esc: close".to_owned(),
+        Some(_) if *preview == Preview::Waiting => "Checking… · Esc: close".to_owned(),
+        Some(c) => format!("{c} or Enter: run it · Esc: close"),
+        None if item.blocked.is_some() => "↑↓: choose · Esc: close".to_owned(),
+        None if *preview == Preview::Waiting => "Checking… · ↑↓: choose · Esc: close".to_owned(),
+        None => "Enter: run it · ↑↓: choose · Esc: close".to_owned(),
     };
-    (title, body, footer.into())
+    (title, body, footer)
 }
 
 /// What a command without a dry run will and won't do.
@@ -248,6 +241,7 @@ mod tests {
             items: vec![],
             selected: 0,
             preview: Preview::None,
+            confirm: None,
         };
         assert_eq!(border(&menu), heading());
         assert_eq!(border(&done("Done")), theme().ok());

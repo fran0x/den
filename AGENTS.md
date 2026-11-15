@@ -12,7 +12,7 @@ Keep changes within the requested scope.
 | `src/main.rs` | CLI arguments and choosing live or offline sources |
 | `src/app.rs`, `src/listing.rs`, `src/status.rs` | Application state; shared list state (selection, search, refresh); the typed row status (Ready, Problem, Off, Installed) |
 | `src/inventory.rs`, `src/source.rs` | Den resource/snapshot types and Den JSON loading |
-| `src/online.rs` | Online checks (`u`): registry names and URLs, the HTTP client, answer parsing, the bounded parallel check and the results file |
+| `src/online.rs` | Online checks (`U`): registry names and URLs, the HTTP client, answer parsing, the bounded parallel check and the results file |
 | `src/snapshot.rs` | What changed: rows reduced to entries (section, key, name, one list value; never panel text), their diff, per-list tracking (`d`) and the saved snapshot file (`S`) |
 | `src/tui/` | Terminal lifecycle and event loop (`terminal`), split escape sequences (`keys`), section/inspector navigation and Back history (`presentation`), rendering and help (`ui/`) |
 | `src/areas/homebrew/` | Homebrew normalization, bounded subprocesses, dependency graph, tree projection, diagnostics and reconciliation tests |
@@ -110,8 +110,10 @@ terminal screenshots for visible layout changes.
 Den is read-only by default. Writes live only in `src/actions.rs`: a closed `Action` enum
 whose command lines are built from names checked by `Package::new`, a preview (dry run)
 where the tool has one, and a run that needs a `Permit` (created only for the `dew` binary, in `cli`)
-after an explicit Enter on the chosen action (uninstall
-is always listed last). Writes use `homebrew::run_write`:
+after an explicit confirmation of the action its dialog shows: Enter, or the key that
+opened it (`x` for the removal, `u` for the upgrade) pressed again, refused while a dry run
+is pending or the action is blocked. A multi-step action (`DockerStopAndRemove`) runs its
+steps in order and stops at the first failure. Writes use `homebrew::run_write`:
 no shell, closed stdin, own process group, timeout, SIGTERM with a grace period before
 SIGKILL. Never add `--force`, `--ignore-dependencies`, `--zap`, sudo or free-form
 arguments; each new action needs known-answer tests of its command line, a smoke step
@@ -124,7 +126,7 @@ Reading it (`snapshot::load`) refuses links and files over 4 MiB, rejects unknow
 and newer versions, and never changes or removes the file. Entries hold list columns only:
 a new entry field must never carry panel text or anything Den withholds.
 Online checks are the only network access Den itself makes, all in `src/online.rs`: only
-after `u` and Enter, only in live mode, only HTTPS GETs to the hosts in `Registry::host`
+after `U` and Enter, only in live mode, only HTTPS GETs to the hosts in `Registry::host`
 (checked again in `online::get`), with no redirects, a 10 s timeout, a 16 MiB answer limit
 and at most four requests at once. Only a package name leaves the machine, after
 `Package::new` checks it against the registry's rules; installed versions, paths and
@@ -154,7 +156,7 @@ Homebrew may fetch metadata despite disabled auto-update/analytics. Den reads on
 modification times of `*.jws.json` in Homebrew's API cache (how old "outdated" is), never
 their contents. Update notices use data already on the machine (Homebrew's, Codex's
 `version.json`: `latest_version` and the check date only) or the answers of an online
-check (`u`); never query a registry outside `src/online.rs`. Demo/snapshot modes
+check (`U`); never query a registry outside `src/online.rs`. Demo/snapshot modes
 never run Homebrew or discover live Codex data; fixtures stay within their explicit roots.
 
 From `~/.claude.json` keep only `mcpServers` and the selected project's MCP approvals,

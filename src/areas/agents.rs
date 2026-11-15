@@ -776,7 +776,7 @@ impl crate::app::App {
                 self.agents_reset_panel();
                 self.agents_clamp();
             }
-            KeyCode::Char('V') if section == Section::Mcp => {
+            KeyCode::Char('v') if section == Section::Mcp => {
                 self.codex.mcp_source = self.codex.mcp_source.wrapping_add(1);
                 self.agents.panel.offset = 0;
             }
