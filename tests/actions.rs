@@ -262,7 +262,7 @@ fn the_same_key_again_runs_a_removal_or_an_upgrade() {
     // x opens the uninstall alone; x again runs it, like Enter.
     let mut a = app(true);
     select(&mut a, "ripgrep");
-    assert!(draw(&mut a, 140, 30).contains("x:remove u:upgrade Enter:actions a:Homebrew actions"));
+    assert!(draw(&mut a, 140, 30).contains("u:upgrade x:remove Enter:actions a:Homebrew actions"));
     key(&mut a, KeyCode::Char('x'));
     assert_eq!(
         menu(&a),

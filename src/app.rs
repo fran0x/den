@@ -713,11 +713,12 @@ impl App {
         let mut keys = vec![];
         if self.row_actions_here() {
             let (_, items) = self.row_menu();
-            if items.iter().any(|i| i.action.removes()) {
-                keys.push("x:remove".to_owned());
-            }
+            // The upgrade first: it is the more common action, and the safer one.
             if items.iter().any(|i| i.action.upgrades()) {
                 keys.push("u:upgrade".to_owned());
+            }
+            if items.iter().any(|i| i.action.removes()) {
+                keys.push("x:remove".to_owned());
             }
             if !items.is_empty() {
                 keys.push("Enter:actions".to_owned());

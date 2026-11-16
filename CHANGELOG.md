@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Footer:** `u:upgrade` comes before `x:remove`.
+
 ## [0.8.1] - 2026-11-15
 
 - **Fixed: a quick `u` `u` got stuck** on "Wait for the preview to finish". A second press

@@ -29,7 +29,7 @@ The bottom line lists the keys that work where you are, in three groups separate
 
 | Group | Keys | Applies to |
 | --- | --- | --- |
-| Here | this view's own (`x:remove`, `u:upgrade`, `a:… actions` and `Enter:actions` in `dew`, `t:tools/all`, `[:reports` in Diagnostics, …), then `d:changes` and `r:refresh` | this area |
+| Here | this view's own (`u:upgrade`, `x:remove`, `a:… actions` and `Enter:actions` in `dew`, `t:tools/all`, `[:reports` in Diagnostics, …), then `d:changes` and `r:refresh` | this area |
 | All areas | `S:snapshot`, `U:check online` (live data only) | every area read so far |
 | Moving around | `Tab`, `Shift+Tab`, `/`, `PgUp`/`PgDn`, `?`, `q` | — |
 
@@ -304,8 +304,8 @@ actions allowed. The top bar shows a red **WRITE** the whole time. Select a row,
 
 | Key | Opens | Then |
 | --- | --- | --- |
-| `x` | the row's removal: uninstall a package, remove an image, volume or stopped container, or stop and remove a running one | `x` again or `Enter` runs it |
 | `u` | the row's upgrade (or, for an image, the pull of its newer build), with its dry run | `u` again or `Enter` runs it |
+| `x` | the row's removal: uninstall a package, remove an image, volume or stopped container, or stop and remove a running one | `x` again or `Enter` runs it |
 | `a` | this area's own actions: in Homebrew, update its package data, remove dependencies nothing needs and clean up; in Docker, remove every unused untagged image | `↑` `↓` to choose, `Enter` runs it |
 | `Enter` | every action for the row | `↑` `↓` to choose, `Enter` runs it |
 

@@ -127,7 +127,7 @@ Only names are sent.";
 /// What dew can change, by area.
 const DEW_ACTIONS: &str = "\
 dew\n\
-x remove, u upgrade: the same key again runs it\n\
+u upgrade, x remove: the same key again runs it\n\
 a this area's actions · Enter every action for the row\n\
 Exact command and dry run first. Never --force, prune, sudo or a shell.";
 pub(super) fn help(app: &App) -> String {
@@ -149,7 +149,7 @@ Diagnostics: unresolved links, missing dependencies, leaves, cleanup."
     let changes = if app.actions.allowed() {
         DEW_ACTIONS
     } else {
-        "den changes nothing; dew does (x remove, u upgrade, a area, Enter all)."
+        "den changes nothing; dew does (u upgrade, x remove, a area, Enter all)."
     };
     format!(
         "Keys: bottom line: this area │ all areas (S, U) │ moving around. Lowercase acts here, uppercase on all areas.\n\

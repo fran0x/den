@@ -69,8 +69,8 @@ reference. Try it without reading your machine: `den --demo`.
 
 ![dew showing ripgrep's upgrade and its dry run](docs/images/dew.svg)
 
-`dew` shows WRITE in the top bar. Select a row, then press `x` to remove it or `u` to
-upgrade it, and the same key again to run it. `a` opens the area's own actions (Homebrew's
+`dew` shows WRITE in the top bar. Select a row, then press `u` to upgrade it or `x` to
+remove it, and the same key again to run it. `a` opens the area's own actions (Homebrew's
 maintenance, Docker's unused images), and `Enter` every action for the row.
 
 | Area | Actions |
