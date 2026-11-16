@@ -5,6 +5,8 @@ All notable changes to Den are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-16
+
 - **Footer:** `u:upgrade` comes before `x:remove`.
 
 ## [0.8.1] - 2026-11-15
@@ -195,7 +197,8 @@ First public release. Den is a read-only terminal inspector with five areas:
 - **Toolchains:** which commands win on PATH, Rust toolchains and `cargo install` crates,
   and global npm, uv, pipx, bun and go packages.
 
-[Unreleased]: https://github.com/fran0x/den/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/fran0x/den/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/fran0x/den/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/fran0x/den/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/fran0x/den/compare/v0.7.4...v0.8.0
 [0.7.4]: https://github.com/fran0x/den/compare/v0.7.3...v0.7.4
